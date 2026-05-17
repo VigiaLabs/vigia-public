@@ -1,9 +1,13 @@
 import { CitationPill } from "./citation-pill";
 import { SourceCarousel } from "./source-carousel";
+import { EvidenceGallery } from "./evidence-gallery";
+import { FinancialBar } from "./financial-bar";
+import { ActionBlock } from "./action-block";
+import { MapView } from "@/components/ui/map-view";
 
 export function MessageFeed() {
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
+    <div className="mx-auto max-w-3xl px-4 md:px-6 py-8">
       {/* User Query Bubble */}
       <div className="flex justify-center mb-8">
         <div className="bg-gray-100 rounded-2xl px-5 py-2.5 text-sm font-sans text-gray-800 max-w-lg">
@@ -26,6 +30,10 @@ export function MessageFeed() {
           crore was disbursed by Q3{" "}
           <CitationPill number={2} label="RTI/MC/2024/1847" />.
         </p>
+
+        {/* Financial Progress Bar */}
+        <FinancialBar />
+
         <p
           className="opacity-0 animate-fade-in-up"
           style={{ animationDelay: "150ms", animationFillMode: "forwards" }}
@@ -37,6 +45,15 @@ export function MessageFeed() {
           progressed beyond the &ldquo;Technical Evaluation&rdquo; stage{" "}
           <CitationPill number={4} label="Ward 12 Dashboard" />.
         </p>
+
+        {/* VLM Evidence Gallery */}
+        <EvidenceGallery />
+
+        {/* Inline Map (mobile/tablet) */}
+        <MapView />
+
+        {/* Civic Action CTA */}
+        <ActionBlock />
       </div>
     </div>
   );

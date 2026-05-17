@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Merriweather } from "next/font/google";
 import { Sidebar } from "@/components/layout/sidebar";
+import { MobileSidebar } from "@/components/layout/mobile-sidebar";
 import "./globals.css";
 
 const inter = Inter({
@@ -31,7 +32,8 @@ export default function RootLayout({
     >
       <body className="flex h-full min-h-screen">
         <Sidebar />
-        <main className="flex-1 ml-[260px]">{children}</main>
+        <MobileSidebar />
+        <main className="flex-1 md:ml-[260px]">{children}</main>
       </body>
     </html>
   );

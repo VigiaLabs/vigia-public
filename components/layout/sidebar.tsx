@@ -8,9 +8,9 @@ const history = [
   "Smart City Mission — Phase 2",
 ];
 
-export function Sidebar() {
+export function SidebarContent() {
   return (
-    <aside className="fixed left-0 top-0 h-screen w-[260px] border-r border-gray-200 bg-sidebar-bg flex flex-col p-4">
+    <div className="flex h-full flex-col">
       {/* Branding */}
       <div className="flex items-center gap-1 px-2 py-3">
         <span className="text-lg font-bold text-gray-900">VIGIA</span>
@@ -52,6 +52,14 @@ export function Sidebar() {
         <span className="text-sm text-gray-700">Citizen User</span>
         <Settings className="ml-auto h-4 w-4 text-gray-400" />
       </div>
+    </div>
+  );
+}
+
+export function Sidebar() {
+  return (
+    <aside className="fixed left-0 top-0 hidden h-screen w-[260px] border-r border-gray-200 bg-sidebar-bg p-4 md:flex md:flex-col">
+      <SidebarContent />
     </aside>
   );
 }
