@@ -3,8 +3,22 @@
 @theme inline {
   --color-cream: #f9f9f8;
   --color-sidebar-bg: #f0efed;
+
+  --color-surface: #ffffff;
+  --color-border: #e5e7eb;
+  --color-border-subtle: #f3f4f6;
+  --color-text-primary: #111827;
+  --color-text-secondary: #4b5563;
+  --color-text-muted: #9ca3af;
+  --color-accent: #1f2937;
+  --color-trust-green: #dcfce7;
+  --color-trust-blue: #dbeafe;
+  --color-trust-amber: #fef3c7;
+  --color-severity-red: #dc2626;
+
   --font-sans: var(--font-inter), system-ui, sans-serif;
   --font-serif: var(--font-merriweather), Georgia, serif;
+
   --animate-fade-in-up: fade-in-up 0.4s ease-out forwards;
   --animate-slide-in-left: slide-in-left 0.3s ease-out forwards;
   --animate-slide-in-right: slide-in-right 0.3s ease-out forwards;
@@ -45,19 +59,50 @@
 }
 
 @keyframes fill-bar {
-  from { width: 0%; }
-  to { width: var(--fill-width); }
+  from {
+    width: 0%;
+  }
+  to {
+    width: var(--fill-width);
+  }
 }
 
-body {
-  background: var(--color-cream);
-  color: #171717;
-  font-family: var(--font-sans);
+@layer base {
+  html {
+    @apply bg-cream text-text-primary font-sans;
+  }
+
+  body {
+    @apply bg-cream text-text-primary font-sans antialiased;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  summary {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    transition-duration: 0.15s !important;
+    scroll-behavior: auto !important;
+  }
+
+  [class*="translate-"],
+  [class*="slide-in"],
+  [class*="fade-in-up"] {
+    transform: none !important;
   }
 }

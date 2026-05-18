@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Merriweather } from "next/font/google";
-import { Sidebar } from "@/components/layout/sidebar";
 import { MobileSidebar } from "@/components/layout/mobile-sidebar";
+import { Sidebar } from "@/components/layout/sidebar";
 import "./globals.css";
 
 const inter = Inter({
@@ -10,7 +10,7 @@ const inter = Inter({
 });
 
 const merriweather = Merriweather({
-  weight: ["300", "400", "700"],
+  weight: ["400", "700"],
   subsets: ["latin"],
   variable: "--font-merriweather",
 });
@@ -18,6 +18,18 @@ const merriweather = Merriweather({
 export const metadata: Metadata = {
   title: "VIGIA Search",
   description: "Perplexity for Government Infrastructure",
+  themeColor: "#111827",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "VIGIA",
+  },
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover",
+  },
 };
 
 export default function RootLayout({
@@ -30,7 +42,7 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${merriweather.variable} h-full antialiased`}
     >
-      <body className="flex h-full min-h-screen">
+      <body className="flex min-h-screen h-full bg-cream text-text-primary">
         <Sidebar />
         <MobileSidebar />
         <main className="flex-1 md:ml-[260px]">{children}</main>
