@@ -3,271 +3,182 @@
 ## VIGIA Engineering Rules
 
 This repository follows a strict modular architecture.
-Do not place logic arbitrarily across the codebase.
+
+## High-level rules
+- Keep business logic out of UI.
+- Prefer small, typed modules.
+- Preserve offline-first and background sync behavior.
+- Keep import direction: UI → orchestration → persistence. Never reverse it.
+- Do not commit directly to main.
 
 ---
 
-## 1. Core Architecture
+## 1) Current runtime + key entry points
 
-### app/
+### Next.js App Router
+- UI lives under `app/` and `components/`.
+- Server/API logic for chat lives in `app/api/chat/route.ts`.
+- The current chat API is non-streaming and returns JSON:
+  - `{ reply, sources }`
+
+### Thread routing
+The app is URL-driven:
+
+- `/` = new chat
+- `/t/[threadId]` = open an existing thread
+
+Routing entry points:
+- `app/page.tsx`
+- `app/t/[threadId]/page.tsx`
+
+### Offline + persistence (IndexedDB)
+Offline persistence uses IndexedDB via Dexie:
+
+- `lib/db/offline-store.ts`
+
+Core data model:
+- `threads` (conversation-level)
+- `messages` (turn-level)
+
+### Sync + maintenance
+Sync and maintenance helpers live in:
+
+- `lib/db/sync.ts`
+
+Expected behavior:
+- User messages are queued immediately.
+- When online, pending messages are synced in the background.
+- Cleanup/pruning is conservative and never deletes pending records.
+
+### PWA layer
+PWA is enabled via `next-pwa`:
+
+- `next.config.ts`
+- `public/manifest.json`
+- `public/icon-192.png`
+- `public/icon-512.png`
+
+---
+
+## 2) Folder responsibilities
+
+### `app/`
 Routing and composition only.
 
 Allowed:
-- layouts
+- layouts/pages
 - providers
-- route handlers
-- page composition
+- route handlers (for example `app/api/**`)
 
 Not allowed:
-- database logic
-- AI orchestration
-- fetch logic
-- tool execution
-- business logic
+- IndexedDB / Dexie schema logic
+- persistence orchestration beyond calling `lib/*`
 
 ---
 
-### components/ui/
-Reusable dumb UI primitives only.
-
-Examples:
-- Button
-- Input
-- Sheet
-- ScrollArea
+### `components/ui/`
+Reusable, dumb UI primitives.
 
 Rules:
-- No API calls
-- No AI logic
-- No IndexedDB logic
-- No direct imports from lib/agents or lib/db
+- no API calls
+- no offline persistence
+- no routing decisions beyond rendering UI
 
 ---
 
-### components/chat/
-Chat-specific presentation components.
+### `components/chat/`
+Chat UI and lightweight client-side orchestration.
 
-Examples:
-- message-feed
-- citation-pill
-- evidence-gallery
-- financial-bar
-
-Rules:
-- May consume typed props only
-- No orchestration logic
-- No direct fetch calls
-- No model calls
-
----
-
-### components/layout/
-Navigation and layout shells only.
-
-Examples:
-- sidebar
-- mobile-sidebar
-- top navigation
-
----
-
-### lib/chat/
-Owns the AI streaming pipeline.
-
-Responsibilities:
-- AI state
-- UI state
-- server actions
-- streaming
-- model communication
-
-Rules:
-- No UI rendering logic
-- No Tailwind styling
-- No DOM access
-
----
-
-### lib/agents/
-Agent orchestration layer.
-
-Responsibilities:
-- routing
-- planning
-- tool selection
-- multi-step reasoning
-
-Rules:
-- No React imports
-- No browser APIs
-- No Tailwind
-- No UI components
-
----
-
-### lib/tools/
-Pure tool implementations.
-
-Examples:
-- RTI lookup
-- tender search
-- spatial data retrieval
-
-Rules:
-- Pure functions only
-- No React
-- No DOM
-- No component imports
-
----
-
-### lib/db/
-Offline infrastructure and persistence layer.
-
-Responsibilities:
-- IndexedDB
-- background sync
-- caching
-- evidence staging
-
-Rules:
-- Browser-safe only
-- Export async functions only
-- No React components
-
----
-
-## 2. Import Boundaries
-
-Allowed import direction:
-
-UI
-↓
-chat pipe
-↓
-agents
-↓
-tools
-↓
-db / external APIs
-
-Never reverse this direction.
-
-Forbidden examples:
-- components importing agents
-- tools importing UI
-- db importing components
-- agents importing React components
-
----
-
-## 3. Styling Rules
-
-This project follows a strict editorial design system.
-
-### Typography
-- `font-serif` may be used only inside AI-generated answer blocks.
-- `font-sans` must be used everywhere else.
-
-Do not introduce additional fonts.
-
-### Colors
-Do not hardcode hex values in components.
-
-Use semantic tokens from `app/globals.css`.
-
-Example:
-- `text-text-primary`
-- `bg-surface`
-- `border-border`
-
-Not:
-- `text-gray-900`
-- `bg-white`
-
-### Shadows
 Allowed:
-- `shadow-sm`
-- `shadow-md`
-- `shadow-lg`
+- calling typed functions from `lib/db/*` to load/store threads and messages
+- calling the chat route handler via `fetch('/api/chat')`
 
-Do not create custom shadow systems unless explicitly approved.
-
----
-
-## 4. State Management
-
-AI state must flow through:
-- `lib/chat/actions.tsx`
-- `createAI()`
-- `createStreamableUI()`
-
-Do not create parallel chat state systems.
+Not allowed:
+- Dexie schema definitions
+- app-wide navigation shell responsibilities
 
 ---
 
-## 5. Offline Rules
+### `components/layout/`
+App shell and navigation.
 
-All offline persistence must go through:
-- `lib/db/offline-store.ts`
+Allowed:
+- navigate to `/` and `/t/[threadId]`
+- display queue/sync status via `lib/db/*`
 
-Never access IndexedDB directly from components.
-
----
-
-## 6. Type Safety
-
-Shared interfaces belong in:
-- `types/`
-- `lib/chat/types.ts`
-
-Do not duplicate interfaces across modules.
+Not allowed:
+- chat runtime logic (keep that in `components/chat/*` and the route handler)
 
 ---
 
-## 7. File Naming
+### `lib/db/`
+Offline infrastructure and persistence.
 
-Use kebab-case for files.
+Responsibilities:
+- Dexie schema + migrations
+- thread/message CRUD
+- queue stats
+- background sync + maintenance
+- conservative cleanup/pruning
 
-Examples:
-- `input-bar.tsx`
-- `offline-store.ts`
-- `citation-pill.tsx`
-
----
-
-## 8. Branching
-
-Never commit directly to main.
-
-Branch format:
-- core-foundation
+Rules:
+- browser-safe only
+- no React components
+- export async functions and small utilities
 
 ---
 
-## 9. Pull Requests
+## 3) Import boundaries
 
-Every PR should:
+Allowed direction:
+- `components/*` → `lib/db/*`
+
+Forbidden:
+- `lib/db/*` importing React or `components/*`
+- `components/ui/*` importing `lib/db/*`
+
+Keep dependencies moving downward only.
+
+---
+
+## 4) Chat + offline flow (expected behavior)
+
+1. User sends a message.
+2. The message is saved immediately to IndexedDB as pending.
+3. If online, the app calls `app/api/chat/route.ts` and stores the assistant reply.
+4. If offline, the UI shows a pending state and background sync resolves it later.
+
+Notes:
+- Pending records are durable.
+- Cleanup must never delete pending records.
+- UI must remain resilient when an assistant reply is missing because sync has not happened yet.
+- The current chat transport is route-based JSON, not streaming.
+
+---
+
+## 5) Styling rules
+
+- Prefer semantic tokens defined in `globals.css`.
+- Avoid hardcoded hex values in components.
+- Keep the design minimal and consistent.
+
+---
+
+## 6) Type safety
+
+Shared DB types live in `types.ts`.
+
+Avoid duplicating message/thread interfaces in components.
+
+---
+
+## 7) Branching + PR expectations
+
+- Do not commit directly to `main`.
+- Keep work on feature or foundation branches.
+
+PRs should:
+- preserve offline-first behavior
 - follow import boundaries
-- avoid duplicated types
-- avoid inline hardcoded styles
-- avoid business logic in components
-
----
-
-## 10. Engineering Principle
-
-This project is not a dashboard.
-
-The product should feel:
-- editorial
-- trustworthy
-- minimal
-- government-grade
-- evidence-driven
-
-Avoid:
-- flashy SaaS UI patterns
-- excessive gradients
-- gamified UX
-- unnecessary animations
+- keep DB migrations backwards compatible
+- include a short testing note covering online/offline and thread routing
