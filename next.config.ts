@@ -40,18 +40,7 @@ const withPWA = nextPWA({
         },
       },
     },
-    {
-      urlPattern: /^\/api\/chat/,
-      handler: 'NetworkFirst',
-      options: {
-        cacheName: 'chat-api-cache',
-        networkTimeoutSeconds: 5,
-        expiration: {
-          maxEntries: 20,
-          maxAgeSeconds: 60 * 60, // 1 hour
-        },
-      },
-    },
+    // NOTE: /api/chat is intentionally NOT cached — LLM responses must never be stale
   ],
 });
 

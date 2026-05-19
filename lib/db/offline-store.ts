@@ -46,6 +46,25 @@ export const db = new VigiaOfflineDB();
 
 export const DEFAULT_RETENTION_DAYS = 45;
 
+/**
+ * Wraps a Dexie write operation with QuotaExceededError handling.
+ * On quota exceeded: runs emergency cleanup (7-day retention), then retries once.
+ */
+async function withQuotaGuard<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (err: unknown) {
+    if (
+      err instanceof DOMException &&
+      (err.name === 'QuotaExceededError' || err.code === 22)
+    ) {
+      await cleanupOfflineData({ retentionDays: 7 });
+      return await operation();
+    }
+    throw err;
+  }
+}
+
 function computeTitleFromFirstUserMessage(text: string) {
   const t = text.trim();
   if (!t) return 'New thread';
@@ -130,7 +149,7 @@ export async function createThread(firstUserText?: string): Promise<string> {
     status: 'active',
   };
 
-  await db.threads.put(thread);
+  await withQuotaGuard(() => db.threads.put(thread));
   return id;
 }
 
@@ -151,8 +170,10 @@ export async function getThreadMessages(threadId: string): Promise<ThreadMessage
 }
 
 export async function addMessage(message: ThreadMessage): Promise<void> {
-  await db.messages.put(message);
-  await touchThread(message.threadId, message.createdAt);
+  await withQuotaGuard(async () => {
+    await db.messages.put(message);
+    await touchThread(message.threadId, message.createdAt);
+  });
 }
 
 /** QUEUE + SYNC (new model) */
@@ -204,13 +225,15 @@ export async function getPendingMessages(): Promise<ThreadMessage[]> {
 /** LEGACY APIs kept (used by older code paths or migration safety) */
 export async function saveQueryOffline(query: string): Promise<string> {
   const id = crypto.randomUUID();
-  await db.requests.put({
-    id,
-    timestamp: Date.now(),
-    query,
-    status: 'pending',
-    retryCount: 0,
-  });
+  await withQuotaGuard(() =>
+    db.requests.put({
+      id,
+      timestamp: Date.now(),
+      query,
+      status: 'pending',
+      retryCount: 0,
+    })
+  );
   return id;
 }
 

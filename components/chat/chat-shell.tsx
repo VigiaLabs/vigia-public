@@ -41,6 +41,7 @@ export function ChatShell({ selectedThreadId }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   const effectiveThreadId = useMemo(
     () => selectedThreadId ?? null,
@@ -136,21 +137,23 @@ export function ChatShell({ selectedThreadId }: Props) {
     const text = messageText.trim();
     if (!text || isSending) return;
 
+    // Abort any in-flight request
+    abortRef.current?.abort();
+    abortRef.current = new AbortController();
+    const signal = abortRef.current.signal;
+
     setError(null);
     setIsSending(true);
 
     let threadId = effectiveThreadId;
 
-    // Create thread lazily on first message, then navigate to it (professional behavior)
     if (!threadId) {
       threadId = await createThread(text);
       router.push(`/t/${threadId}`);
     }
 
-    // Always queue locally first (offline-first)
     const messageId = await queueUserMessage(threadId, text);
 
-    // Optimistic UI append
     setMessages((prev) => {
       const withoutSeed =
         prev.length === 1 && prev[0]?.id === 'seed-1' ? [] : prev;
@@ -167,7 +170,10 @@ export function ChatShell({ selectedThreadId }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: text }),
+        signal,
       });
+
+      if (signal.aborted) return;
 
       const data: unknown = await response.json().catch(() => null);
 
@@ -190,6 +196,8 @@ export function ChatShell({ selectedThreadId }: Props) {
           ? (data as { reply: string }).reply
           : 'No reply returned.';
 
+      if (signal.aborted) return;
+
       const assistantId = await addAssistantMessage(threadId, reply);
 
       setMessages((prev) => [
@@ -197,6 +205,7 @@ export function ChatShell({ selectedThreadId }: Props) {
         { id: assistantId, role: 'assistant', content: reply },
       ]);
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
       setError(msg);
       setMessages((prev) => [

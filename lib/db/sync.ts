@@ -25,8 +25,11 @@ export async function runStartupMaintenance(): Promise<void> {
   }
 }
 
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
+
 /**
- * Sync pending messages and cleanup (only if something was synced).
+ * Sync pending messages with retry + exponential backoff, then cleanup.
  */
 export async function syncAndCleanup(): Promise<{
   synced: number;
@@ -38,52 +41,60 @@ export async function syncAndCleanup(): Promise<{
   let failed = 0;
 
   for (const msg of pending) {
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg.content }),
-      });
+    let attempt = 0;
+    let success = false;
 
-      const data: unknown = await response.json().catch(() => null);
+    while (attempt < MAX_RETRIES && !success) {
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg.content }),
+        });
 
-      if (!response.ok) {
-        throw new Error(
+        const data: unknown = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(
+            typeof data === 'object' &&
+              data !== null &&
+              'error' in data &&
+              typeof (data as { error?: unknown }).error === 'string'
+              ? (data as { error: string }).error
+              : 'Sync failed'
+          );
+        }
+
+        const reply =
           typeof data === 'object' &&
-            data !== null &&
-            'error' in data &&
-            typeof (data as { error?: unknown }).error === 'string'
-            ? (data as { error: string }).error
-            : 'Sync failed'
-        );
-      }
+          data !== null &&
+          'reply' in data &&
+          typeof (data as { reply?: unknown }).reply === 'string'
+            ? (data as { reply: string }).reply
+            : 'No reply returned.';
 
-      const reply =
-        typeof data === 'object' &&
-        data !== null &&
-        'reply' in data &&
-        typeof (data as { reply?: unknown }).reply === 'string'
-          ? (data as { reply: string }).reply
-          : 'No reply returned.';
+        // Deduplicate: only add assistant message if none exists for this request
+        const existing = await db.messages
+          .where('requestId')
+          .equals(msg.id)
+          .first();
 
-      // Only add assistant message if one doesn't already exist for this user message
-      // Check if there's already an assistant message after this user message
-      const laterAssistant = await db.messages
-        .where('threadId')
-        .equals(msg.threadId)
-        .filter((m: any) => m.role === 'assistant' && m.createdAt > msg.createdAt)
-        .first();
-      
-      // If no later assistant message exists, add one
-      if (!laterAssistant) {
-        await addAssistantMessage(msg.threadId, reply, msg.id);
+        if (!existing) {
+          await addAssistantMessage(msg.threadId, reply, msg.id);
+        }
+
+        await markMessageSynced(msg.id);
+        synced += 1;
+        success = true;
+      } catch {
+        attempt += 1;
+        if (attempt >= MAX_RETRIES) {
+          await markMessageFailed(msg.id);
+          failed += 1;
+        } else {
+          await new Promise((r) => setTimeout(r, BASE_DELAY_MS * 2 ** (attempt - 1)));
+        }
       }
-      
-      await markMessageSynced(msg.id);
-      synced += 1;
-    } catch {
-      await markMessageFailed(msg.id);
-      failed += 1;
     }
   }
 
