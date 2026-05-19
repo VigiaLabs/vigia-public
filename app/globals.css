@@ -1,14 +1,31 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-cream: #f9f9f8;
-  --color-sidebar-bg: #f0efed;
+  --color-cream: #fafaf8;
+  --color-sidebar-bg: #f5f3f0;
+
+  --color-surface: #ffffff;
+  --color-border: #e5e7eb;
+  --color-border-subtle: #f3f4f6;
+  --color-text-primary: #0f0f0f;
+  --color-text-secondary: #525252;
+  --color-text-muted: #a0a0a0;
+  --color-accent: #1f2937;
+  --color-trust-green: #dcfce7;
+  --color-trust-blue: #dbeafe;
+  --color-trust-amber: #fef3c7;
+  --color-severity-red: #dc2626;
+
   --font-sans: var(--font-inter), system-ui, sans-serif;
   --font-serif: var(--font-merriweather), Georgia, serif;
+
   --animate-fade-in-up: fade-in-up 0.4s ease-out forwards;
   --animate-slide-in-left: slide-in-left 0.3s ease-out forwards;
   --animate-slide-in-right: slide-in-right 0.3s ease-out forwards;
   --animate-fill-bar: fill-bar 0.8s ease-out 0.2s forwards;
+  --animate-fade-in: fade-in 0.3s ease-out forwards;
+  --animate-message-appear: message-appear 0.3s ease-out forwards;
+  --animate-subtle-scale: subtle-scale 0.25s ease-out forwards;
 }
 
 @keyframes fade-in-up {
@@ -45,19 +62,107 @@
 }
 
 @keyframes fill-bar {
-  from { width: 0%; }
-  to { width: var(--fill-width); }
+  from {
+    width: 0%;
+  }
+  to {
+    width: var(--fill-width);
+  }
 }
 
-body {
-  background: var(--color-cream);
-  color: #171717;
-  font-family: var(--font-sans);
+@keyframes slide-in-from-top-2 {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes message-appear {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes subtle-scale {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@layer base {
+  html {
+    @apply bg-cream text-text-primary font-sans;
+  }
+
+  body {
+    @apply bg-cream text-text-primary font-sans antialiased;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  summary {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 transition-all duration-150;
+  }
+
+  /* Typography utilities for reading comfort */
+  .prose-body {
+    @apply text-base leading-[1.75] text-text-primary;
+  }
+
+  .prose-metadata {
+    @apply text-xs uppercase tracking-wide text-text-muted font-medium;
+  }
+
+  .prose-label {
+    @apply text-xs font-medium text-text-secondary;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * {
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  [class*="translate-"],
+  [class*="slide-in"],
+  [class*="fade-in"],
+  [class*="message-appear"],
+  [class*="subtle-scale"] {
+    transform: none !important;
   }
 }

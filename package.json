@@ -9,15 +9,20 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/rsc": "^2.0.184",
     "@radix-ui/react-dialog": "^1.1.4",
     "clsx": "^2.1.1",
+    "dexie": "^4.4.2",
     "lucide-react": "^0.468.0",
     "next": "16.2.6",
+    "next-pwa": "^5.6.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/next-pwa": "^5.6.9",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -1,59 +1,107 @@
-import { CitationPill } from "./citation-pill";
-import { SourceCarousel } from "./source-carousel";
-import { EvidenceGallery } from "./evidence-gallery";
-import { FinancialBar } from "./financial-bar";
-import { ActionBlock } from "./action-block";
-import { MapView } from "@/components/ui/map-view";
+import type { ChatMessage } from '@/types';
 
-export function MessageFeed() {
+type MessageFeedProps = {
+  messages: ChatMessage[];
+};
+
+function getSyncStatusLabel(status?: string): string {
+  if (status === 'pending') return 'Sending...';
+  if (status === 'failed') return 'Failed to send';
+  return '';
+}
+
+function getSyncStatusColor(status?: string): string {
+  if (status === 'pending') return 'text-amber-600';
+  if (status === 'failed') return 'text-red-600';
+  return 'text-gray-400';
+}
+
+export function MessageFeed({ messages }: MessageFeedProps) {
   return (
-    <div className="mx-auto max-w-3xl px-4 md:px-6 py-8">
-      {/* User Query Bubble */}
-      <div className="flex justify-center mb-8">
-        <div className="bg-gray-100 rounded-2xl px-5 py-2.5 text-sm font-sans text-gray-800 max-w-lg">
-          What is the current budget allocation for SH-15 pothole repairs in Ward 12?
-        </div>
-      </div>
+    <div className="mx-auto w-full max-w-2xl px-4 py-8 md:px-6 lg:px-8">
+      <div className="space-y-12">
+        {messages.map((message, idx) => (
+          <div key={message.id} style={{ animation: `message-appear 0.3s ease-out ${idx * 50}ms forwards` }} className="opacity-0">
+            {message.role === 'user' ? (
+              // User message: compact, visually secondary, right-aligned
+              <div className="flex justify-end">
+                <div className="flex flex-col items-end gap-2 max-w-[70%]">
+                  <div className="rounded-md bg-gray-900 px-4 py-2.5 text-sm text-white break-words">
+                    <p>{message.content}</p>
+                  </div>
+                  {message.syncStatus && (
+                    <div className={`text-xs ${getSyncStatusColor(message.syncStatus)}`}>
+                      {getSyncStatusLabel(message.syncStatus)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              // Assistant message: structured intelligence output
+              <div className="space-y-6">
+                {/* Main content block - editorial, no bubble styling */}
+                <div className="prose-body max-w-2xl">
+                  {/* Parse content into logical sections */}
+                  {message.content.split('\n\n').map((paragraph, idx) => {
+                    const trimmed = paragraph.trim();
+                    if (!trimmed) return null;
 
-      {/* Source Cards */}
-      <SourceCarousel />
+                    // Detect section headers (lines starting with ##)
+                    if (trimmed.startsWith('##')) {
+                      return (
+                        <div key={idx} className="mt-8 first:mt-0">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-3">
+                            {trimmed.replace(/^##\s*/, '')}
+                          </h3>
+                        </div>
+                      );
+                    }
 
-      {/* AI Answer */}
-      <div className="space-y-4 font-serif text-base leading-relaxed text-gray-800">
-        <p
-          className="opacity-0 animate-fade-in-up"
-          style={{ animationDelay: "0ms", animationFillMode: "forwards" }}
-        >
-          The Municipal Corporation allocated ₹4.2 crore for SH-15 pothole repairs in
-          FY 2024-25 <CitationPill number={1} label="NHAI Tender 12" />, representing a
-          23% increase from the previous fiscal year. However, RTI data reveals only ₹1.8
-          crore was disbursed by Q3{" "}
-          <CitationPill number={2} label="RTI/MC/2024/1847" />.
-        </p>
+                    // Detect numbered lists
+                    if (/^\d+\./.test(trimmed)) {
+                      const items = trimmed.split('\n').filter(line => /^\d+\./.test(line));
+                      return (
+                        <ol key={idx} className="list-decimal list-inside space-y-2 text-gray-700 leading-relaxed">
+                          {items.map((item, i) => (
+                            <li key={i} className="text-base">
+                              {item.replace(/^\d+\.\s*/, '')}
+                            </li>
+                          ))}
+                        </ol>
+                      );
+                    }
 
-        {/* Financial Progress Bar */}
-        <FinancialBar />
+                    // Detect bullet lists
+                    if (/^[-•]/.test(trimmed)) {
+                      const items = trimmed.split('\n').filter(line => /^[-•]/.test(line));
+                      return (
+                        <ul key={idx} className="list-disc list-inside space-y-2 text-gray-700 leading-relaxed">
+                          {items.map((item, i) => (
+                            <li key={i} className="text-base">
+                              {item.replace(/^[-•]\s*/, '')}
+                            </li>
+                          ))}
+                        </ul>
+                      );
+                    }
 
-        <p
-          className="opacity-0 animate-fade-in-up"
-          style={{ animationDelay: "150ms", animationFillMode: "forwards" }}
-        >
-          The Gati Shakti spatial layer confirms that 12.4 km of SH-15 falls within Ward
-          12 boundaries <CitationPill number={3} label="PM Gati Shakti Layer" />, with
-          67% classified as &ldquo;poor condition&rdquo; in the latest survey. The Smart
-          Cities dashboard shows 3 active tenders for this stretch, but none have
-          progressed beyond the &ldquo;Technical Evaluation&rdquo; stage{" "}
-          <CitationPill number={4} label="Ward 12 Dashboard" />.
-        </p>
+                    // Regular paragraph
+                    return (
+                      <p key={idx} className="text-gray-900 leading-relaxed text-base whitespace-pre-wrap break-words">
+                        {trimmed}
+                      </p>
+                    );
+                  })}
+                </div>
 
-        {/* VLM Evidence Gallery */}
-        <EvidenceGallery />
-
-        {/* Inline Map (mobile/tablet) */}
-        <MapView />
-
-        {/* Civic Action CTA */}
-        <ActionBlock />
+                {/* Subtle metadata footer if needed - only show for completeness */}
+                <div className="text-xs text-gray-500 pt-4 border-t border-gray-100">
+                  Intelligence output from VIGIA
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );
