@@ -1,6 +1,7 @@
 import {
   addAssistantMessage,
   cleanupOfflineData,
+  db,
   getPendingMessages,
   markMessageFailed,
   markMessageSynced,
@@ -65,7 +66,19 @@ export async function syncAndCleanup(): Promise<{
           ? (data as { reply: string }).reply
           : 'No reply returned.';
 
-      await addAssistantMessage(msg.threadId, reply, msg.requestId);
+      // Only add assistant message if one doesn't already exist for this user message
+      // Check if there's already an assistant message after this user message
+      const laterAssistant = await db.messages
+        .where('threadId')
+        .equals(msg.threadId)
+        .filter((m: any) => m.role === 'assistant' && m.createdAt > msg.createdAt)
+        .first();
+      
+      // If no later assistant message exists, add one
+      if (!laterAssistant) {
+        await addAssistantMessage(msg.threadId, reply, msg.id);
+      }
+      
       await markMessageSynced(msg.id);
       synced += 1;
     } catch {

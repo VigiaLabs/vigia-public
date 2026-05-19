@@ -33,6 +33,8 @@ export function ChatShell({ selectedThreadId }: Props) {
 
   const [messages, setMessages] = useState<ChatMessage[]>(SEED_MESSAGES);
   const [threadTitle, setThreadTitle] = useState<string | null>(null);
+  const [threadCreatedAt, setThreadCreatedAt] = useState<number | null>(null);
+  const [isLoadingThread, setIsLoadingThread] = useState(false);
 
   const [value, setValue] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -60,10 +62,14 @@ export function ChatShell({ selectedThreadId }: Props) {
     async function loadThread() {
       if (!effectiveThreadId) {
         setThreadTitle(null);
+        setThreadCreatedAt(null);
         setMessages(SEED_MESSAGES);
         setError(null);
+        setIsLoadingThread(false);
         return;
       }
+
+      setIsLoadingThread(true);
 
       const [thread, msgs] = await Promise.all([
         getThread(effectiveThreadId),
@@ -72,16 +78,27 @@ export function ChatShell({ selectedThreadId }: Props) {
 
       if (cancelled) return;
 
-      setThreadTitle(thread?.title ?? 'Thread');
+      setThreadTitle(thread?.title ?? 'Search');
+      setThreadCreatedAt(thread?.createdAt ?? null);
 
-      setMessages(
-        msgs.map((m) => ({
+      // Deduplicate messages by ID (prevent sync duplicates)
+      const seen = new Set<string>();
+      const uniqueMsgs = msgs
+        .filter((m) => {
+          if (seen.has(m.id)) return false;
+          seen.add(m.id);
+          return true;
+        })
+        .map((m) => ({
           id: m.id,
           role: m.role === 'system' ? 'assistant' : m.role,
           content: m.content,
-        }))
-      );
+          syncStatus: m.syncStatus,
+        }));
+
+      setMessages(uniqueMsgs);
       setError(null);
+      setIsLoadingThread(false);
     }
 
     void loadThread();
@@ -103,6 +120,7 @@ export function ChatShell({ selectedThreadId }: Props) {
             id: m.id,
             role: m.role === 'system' ? 'assistant' : m.role,
             content: m.content,
+            syncStatus: m.syncStatus,
           }))
         );
       }
@@ -195,35 +213,47 @@ export function ChatShell({ selectedThreadId }: Props) {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col">
-      {effectiveThreadId ? (
-        <div className="border-b border-border bg-surface/30">
-          <div className="mx-auto max-w-3xl px-4 py-3 md:px-6">
-            <div className="text-xs font-medium uppercase tracking-[0.16em] text-text-muted">
-              Thread
-            </div>
-            <div className="mt-1 text-sm font-medium text-text-primary line-clamp-1">
-              {threadTitle ?? 'Thread'}
+    <div className="relative flex min-h-screen flex-col bg-white">
+      {/* Message area with loading state */}
+      <div className="flex-1 pb-32 pt-6">
+        {isLoadingThread ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="space-y-4 w-full max-w-2xl px-4">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className={`rounded-xl p-4 ${
+                    i % 2 === 0
+                      ? 'ml-auto w-2/3 bg-gray-900/5'
+                      : 'mr-auto w-2/3 bg-white'
+                  }`}
+                >
+                  <div className="space-y-2">
+                    <div className="h-3 w-full rounded bg-gray-200 animate-pulse" />
+                    <div className="h-3 w-4/5 rounded bg-gray-200 animate-pulse" />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      ) : null}
-
-      <div className="flex-1 pb-24">
-        <MessageFeed messages={messages} />
-        <div ref={bottomRef} />
+        ) : (
+          <MessageFeed messages={messages} />
+        )}
+        <div ref={bottomRef} className="h-2" />
       </div>
 
+      {/* Error message */}
       {error ? (
-        <div className="fixed bottom-20 left-0 right-0 z-20 md:left-[260px]">
-          <div className="mx-auto max-w-3xl px-4 md:px-6">
-            <div className="rounded-xl border border-border bg-surface px-4 py-3 text-sm text-text-secondary shadow-sm">
-              {error}
+        <div className="fixed bottom-40 left-0 right-0 z-20 md:left-[260px]">
+          <div className="mx-auto w-full max-w-3xl px-4 md:px-8">
+            <div className="rounded-lg bg-red-50 px-4 py-2.5 text-sm text-red-700">
+              <p>{error}</p>
             </div>
           </div>
         </div>
       ) : null}
 
+      {/* Input bar */}
       <InputBar
         value={value}
         onChange={setValue}

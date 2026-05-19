@@ -9,21 +9,29 @@ const sources = [
 
 export function SourceCarousel() {
   return (
-    <div className="flex gap-3 overflow-x-auto pb-4 mb-6">
+    <div className="my-6 space-y-3 border-l-2 border-gray-200 pl-4">
       {sources.map((source, i) => (
         <div
           key={source.domain}
-          className="flex-shrink-0 w-[200px] rounded-xl border border-gray-200 bg-white p-3 hover:shadow-sm transition-shadow cursor-pointer opacity-0 animate-slide-in-left"
+          className="opacity-0 animate-slide-in-left"
           style={{ animationDelay: `${i * 80}ms`, animationFillMode: "forwards" }}
         >
-          <div className="flex items-center gap-2 mb-1.5">
-            <FileText className="h-4 w-4 text-gray-400" />
-            <span className="text-xs text-gray-400 truncate">{source.domain}</span>
-          </div>
-          <p className="text-sm font-medium text-gray-700 line-clamp-2">{source.title}</p>
-          <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium mt-1.5 ${source.badgeColor}`}>
-            {source.badge}
-          </span>
+          <button className="group w-full text-left hover:opacity-70 transition-opacity">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <FileText className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                  <span className="text-xs text-gray-500">{source.domain}</span>
+                </div>
+                <p className="text-sm font-normal text-gray-900 line-clamp-2 group-hover:text-gray-700">
+                  {source.title}
+                </p>
+              </div>
+              <span className={`inline-flex items-center rounded px-2 py-0.5 text-[11px] font-medium whitespace-nowrap flex-shrink-0 ${source.badgeColor}`}>
+                {source.badge}
+              </span>
+            </div>
+          </button>
         </div>
       ))}
     </div>

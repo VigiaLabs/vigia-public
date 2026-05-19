@@ -66,56 +66,40 @@ export function SidebarContent() {
 
   return (
     <>
-      <div className="mb-6">
-        <div className="text-2xl font-semibold tracking-tight text-text-primary">
-          VIGIA <span className="text-text-secondary">Search</span>
-        </div>
-
-        <div className="mt-3 flex items-center justify-between rounded-xl border border-border bg-surface/40 px-3 py-2">
-          <div className="flex flex-col">
-            <div className="text-xs font-medium uppercase tracking-[0.16em] text-text-muted">
-              {statusLabel}
-            </div>
-            <div className="text-[11px] text-text-secondary">{statusHint}</div>
-          </div>
-
-          <div className="flex items-center gap-2 text-[11px] text-text-secondary">
-            <span className="rounded-full bg-black/5 px-2 py-0.5">
-              Pending {stats.pending}
-            </span>
-            <span className="rounded-full bg-black/5 px-2 py-0.5">
-              Failed {stats.failed}
-            </span>
-            <span className="rounded-full bg-black/5 px-2 py-0.5">
-              Synced {stats.synced}
-            </span>
-          </div>
-        </div>
+      {/* Header Section */}
+      <div className="mb-8">
+        <div className="text-base font-semibold text-text-primary">VIGIA</div>
+        <div className="text-xs text-text-muted mt-1">Infrastructure</div>
       </div>
 
+      {/* New Thread Button */}
       <button
         type="button"
         onClick={() => router.push('/')}
-        className="mb-8 flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-text-secondary transition-colors hover:bg-black/5 hover:text-text-primary"
+        className="w-full mb-6 flex items-center justify-center gap-2 rounded-md bg-gray-900 px-3 py-2 text-sm text-white transition-colors hover:bg-gray-800 active:bg-gray-700"
       >
         <Plus className="h-4 w-4" />
-        New Thread
+        New
       </button>
 
-      <div className="mb-3 text-xs font-medium uppercase tracking-[0.18em] text-text-muted">
-        History
+      {/* History Section */}
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="mb-3 text-xs text-text-muted font-normal">
+          Recent searches
+        </div>
+        <div className="flex-1 overflow-y-auto pr-2">
+          <QueryHistory
+            onSelect={(threadId) => {
+              router.push(`/t/${threadId}`);
+            }}
+          />
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-1">
-        <QueryHistory
-          onSelect={(threadId) => {
-            router.push(`/t/${threadId}`);
-          }}
-        />
-      </div>
-
-      <div className="mt-auto pt-6 text-sm text-text-secondary">
-        Citizen User
+      {/* Footer Section - Account Info */}
+      <div className="mt-auto pt-6 space-y-2 text-sm">
+        <div className="text-text-primary">Citizen User</div>
+        <div className="text-xs text-text-muted">Government Access</div>
       </div>
     </>
   );
@@ -123,7 +107,7 @@ export function SidebarContent() {
 
 export function Sidebar() {
   return (
-    <aside className="fixed left-0 top-0 hidden h-screen w-[260px] border-r border-border bg-sidebar-bg px-5 py-6 md:flex md:flex-col">
+    <aside className="fixed left-0 top-0 hidden h-screen w-[260px] bg-sidebar-bg px-4 py-6 md:flex md:flex-col">
       <SidebarContent />
     </aside>
   );
