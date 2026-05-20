@@ -27,6 +27,9 @@ export async function getRoadInfoByCoordinates(
 
     const response = await fetch('https://overpass-api.de/api/interpreter', {
       method: 'POST',
+      headers: {
+        'User-Agent': 'VIGIA-Public-Tool/0.1.0',
+      },
       body: query,
     });
 

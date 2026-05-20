@@ -47,7 +47,7 @@ export async function searchTenderByRoadNumber(
         LIMIT 10
       `
       )
-      .all(roadNumber) as { content: string; section_title: string; page_number: number }[];
+      .all(`"${roadNumber}"`) as { content: string; section_title: string; page_number: number }[];
 
     db.close();
 
