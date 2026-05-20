@@ -1,0 +1,12 @@
+#!/bin/sh
+
+echo "Running secret scan on tracked files..."
+npm run --silent security:scan
+status=$?
+
+if [ $status -ne 0 ]; then
+  echo "Commit blocked: potential secrets detected."
+  exit $status
+fi
+
+exit 0

@@ -1,18 +1,12 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Merriweather } from 'next/font/google';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { AppShell } from '@/components/layout/app-shell';
+import { AI } from '@/app/ai/provider';
 
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
-  display: 'swap',
-});
-
-const merriweather = Merriweather({
-  weight: ['400', '700'],
-  subsets: ['latin'],
-  variable: '--font-merriweather',
   display: 'swap',
 });
 
@@ -88,7 +82,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${merriweather.variable} h-full antialiased`}
+      className={`${inter.variable} h-full antialiased`}
     >
       <head>
         {/* PWA mobile web app meta */}
@@ -102,7 +96,9 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body className="flex min-h-screen h-full bg-cream text-text-primary">
-        <AppShell>{children}</AppShell>
+        <AI>
+          <AppShell>{children}</AppShell>
+        </AI>
       </body>
     </html>
   );

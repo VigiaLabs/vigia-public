@@ -10,14 +10,14 @@ export function MobileSidebar() {
       <Sheet>
         <SheetTrigger asChild>
           <button
-            className="flex h-10 w-10 items-center justify-center rounded-md bg-surface transition-colors hover:bg-gray-100 active:bg-gray-200"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white/90 shadow-[0_1px_2px_rgba(17,17,17,0.04)] backdrop-blur transition-colors hover:bg-white active:bg-[#f7f4ee]"
             aria-label="Toggle sidebar"
           >
             <Menu className="h-5 w-5 text-text-primary" />
           </button>
         </SheetTrigger>
 
-        <SheetContent className="w-[280px] bg-sidebar-bg p-0">
+        <SheetContent className="w-[290px] bg-sidebar-bg p-0">
           <aside className="flex h-full flex-col px-4 py-6">
             <SidebarContent />
           </aside>

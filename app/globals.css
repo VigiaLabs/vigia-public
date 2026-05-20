@@ -1,23 +1,23 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-cream: #fafaf8;
-  --color-sidebar-bg: #f5f3f0;
+  --color-cream: #faf8f3;
+  --color-sidebar-bg: #f5f0e8;
 
   --color-surface: #ffffff;
-  --color-border: #e5e7eb;
-  --color-border-subtle: #f3f4f6;
-  --color-text-primary: #0f0f0f;
-  --color-text-secondary: #525252;
-  --color-text-muted: #a0a0a0;
-  --color-accent: #1f2937;
-  --color-trust-green: #dcfce7;
-  --color-trust-blue: #dbeafe;
-  --color-trust-amber: #fef3c7;
-  --color-severity-red: #dc2626;
+  --color-surface-muted: #fbf9f5;
+  --color-border: #e4ddd1;
+  --color-border-subtle: #f0eae0;
+  --color-text-primary: #111111;
+  --color-text-secondary: #5d5a54;
+  --color-text-muted: #8d8578;
+  --color-accent: #111827;
+  --color-trust-green: #ecf7ef;
+  --color-trust-blue: #eef4ff;
+  --color-trust-amber: #f9f2df;
+  --color-severity-red: #c2410c;
 
   --font-sans: var(--font-inter), system-ui, sans-serif;
-  --font-serif: var(--font-merriweather), Georgia, serif;
 
   --animate-fade-in-up: fade-in-up 0.4s ease-out forwards;
   --animate-slide-in-left: slide-in-left 0.3s ease-out forwards;
@@ -26,6 +26,8 @@
   --animate-fade-in: fade-in 0.3s ease-out forwards;
   --animate-message-appear: message-appear 0.3s ease-out forwards;
   --animate-subtle-scale: subtle-scale 0.25s ease-out forwards;
+  --animate-pulse-scale: pulse-scale 1s ease-in-out infinite;
+  --animate-button-bounce: button-bounce 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
 }
 
 @keyframes fade-in-up {
@@ -112,13 +114,38 @@
   }
 }
 
+@keyframes pulse-scale {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes button-bounce {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 @layer base {
   html {
     @apply bg-cream text-text-primary font-sans;
   }
 
   body {
-    @apply bg-cream text-text-primary font-sans antialiased;
+    background:
+      radial-gradient(circle at top left, rgba(17, 17, 17, 0.04), transparent 32%),
+      radial-gradient(circle at 85% 10%, rgba(17, 17, 17, 0.03), transparent 20%),
+      var(--color-cream);
+    @apply text-text-primary font-sans antialiased;
   }
 
   * {
@@ -131,12 +158,12 @@
   textarea,
   select,
   summary {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 transition-all duration-150;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b8b0a0] focus-visible:ring-offset-2 focus-visible:ring-offset-cream transition-all duration-150;
   }
 
   /* Typography utilities for reading comfort */
   .prose-body {
-    @apply text-base leading-[1.75] text-text-primary;
+    @apply text-[15px] leading-[1.75] text-text-primary;
   }
 
   .prose-metadata {
@@ -145,6 +172,56 @@
 
   .prose-label {
     @apply text-xs font-medium text-text-secondary;
+  }
+}
+
+@layer components {
+  .shell-panel {
+    @apply rounded-[28px] border border-border bg-white/90 shadow-[0_1px_2px_rgba(17,17,17,0.04),0_18px_42px_rgba(17,17,17,0.04)] backdrop-blur;
+  }
+
+  .shell-card {
+    @apply rounded-2xl border border-border bg-white shadow-[0_1px_2px_rgba(17,17,17,0.04)];
+  }
+
+  .shell-input-shell {
+    @apply rounded-[28px] border border-border bg-white px-4 py-3 shadow-[0_1px_2px_rgba(17,17,17,0.04)] transition focus-within:border-[#cfc6b8];
+  }
+
+  .shell-input-shell input:focus {
+    outline: none;
+  }
+
+  .shell-chip {
+    @apply inline-flex items-center rounded-full px-3 py-1.5 text-xs font-medium transition-colors;
+  }
+
+  .shell-chip-active {
+    @apply bg-[#111111] text-white shadow-sm;
+  }
+
+  .shell-chip-inactive {
+    @apply text-text-muted hover:bg-[#f2ede4] hover:text-text-primary;
+  }
+
+  .shell-bubble-user {
+    @apply rounded-2xl border border-border bg-[#f8f5ef] px-4 py-3 text-sm text-text-primary shadow-[0_1px_2px_rgba(17,17,17,0.03)];
+  }
+
+  .shell-bubble-assistant {
+    @apply text-[15px] leading-[1.75] text-text-primary;
+  }
+
+  .shell-section-label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-text-muted;
+  }
+
+  .shell-muted-card {
+    @apply rounded-2xl border border-[#ebe4d8] bg-[#fbf8f2] shadow-[0_1px_2px_rgba(17,17,17,0.03)];
+  }
+
+  .shell-badge {
+    @apply inline-flex items-center rounded-full border border-[#e5ddd0] bg-[#f7f3ea] px-2.5 py-1 text-[11px] font-medium text-text-secondary;
   }
 }
 

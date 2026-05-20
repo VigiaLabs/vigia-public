@@ -10,7 +10,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <PWAInstallBadge />
       <Sidebar />
       <MobileSidebar />
-      <main className="flex-1 md:ml-[260px]">{children}</main>
+      <main className="flex-1 md:ml-[260px] bg-cream">{children}</main>
     </>
   );
 }

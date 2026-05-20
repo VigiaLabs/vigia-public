@@ -1,7 +1,7 @@
 export function CitationPill({ number, label }: { number: number; label: string }) {
   return (
     <sup>
-      <span className="inline-flex items-center px-1.5 py-0.5 ml-1 text-xs font-medium text-gray-600 bg-gray-100 rounded hover:bg-gray-200 cursor-pointer transition-colors">
+      <span className="ml-1 inline-flex cursor-pointer items-center rounded-full border border-border bg-[#f4efe7] px-2 py-0.5 text-xs font-medium text-text-secondary transition-colors hover:bg-[#efe8dc]">
         [{number}] {label}
       </span>
     </sup>

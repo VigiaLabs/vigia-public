@@ -157,6 +157,24 @@ export async function touchThread(threadId: string, at = Date.now()): Promise<vo
   await db.threads.update(threadId, { updatedAt: at });
 }
 
+/** Upsert a thread with a specific ID (used by server actions to persist sessions) */
+export async function saveThread(threadId: string, title: string): Promise<void> {
+  const existing = await db.threads.get(threadId);
+  if (existing) {
+    await db.threads.update(threadId, { updatedAt: Date.now(), title });
+  } else {
+    await withQuotaGuard(() =>
+      db.threads.put({
+        id: threadId,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        title,
+        status: 'active',
+      })
+    );
+  }
+}
+
 export async function getThreads(limit = 30): Promise<ChatThread[]> {
   return db.threads.orderBy('updatedAt').reverse().limit(limit).toArray();
 }
