@@ -10,7 +10,7 @@ export function ActionBlock() {
         Based on this verified audit, you can take official action:
       </p>
       <div className="flex flex-wrap gap-2">
-        <button className="inline-flex items-center gap-1.5 rounded-full bg-[#111111] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#1a1a1a]">
+        <button className="inline-flex items-center gap-1.5 rounded-full bg-[#1f3a5f] px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-[#233e67]">
           <Shield className="h-3.5 w-3.5" />
           Escalate to NHAI PIU
         </button>

@@ -16,6 +16,7 @@ export interface TabbedResultsProps {
   evidenceImages?: Array<{ url: string; severity: string; label: string }>;
   budgetData?: { allocated: number; disbursed: number; currency: string; percentDisbursed: number };
   spatialMarkers?: Array<{ lat: number; lng: number; label: string; severity: string }>;
+  sources?: Array<{ id: string; label: string; trustLevel: string; url?: string }>;
   totalLatencyMs: number;
   nodeCount: number;
 }
@@ -26,17 +27,18 @@ export function TabbedResults({
   evidenceImages,
   budgetData,
   spatialMarkers,
+  sources,
   totalLatencyMs,
   nodeCount,
 }: TabbedResultsProps) {
   const [activeTab, setActiveTab] = useState<Tab>('answer');
 
-  const hasSources = !!(evidenceImages?.length || budgetData);
+  const hasSources = !!(evidenceImages?.length || budgetData || sources?.length);
   const hasMaps = !!spatialMarkers?.length;
 
   return (
     <div className="space-y-3 animate-fade-in">
-      <div className="flex gap-2 border-b border-border pb-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-full border border-border/80 bg-white/80 p-1 shadow-[0_6px_18px_rgba(18,14,10,0.06)]">
         {(['answer', 'sources', 'maps'] as Tab[]).map((tab) => (
           <button
             key={tab}
@@ -55,25 +57,60 @@ export function TabbedResults({
       {activeTab === 'answer' && (
         <div className="space-y-4">
           {contradictionVerified && <ContradictionBanner />}
-          <div className="shell-bubble-assistant whitespace-pre-wrap">
-            {auditFinding}
+          <div className="shell-answer-card">
+            <div className="flex items-center justify-between gap-3 pb-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="shell-answer-tag">Answer</span>
+                <span className="shell-answer-meta">VIGIA analysis</span>
+              </div>
+            </div>
+            <div className="shell-answer-body whitespace-pre-wrap">{auditFinding}</div>
           </div>
         </div>
       )}
 
       {activeTab === 'sources' && (
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {evidenceImages?.map((img, i) => (
-            <SeverityBadge key={i} severity={img.severity} findings={[img.label]} imageUrl={img.url} />
-          ))}
-          {budgetData && (
-            <BudgetDeltaWidget
-              allocated={budgetData.allocated}
-              disbursed={budgetData.disbursed}
-              currency={budgetData.currency}
-              percentDisbursed={budgetData.percentDisbursed}
-            />
+        <div className="space-y-3">
+          {sources && sources.length > 0 && (
+            <div className="space-y-2">
+              {sources.map((src, i) => (
+                <div key={src.id || i} className="flex items-start gap-3 rounded-lg border border-border/60 bg-white/60 px-3 py-2.5">
+                  <span className={`mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full ${
+                    src.trustLevel === 'legally-binding' ? 'bg-emerald-500' :
+                    src.trustLevel === 'official-portal' ? 'bg-blue-500' :
+                    src.trustLevel === 'verified-spatial' ? 'bg-amber-500' : 'bg-gray-400'
+                  }`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm font-medium text-text-primary truncate">{src.label}</div>
+                    {src.url && (
+                      <a
+                        href={src.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline truncate block"
+                      >
+                        {src.url}
+                      </a>
+                    )}
+                    <span className="text-[10px] uppercase tracking-wider text-text-muted">{src.trustLevel?.replace('-', ' ')}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {evidenceImages?.map((img, i) => (
+              <SeverityBadge key={i} severity={img.severity} findings={[img.label]} imageUrl={img.url} />
+            ))}
+            {budgetData && (
+              <BudgetDeltaWidget
+                allocated={budgetData.allocated}
+                disbursed={budgetData.disbursed}
+                currency={budgetData.currency}
+                percentDisbursed={budgetData.percentDisbursed}
+              />
+            )}
+          </div>
           {!hasSources && (
             <div className="py-4 text-sm text-text-muted">No source data available for this query.</div>
           )}
@@ -91,7 +128,7 @@ export function TabbedResults({
         </div>
       )}
 
-      <div className="border-t border-border pt-2 text-xs text-text-muted">
+      <div className="border-t border-border/70 pt-2 text-xs text-text-muted">
         Pipeline completed in {totalLatencyMs}ms • {nodeCount} nodes executed
         {contradictionVerified && ' • Contradiction verified'}
       </div>

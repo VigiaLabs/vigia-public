@@ -1,8 +1,10 @@
 'use server';
 
-// Complaint routing tool
-// Maps road type + state to correct authority for filing complaints
-// Based on MoRTH jurisdiction guidelines
+// Complaint routing tool — reads from data/authority-matrix.json
+// Deterministic lookup based on road type + state code
+
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 export interface ComplaintAuthority {
   name: string;
@@ -13,73 +15,77 @@ export interface ComplaintAuthority {
   escalationAuthority: string;
   source: string;
   sourceUrl: string;
+  legalBasis: string;
 }
 
-const COMPLAINT_ROUTING: Record<string, ComplaintAuthority> = {
-  NH: {
-    name: 'NHAI Project Implementation Unit (PIU)',
-    jurisdiction: 'National Highways',
-    complaintPortal: 'https://pgportal.gov.in',
-    phone: '1033',
-    email: 'feedback@nhai.org',
-    escalationAuthority: 'Ministry of Road Transport and Highways',
-    source: 'NHAI Grievance Redressal',
-    sourceUrl: 'https://nhai.gov.in/grievance-redressal',
-  },
-  SH: {
-    name: 'State Public Works Department (PWD)',
-    jurisdiction: 'State Highways',
-    complaintPortal: 'https://pgportal.gov.in',
-    phone: null,
-    email: null,
-    escalationAuthority: 'State Chief Engineer (Roads)',
-    source: 'State PWD Grievance Cell',
-    sourceUrl: 'https://pgportal.gov.in',
-  },
-  MDR: {
-    name: 'District Collector Office',
-    jurisdiction: 'Major District Roads and Rural Roads',
-    complaintPortal: 'https://pgportal.gov.in',
-    phone: null,
-    email: null,
-    escalationAuthority: 'Divisional Commissioner',
-    source: 'District Administration',
-    sourceUrl: 'https://pgportal.gov.in',
-  },
-  rural: {
-    name: 'Gram Panchayat / Block Development Officer',
-    jurisdiction: 'Village and Rural Roads',
-    complaintPortal: 'https://pgportal.gov.in',
-    phone: null,
-    email: null,
-    escalationAuthority: 'District Collector',
-    source: 'PMGSY Grievance Mechanism',
-    sourceUrl: 'https://pmgsy.nic.in',
-  },
-};
+interface AuthorityMatrix {
+  version: string;
+  lastVerified: string;
+  authorities: {
+    IN: Record<string, any>;
+  };
+}
 
-// State-specific overrides for complaint portals
-const STATE_PORTALS: Record<string, string> = {
-  Kerala: 'https://grievance.kerala.gov.in',
-  Karnataka: 'https://pgportal.karnataka.gov.in',
-  'Tamil Nadu': 'https://www.tncm.tn.gov.in',
-  Maharashtra: 'https://grievances.maharashtra.gov.in',
-  'Andhra Pradesh': 'https://spandana.ap.gov.in',
-  Telangana: 'https://pgportal.telangana.gov.in',
+let cachedMatrix: AuthorityMatrix | null = null;
+
+function loadMatrix(): AuthorityMatrix {
+  if (cachedMatrix) return cachedMatrix;
+  const raw = readFileSync(join(process.cwd(), 'data', 'authority-matrix.json'), 'utf-8');
+  cachedMatrix = JSON.parse(raw);
+  return cachedMatrix!;
+}
+
+// Map state names to ISO codes used in authority-matrix.json
+const STATE_CODES: Record<string, string> = {
+  'Maharashtra': 'MH', 'Kerala': 'KL', 'Karnataka': 'KA', 'Tamil Nadu': 'TN',
+  'Andhra Pradesh': 'AP', 'Telangana': 'TS', 'Gujarat': 'GJ', 'Rajasthan': 'RJ',
+  'Uttar Pradesh': 'UP', 'Bihar': 'BR', 'West Bengal': 'WB', 'Odisha': 'OD',
+  'Madhya Pradesh': 'MP', 'Punjab': 'PB', 'Haryana': 'HR', 'Assam': 'AS',
 };
 
 export async function getComplaintAuthority(
   roadType: 'NH' | 'SH' | 'MDR' | 'rural' | 'unknown',
   state: string | null
 ): Promise<ComplaintAuthority> {
-  const key = roadType === 'unknown' ? 'NH' : roadType;
-  const authority = { ...COMPLAINT_ROUTING[key] };
+  const matrix = loadMatrix();
+  const key = roadType === 'unknown' || roadType === 'rural' ? 'MDR' : roadType;
+  const stateCode = state ? STATE_CODES[state] ?? null : null;
 
-  // Override portal with state-specific one for SH/MDR
-  if (state && STATE_PORTALS[state] && roadType !== 'NH') {
-    authority.complaintPortal = STATE_PORTALS[state];
-    authority.sourceUrl = STATE_PORTALS[state];
+  // Try state-specific override for SH
+  let entry: any = null;
+  if (key === 'SH' && stateCode) {
+    entry = matrix.authorities.IN?.SH?.[stateCode]?.complaint;
+  }
+  // Fallback to default for road type
+  if (!entry) {
+    const section = matrix.authorities.IN?.[key];
+    entry = section?.complaint ?? section?.default?.complaint;
   }
 
-  return authority;
+  if (!entry) {
+    // Ultimate fallback
+    return {
+      name: 'Public Grievance Portal',
+      jurisdiction: `${key} Roads`,
+      complaintPortal: 'https://pgportal.gov.in',
+      phone: null,
+      email: null,
+      escalationAuthority: 'Ministry of Road Transport and Highways',
+      source: 'authority-matrix.json',
+      sourceUrl: 'https://pgportal.gov.in',
+      legalBasis: 'Unknown',
+    };
+  }
+
+  return {
+    name: entry.primary,
+    jurisdiction: `${key} Roads${state ? ` — ${state}` : ''}`,
+    complaintPortal: entry.portal,
+    phone: entry.phone ?? null,
+    email: null,
+    escalationAuthority: entry.escalation,
+    source: `authority-matrix.json v${matrix.version} (verified ${matrix.lastVerified})`,
+    sourceUrl: entry.portal,
+    legalBasis: entry.legalBasis ?? '',
+  };
 }

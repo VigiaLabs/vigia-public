@@ -3,9 +3,14 @@
 import { useRouter } from 'next/navigation';
 import { Plus, Search } from 'lucide-react';
 import { QueryHistory } from './query-history';
+import { useNetworkStatus } from '@/lib/hooks/useNetworkStatus';
 
 export function SidebarContent() {
   const router = useRouter();
+  const network = useNetworkStatus();
+
+  const statusColor = network.mode === 'online' ? 'bg-emerald-400' : network.mode === 'degraded' ? 'bg-amber-400' : 'bg-red-400';
+  const statusLabel = network.mode === 'online' ? 'Online' : network.mode === 'degraded' ? 'Slow connection' : 'Offline';
 
   return (
     <>
@@ -21,7 +26,7 @@ export function SidebarContent() {
         onClick={() => {
           router.push('/');
         }}
-        className="mb-6 flex w-full items-center justify-center gap-2 rounded-full bg-[#111111] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-[#1b1b1b] active:bg-[#222222] active:animate-button-bounce"
+        className="mb-6 flex w-full items-center justify-center gap-2 rounded-full border border-border bg-white px-4 py-2.5 text-sm font-semibold text-text-primary shadow-[0_6px_18px_rgba(18,14,10,0.06)] transition-all hover:bg-gray-50 active:animate-button-bounce"
       >
         <Plus className="h-4 w-4" />
         New thread
@@ -42,6 +47,10 @@ export function SidebarContent() {
       </div>
 
       <div className="mt-auto pt-6 space-y-2 text-sm">
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${statusColor}`} />
+          <span className="text-xs text-text-muted">{statusLabel}</span>
+        </div>
         <div className="text-text-primary">Citizen User</div>
         <div className="text-xs text-text-muted">Government access</div>
       </div>

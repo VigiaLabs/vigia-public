@@ -88,7 +88,7 @@ export function InputBar({
         </motion.div>
       )}
       <motion.div
-        className="shell-input-shell flex items-center gap-3"
+        className="shell-input-shell flex items-center gap-3 md:gap-4"
         onPaste={onPaste}
         animate={{ width: '100%', maxWidth: 'none' }}
       >
@@ -138,7 +138,7 @@ export function InputBar({
               onSubmit();
             }
           }}
-          className="min-w-0 flex-1 bg-transparent text-base text-text-primary placeholder:text-text-muted disabled:opacity-50"
+          className="min-w-0 flex-1 bg-transparent text-[15px] text-text-primary placeholder:text-text-muted disabled:opacity-50 md:text-base"
           placeholder={
             isVoiceRecordingProp
               ? 'Listening...'

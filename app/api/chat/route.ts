@@ -1,149 +1,167 @@
 import {
   convertToModelMessages,
   streamText,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
   type UIMessage,
 } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 import { NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/security/rate-limit';
-import {
-  buildMultilingualSystemPrompt,
-  isVoiceLocale,
-} from '@/lib/voice/locale';
+import { isVoiceLocale, buildMultilingualSystemPrompt } from '@/lib/voice/locale';
 import { VIGIA_BASE_SYSTEM_PROMPT } from '@/lib/voice/chat-prompt';
+import { runPipeline } from '@/lib/agents/graph';
+import { extractUIPayload } from '@/lib/agents/ui-hook';
 import type { VoiceLocale } from '@/types/voice';
+import type { Payload } from '@/lib/agents/state';
 
 export const runtime = 'nodejs';
 
 const MAX_BODY_BYTES = 256 * 1024;
-const RATE_LIMIT = {
-  windowMs: 60_000,
-  limit: 30,
-};
+const RATE_LIMIT = { windowMs: 60_000, limit: 30 };
 
 function getClientIp(req: Request): string {
-  const forwardedFor = req.headers.get('x-forwarded-for');
-  if (forwardedFor) {
-    return forwardedFor.split(',')[0]?.trim() || 'unknown';
-  }
-
-  return req.headers.get('x-real-ip') || req.headers.get('cf-connecting-ip') || 'unknown';
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
 }
 
-function isSameOrigin(req: Request): boolean {
-  const origin = req.headers.get('origin');
-  if (!origin) return true;
-
-  const host = req.headers.get('host');
-  if (!host) return false;
-
-  try {
-    return new URL(origin).host === host;
-  } catch {
-    return false;
-  }
-}
-
-function resolveChatLocale(
-  voiceLocale: VoiceLocale | null,
-  messages: UIMessage[]
-): VoiceLocale | null {
+function resolveChatLocale(voiceLocale: VoiceLocale | null, messages: UIMessage[]): VoiceLocale | null {
   if (voiceLocale) return voiceLocale;
-
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (msg.role !== 'user') continue;
-
-    const text = msg.parts
-      ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-      .map((p) => p.text)
-      .join('');
-
-    if (!text) continue;
-
-    if (/[\u0900-\u097F]/.test(text)) return 'hi-IN';
-    if (/[\u0B80-\u0BFF]/.test(text)) return 'ta-IN';
-    break;
+  const lastUserMsg = messages.findLast((m) => m.role === 'user');
+  if (!lastUserMsg) return null;
+  const text = lastUserMsg.parts
+    ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+    .map((p) => p.text)
+    .join('');
+  if (!text) return null;
+  const totalChars = text.replace(/\s/g, '').length;
+  if (totalChars > 0) {
+    const devanagari = (text.match(/[\u0900-\u097F]/g) || []).length;
+    if (devanagari / totalChars > 0.3) return 'hi-IN';
+    const tamil = (text.match(/[\u0B80-\u0BFF]/g) || []).length;
+    if (tamil / totalChars > 0.3) return 'ta-IN';
   }
-
   return null;
 }
 
 export async function POST(req: Request) {
   const ip = getClientIp(req);
   const rate = checkRateLimit(`chat:${ip}`, RATE_LIMIT);
-
   if (!rate.allowed) {
-    return NextResponse.json(
-      { error: 'Too many requests. Please try again later.' },
-      {
-        status: 429,
-        headers: {
-          'Retry-After': String(rate.retryAfterSeconds),
-          'Cache-Control': 'no-store',
-        },
-      }
-    );
+    return NextResponse.json({ error: 'Too many requests.' }, { status: 429, headers: { 'Retry-After': String(rate.retryAfterSeconds) } });
   }
 
   try {
-    if (!isSameOrigin(req)) {
-      return NextResponse.json(
-        { error: 'Origin not allowed' },
-        { status: 403, headers: { 'Cache-Control': 'no-store' } }
-      );
-    }
-
     const rawBody = await req.text();
     if (rawBody.length > MAX_BODY_BYTES) {
-      return NextResponse.json(
-        { error: 'Payload too large' },
-        { status: 413, headers: { 'Cache-Control': 'no-store' } }
-      );
+      return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
     }
 
-    const parsed = JSON.parse(rawBody || '{}') as {
-      messages?: UIMessage[];
-      voiceLocale?: unknown;
+    const parsed = JSON.parse(rawBody || '{}') as { messages?: UIMessage[]; voiceLocale?: unknown };
+    const { messages } = parsed;
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json({ error: 'Messages array is required' }, { status: 400 });
+    }
+
+    const requestVoiceLocale = typeof parsed.voiceLocale === 'string' && isVoiceLocale(parsed.voiceLocale) ? parsed.voiceLocale : null;
+    const chatLocale = resolveChatLocale(requestVoiceLocale, messages);
+    const baseSystem = chatLocale ? buildMultilingualSystemPrompt(VIGIA_BASE_SYSTEM_PROMPT, chatLocale) : VIGIA_BASE_SYSTEM_PROMPT;
+
+    // Extract user query text for the pipeline
+    const lastUserMsg = messages.findLast((m) => m.role === 'user');
+    const queryText = lastUserMsg?.parts
+      ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map((p) => p.text)
+      .join(' ') ?? '';
+
+    // Build pipeline payload
+    const pipelinePayload: Payload = {
+      text: queryText,
+      threadId: crypto.randomUUID(),
+      messageId: crypto.randomUUID(),
     };
 
-    const { messages } = parsed;
+    // Create the multiplexed stream
+    const stream = createUIMessageStream({
+      execute: async ({ writer }) => {
+        // ─── Phase 1: Run the full 5-node LangGraph pipeline ────────
+        let pipelineContext = '';
+        let evidenceAnnotation: Record<string, unknown> | null = null;
 
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return NextResponse.json(
-        { error: 'Messages array is required' },
-        { status: 400, headers: { 'Cache-Control': 'no-store' } }
-      );
-    }
+        try {
+          const pipelineState = await runPipeline(pipelinePayload);
+          const uiPayload = extractUIPayload(pipelineState);
 
-    const requestVoiceLocale =
-      typeof parsed.voiceLocale === 'string' && isVoiceLocale(parsed.voiceLocale)
-        ? parsed.voiceLocale
-        : null;
+          // Build context from pipeline evidence for the LLM
+          if (pipelineState.evidence.length > 0) {
+            pipelineContext = '\n\n## VIGIA Pipeline Evidence (use this to answer):\n';
+            for (const ev of pipelineState.evidence) {
+              if (ev.status === 'completed' && ev.findings.length > 0) {
+                pipelineContext += `\n### ${ev.agentId} agent (confidence: ${ev.confidence}):\n`;
+                pipelineContext += ev.findings.map(f => `- ${f}`).join('\n');
+                if (ev.citations.length > 0) {
+                  pipelineContext += '\nSources: ' + ev.citations.map(c => `[${c.label}](${c.url ?? ''})`).join(', ');
+                }
+                pipelineContext += '\n';
+              }
+            }
+            pipelineContext += '\n\nIMPORTANT: Answer ONLY using the evidence above. Cite the sources. If evidence is insufficient, say so.';
+          }
 
-    const chatLocale = resolveChatLocale(requestVoiceLocale, messages);
-    const system = chatLocale
-      ? buildMultilingualSystemPrompt(VIGIA_BASE_SYSTEM_PROMPT, chatLocale)
-      : VIGIA_BASE_SYSTEM_PROMPT;
+          // Prepare annotation for frontend
+          evidenceAnnotation = {
+            type: 'vigia-evidence',
+            sources: uiPayload.sources,
+            totalLatencyMs: uiPayload.totalLatencyMs,
+            contradictionVerified: uiPayload.contradictionVerified,
+            budgetData: uiPayload.budgetData,
+            spatialMarkers: uiPayload.spatialMarkers,
+          };
+        } catch (err) {
+          console.error('Pipeline error (falling back to base LLM):', err);
+        }
 
-    const result = streamText({
-      model: bedrock('amazon.nova-lite-v1:0'),
-      system,
-      messages: await convertToModelMessages(messages),
+        // ─── Phase 2: Stream the LLM response with pipeline context ─
+        const system = baseSystem + pipelineContext;
+
+        const result = streamText({
+          model: bedrock('amazon.nova-lite-v1:0'),
+          system,
+          messages: await convertToModelMessages(messages),
+          providerOptions: {
+            bedrock: { additionalModelResponseFieldPaths: ['/metadata'] },
+          },
+        });
+
+        // Merge the text stream into our UI message stream
+        const textStream = result.toUIMessageStream({
+          onFinish: () => {
+            // After text is done, emit the evidence annotation as metadata
+            if (evidenceAnnotation) {
+              writer.write({
+                type: 'message-metadata',
+                messageMetadata: evidenceAnnotation,
+              });
+            }
+          },
+        });
+
+        writer.merge(textStream);
+      },
+      onError: (error) => {
+        console.error('Stream error:', error);
+        return error instanceof Error ? error.message : 'Stream failed';
+      },
     });
 
-    return result.toUIMessageStreamResponse({
+    return createUIMessageStreamResponse({
+      stream,
       headers: { 'Cache-Control': 'no-store' },
     });
   } catch (error) {
-    console.error('Chat stream error:', error);
-
-    const message =
-      error instanceof Error ? error.message : 'Failed to generate response';
-
+    console.error('Chat route error:', error);
     return NextResponse.json(
-      { error: message },
-      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+      { error: error instanceof Error ? error.message : 'Failed to generate response' },
+      { status: 500 }
     );
   }
 }

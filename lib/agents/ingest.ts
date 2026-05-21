@@ -3,6 +3,7 @@ import { NormalizedEvidenceSchema } from './state';
 import { runAdminAgent } from './agents/admin';
 import { runVisionAgent } from './agents/vision';
 import { runTelemetryAgent } from './agents/telemetry';
+import { dispatchWithFallback, type NetworkMode } from '../edge/failover';
 
 const AGENT_TIMEOUT_MS = 4000;
 
@@ -42,7 +43,8 @@ function dispatchAgent(
   agentId: AgentId,
   payload: VigiaState['payload'],
   retryQuery: string | undefined,
-  signal: AbortSignal
+  signal: AbortSignal,
+  intent?: VigiaState['intent']
 ): Promise<NormalizedEvidence> {
   let task: Promise<NormalizedEvidence>;
 
@@ -51,7 +53,7 @@ function dispatchAgent(
       task = runVisionAgent(payload);
       break;
     case 'admin':
-      task = runAdminAgent(payload, retryQuery);
+      task = runAdminAgent(payload, retryQuery, intent);
       break;
     case 'telemetry':
       task = runTelemetryAgent(payload);
@@ -79,13 +81,21 @@ export async function ingestNode(
 
   const retryQuery = state.retryCount > 0 ? state.retryQuery : undefined;
 
+  // Determine network mode (server-side: assume online unless explicitly set)
+  const networkMode: NetworkMode = (state as any).networkMode ?? 'online';
+
   // Dispatch all agents in parallel with individual abort controllers
   const settled = await Promise.allSettled(
     agentsToRun.map((agentId) => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), AGENT_TIMEOUT_MS);
 
-      return dispatchAgent(agentId, state.payload, retryQuery, controller.signal)
+      return dispatchWithFallback(
+        agentId,
+        state.payload,
+        networkMode,
+        () => dispatchAgent(agentId, state.payload, retryQuery, controller.signal, state.intent)
+      )
         .finally(() => clearTimeout(timeout))
         .then((result) => ({ agentId, result }));
     })

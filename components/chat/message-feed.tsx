@@ -18,7 +18,7 @@ function getSyncStatusColor(status?: string): string {
 
 export function MessageFeed({ messages }: MessageFeedProps) {
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-8 md:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-[900px] px-4 py-8 md:px-6 lg:px-8">
       <div className="space-y-10">
         {messages.map((message, idx) => (
           <div
@@ -28,7 +28,7 @@ export function MessageFeed({ messages }: MessageFeedProps) {
           >
             {message.role === 'user' ? (
               <div className="flex justify-end">
-                <div className="flex flex-col items-end gap-2 max-w-[70%]">
+                <div className="flex flex-col items-end gap-2 max-w-[85%] md:max-w-[70%]">
                   <div className="shell-bubble-user break-words">
                     <p>{message.content}</p>
                   </div>
@@ -41,7 +41,13 @@ export function MessageFeed({ messages }: MessageFeedProps) {
               </div>
             ) : (
               <div className="space-y-6">
-                <div className="shell-bubble-assistant max-w-2xl">
+                <div className="shell-answer-card">
+                  <div className="flex items-center justify-between gap-3 pb-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="shell-answer-tag">Answer</span>
+                      <span className="shell-answer-meta">VIGIA analysis</span>
+                    </div>
+                  </div>
                   {message.content.split('\n\n').map((paragraph, idx) => {
                     const trimmed = paragraph.trim();
                     if (!trimmed) return null;
@@ -83,7 +89,7 @@ export function MessageFeed({ messages }: MessageFeedProps) {
                     }
 
                     return (
-                      <p key={idx} className="text-[15px] leading-relaxed whitespace-pre-wrap break-words text-text-primary">
+                      <p key={idx} className="shell-answer-body whitespace-pre-wrap break-words">
                         {trimmed}
                       </p>
                     );

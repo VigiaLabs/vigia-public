@@ -77,6 +77,7 @@ export const VigiaStateSchema = z.object({
   startedAt: z.number(),
   payload: PayloadSchema,
   activeAgents: z.array(z.enum(['vision', 'admin', 'telemetry'])),
+  intent: z.enum(['conversational', 'complaint', 'rti', 'condition', 'personnel', 'tender_search']).optional(),
   evidence: z.array(NormalizedEvidenceSchema),
   retryCount: z.number().default(0),
   retryQuery: z.string().optional(),
@@ -107,6 +108,7 @@ export const VigiaStateAnnotation = Annotation.Root({
   startedAt: Annotation<number>,
   payload: Annotation<Payload>,
   activeAgents: Annotation<VigiaState['activeAgents']>,
+  intent: Annotation<VigiaState['intent']>,
   evidence: Annotation<NormalizedEvidence[]>({
     reducer: (a, b) => a.concat(b),
     default: () => [],

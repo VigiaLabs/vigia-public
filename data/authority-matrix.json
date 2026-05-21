@@ -1,0 +1,146 @@
+{
+  "version": "2026-01-15",
+  "lastVerified": "2026-05-21",
+  "authorities": {
+    "IN": {
+      "NH": {
+        "complaint": {
+          "primary": "NHAI Project Implementation Unit (PIU)",
+          "portal": "https://pgportal.gov.in",
+          "phone": "1033",
+          "escalation": "Ministry of Road Transport and Highways",
+          "legalBasis": "NHAI Act 1988, Section 16"
+        },
+        "rti": {
+          "officer": "Central Public Information Officer",
+          "designation": "CPIO, NHAI",
+          "filingUrl": "https://rtionline.gov.in",
+          "fee": "₹10",
+          "responseDays": 30,
+          "legalBasis": "RTI Act 2005, Section 6"
+        }
+      },
+      "SH": {
+        "default": {
+          "complaint": {
+            "primary": "State Public Works Department (PWD)",
+            "portal": "https://pgportal.gov.in",
+            "phone": "1800-111-555",
+            "escalation": "State Transport Minister's Office",
+            "legalBasis": "State PWD Act"
+          },
+          "rti": {
+            "officer": "State Public Information Officer",
+            "designation": "SPIO, State PWD",
+            "filingUrl": "https://rtionline.gov.in",
+            "fee": "₹10",
+            "responseDays": 30,
+            "legalBasis": "RTI Act 2005, Section 6"
+          }
+        },
+        "MH": {
+          "complaint": {
+            "primary": "Maharashtra PWD Division Office",
+            "portal": "https://mahapwd.gov.in/grievance",
+            "phone": "022-22025063",
+            "escalation": "Chief Engineer, Maharashtra PWD",
+            "legalBasis": "Maharashtra PWD Manual"
+          },
+          "rti": {
+            "officer": "State Public Information Officer",
+            "designation": "SPIO, Maharashtra PWD",
+            "filingUrl": "https://rtionline.gov.in",
+            "fee": "₹10",
+            "responseDays": 30,
+            "legalBasis": "RTI Act 2005, Section 6"
+          }
+        },
+        "KL": {
+          "complaint": {
+            "primary": "Kerala PWD Division Office",
+            "portal": "https://keralapwd.gov.in/complaint",
+            "phone": "0471-2328466",
+            "escalation": "Chief Engineer, Kerala PWD",
+            "legalBasis": "Kerala PWD Manual"
+          },
+          "rti": {
+            "officer": "State Public Information Officer",
+            "designation": "SPIO, Kerala PWD",
+            "filingUrl": "https://rtionline.gov.in",
+            "fee": "₹10",
+            "responseDays": 30,
+            "legalBasis": "RTI Act 2005, Section 6"
+          }
+        },
+        "KA": {
+          "complaint": {
+            "primary": "Karnataka PWD Division Office",
+            "portal": "https://kpwd.karnataka.gov.in",
+            "phone": "080-22253783",
+            "escalation": "Chief Engineer, Karnataka PWD",
+            "legalBasis": "Karnataka PWD Code"
+          },
+          "rti": {
+            "officer": "State Public Information Officer",
+            "designation": "SPIO, Karnataka PWD",
+            "filingUrl": "https://rtionline.gov.in",
+            "fee": "₹10",
+            "responseDays": 30,
+            "legalBasis": "RTI Act 2005, Section 6"
+          }
+        },
+        "TN": {
+          "complaint": {
+            "primary": "Tamil Nadu Highways Department",
+            "portal": "https://tnhighways.gov.in",
+            "phone": "044-25671894",
+            "escalation": "Chief Engineer, TN Highways",
+            "legalBasis": "TN Highways Act"
+          },
+          "rti": {
+            "officer": "State Public Information Officer",
+            "designation": "SPIO, TN Highways",
+            "filingUrl": "https://rtionline.gov.in",
+            "fee": "₹10",
+            "responseDays": 30,
+            "legalBasis": "RTI Act 2005, Section 6"
+          }
+        }
+      },
+      "MDR": {
+        "complaint": {
+          "primary": "District Collector / Zilla Parishad",
+          "portal": "https://pgportal.gov.in",
+          "phone": "District Collector Office",
+          "escalation": "State Rural Development Department",
+          "legalBasis": "Panchayati Raj Act"
+        },
+        "rti": {
+          "officer": "Block Development Officer (BDO)",
+          "designation": "PIO, Zilla Parishad",
+          "filingUrl": "https://rtionline.gov.in",
+          "fee": "₹10",
+          "responseDays": 30,
+          "legalBasis": "RTI Act 2005, Section 6"
+        }
+      },
+      "PMGSY": {
+        "complaint": {
+          "primary": "PMGSY State Rural Roads Development Agency",
+          "portal": "https://omms.nic.in",
+          "phone": "1800-111-555",
+          "escalation": "National Rural Roads Development Agency (NRRDA)",
+          "legalBasis": "PMGSY Guidelines"
+        },
+        "rti": {
+          "officer": "Central Public Information Officer",
+          "designation": "CPIO, Ministry of Rural Development",
+          "filingUrl": "https://rtionline.gov.in",
+          "fee": "₹10",
+          "responseDays": 30,
+          "legalBasis": "RTI Act 2005, Section 6"
+        }
+      }
+    }
+  }
+}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
+import { FileText, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
 import type { UIMessage } from 'ai';
 import {
   createThread,
@@ -10,6 +11,27 @@ import {
   getMessagesByThread,
 } from '@/lib/db';
 import { ChatMessage } from '@/components/chat/chat-message';
+
+/** Generate follow-up questions based on the assistant's response */
+function getFollowUps(msg: UIMessage): string[] {
+  const text = msg.parts?.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map(p => p.text).join(' ') ?? '';
+  const road = text.match(/\b(NH[-\s]?\d+[A-Z]?|SH[-\s]?\d+)\b/i)?.[1];
+  const contractor = text.match(/([A-Z][a-zA-Z\s]+(?:Ltd|Limited|JV|LLP))/)?.[1]?.trim();
+
+  const suggestions: string[] = [];
+  if (road) {
+    suggestions.push(`What is the total budget sanctioned for ${road}?`);
+    suggestions.push(`How do I file a complaint about ${road}?`);
+  }
+  if (contractor) {
+    suggestions.push(`What other projects has ${contractor} been awarded?`);
+  }
+  if (suggestions.length < 3) {
+    suggestions.push('Who is the RTI authority for this road?');
+  }
+  return suggestions.slice(0, 3);
+}
+
 import { InputBar } from '@/components/chat/input-bar';
 import {
   VoiceSessionBar,
@@ -45,13 +67,28 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     initialThreadId ?? null
   );
 
+  // Stable ID for useChat — changes only on explicit new thread
+  const [chatId, setChatId] = useState(() => initialThreadId ?? crypto.randomUUID());
+
+  // Pre-load messages for existing threads
+  const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
+  const [messagesLoaded, setMessagesLoaded] = useState(!initialThreadId);
+
+  useEffect(() => {
+    if (!initialThreadId) { setMessagesLoaded(true); return; }
+    getMessagesByThread(initialThreadId).then((msgs) => {
+      if (msgs.length) setInitialMessages(toUIMessages(msgs));
+      setMessagesLoaded(true);
+    });
+  }, [initialThreadId]);
+
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLoadingSpeech, setIsLoadingSpeech] = useState(false);
   const [isVoiceTurn, setIsVoiceTurn] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const [isVoiceRecording, setIsVoiceRecording] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
-  const [sendLocation, setSendLocation] = useState(false);
+  const [sendLocation, setSendLocation] = useState(true);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const activeMessageRef = useRef<HTMLDivElement | null>(null);
   const voiceTurnRef = useRef(false);
@@ -69,10 +106,11 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
       await createThread(threadId, trimmedTitle);
       setCurrentThreadId(threadId);
       notifyThreadsUpdated();
-      router.replace(`/t/${threadId}`);
+      // Update URL without triggering Next.js navigation/remount
+      window.history.replaceState(window.history.state, '', `/t/${threadId}`);
       return threadId;
     },
-    [currentThreadId, router]
+    [currentThreadId]
   );
 
   const stopTTS = useCallback(() => {
@@ -118,7 +156,8 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     status,
     setMessages,
   } = useVoiceChat({
-    id: currentThreadId ?? undefined,
+    id: chatId,
+    initialMessages,
     speakResponses: false,
     onVoiceError: (err) => setError(err.message),
     onBeforeSend: async ({ text }) => {
@@ -192,47 +231,19 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
 
   useEffect(() => {
     setCurrentThreadId(initialThreadId ?? null);
+    if (!initialThreadId) {
+      setChatId(crypto.randomUUID());
+    } else {
+      setChatId(initialThreadId);
+    }
   }, [initialThreadId]);
 
   useEffect(() => {
-    if (!initialThreadId) {
-      if (!isVoiceTurn && !isSending && !isTTSActive) {
-        setMessages([]);
-      }
-      loadedThreadRef.current = null;
+    if (!initialThreadId && !currentThreadId) {
+      setMessages([]);
       return;
     }
-
-    const threadToLoad = initialThreadId;
-    if (loadedThreadRef.current === threadToLoad) return;
-
-    // Keep in-flight voice/chat stream when URL updates after ensureThread()
-    if (
-      threadToLoad === currentThreadId &&
-      messages.length > 0 &&
-      (isVoiceTurn || isSending || isTTSActive)
-    ) {
-      loadedThreadRef.current = threadToLoad;
-      return;
-    }
-
-    loadedThreadRef.current = threadToLoad;
-
-    async function load() {
-      const msgs = await getMessagesByThread(threadToLoad);
-      if (!msgs.length) return;
-      setMessages(toUIMessages(msgs));
-    }
-    void load();
-  }, [
-    initialThreadId,
-    currentThreadId,
-    messages.length,
-    setMessages,
-    isVoiceTurn,
-    isSending,
-    isTTSActive,
-  ]);
+  }, [initialThreadId, currentThreadId, setMessages]);
 
   useEffect(() => {
     if (!messages.length) return;
@@ -294,7 +305,6 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     try {
       await sendMessage({ text });
       setImageDataUrl(null);
-      setSendLocation(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
       setError(msg);
@@ -302,22 +312,47 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   }
 
   const displayError = error ?? voiceError;
+  const onboardingCards = [
+    {
+      title: 'Verified sources',
+      description: 'Trace every claim back to official evidence and RTI records.',
+      icon: ShieldCheck,
+    },
+    {
+      title: 'Spatial signal',
+      description: 'Layer corridor plans, map context, and on-ground alerts.',
+      icon: MapPin,
+    },
+    {
+      title: 'Actionable briefs',
+      description: 'Turn audits into escalation-ready summaries and actions.',
+      icon: FileText,
+    },
+    {
+      title: 'Faster insights',
+      description: 'Ask once, get a structured answer with clear next steps.',
+      icon: Sparkles,
+    },
+  ];
+
+  if (!messagesLoaded) {
+    return <div className="flex h-screen items-center justify-center text-text-muted text-sm">Loading...</div>;
+  }
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-transparent">
-      <div className="flex-1 pb-40 pt-5 md:pt-6">
+    <div className="relative flex h-screen flex-col bg-transparent overflow-hidden">
+      <div className="flex-1 overflow-y-auto pb-56 pt-6 md:pb-44 md:pt-8">
         {messages.length === 0 ? (
-          <div className="flex min-h-screen flex-col items-center px-4 pt-36">
-            <div className="w-full max-w-2xl space-y-10 text-center">
+          <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
+            <div className="w-full max-w-2xl space-y-9 text-center">
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
               >
-                <h1 className="mb-2 text-6xl font-light tracking-tight text-text-primary">
+                <h1 className="mb-3 text-5xl font-semibold tracking-tight text-text-primary md:text-6xl">
                   VIGIA
                 </h1>
-                <p className="text-sm text-text-muted">Infrastructure intelligence</p>
               </motion.div>
 
               <motion.div
@@ -331,7 +366,7 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                     <motion.button
                       key={action}
                       type="button"
-                      className="inline-flex items-center rounded-full border border-border bg-white px-4 py-2 text-xs font-medium text-text-secondary transition-all hover:scale-105 hover:border-text-primary hover:text-text-primary active:animate-button-bounce"
+                      className="inline-flex items-center rounded-full border border-border bg-white/90 px-4 py-2 text-xs font-medium text-text-secondary shadow-[0_6px_14px_rgba(18,14,10,0.08)] transition-all hover:scale-105 hover:border-text-primary hover:text-text-primary active:animate-button-bounce"
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3, delay: 0.58 + i * 0.08 }}
@@ -348,31 +383,82 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
             </div>
           </div>
         ) : (
-          <div className="mx-auto w-full min-w-0 max-w-3xl px-4 md:px-6">
-            <div className="space-y-6">
-              {messages.map((msg) => {
-                const isAssistant = msg.role === 'assistant';
-                const isActive =
-                  isAssistant &&
-                  msg.id === (speakingMessageId ?? lastAssistantId) &&
-                  (isTTSActive || isSending || isVoiceTurn);
-                const isSpeakingThis =
-                  isTTSActive && msg.id === (speakingMessageId ?? lastAssistantId);
+          <div className="mx-auto w-full min-w-0 max-w-[900px] px-4 md:px-6">
+            <div className="space-y-8">
+                {messages.map((msg) => {
+                  const isAssistant = msg.role === 'assistant';
+                  const isActive =
+                    isAssistant &&
+                    msg.id === (speakingMessageId ?? lastAssistantId) &&
+                    (isTTSActive || isSending || isVoiceTurn);
+                  const isSpeakingThis =
+                    isTTSActive && msg.id === (speakingMessageId ?? lastAssistantId);
 
-                return (
-                  <ChatMessage
-                    key={msg.id}
-                    message={msg}
-                    isActive={isActive}
-                    isSpeaking={isSpeakingThis}
-                    messageRef={isActive ? activeMessageRef : undefined}
-                  />
-                );
-              })}
+                  // Extract vigia-evidence from message metadata
+                  const evidence = isAssistant && (msg as any).metadata?.type === 'vigia-evidence'
+                    ? (msg as any).metadata
+                    : null;
+
+                  return (
+                    <div key={msg.id}>
+                      <ChatMessage
+                        message={msg}
+                        isActive={isActive}
+                        isSpeaking={isSpeakingThis}
+                        messageRef={isActive ? activeMessageRef : undefined}
+                      />
+                      {isAssistant && evidence?.sources?.length > 0 && (
+                        <div className="mt-4 space-y-4 ml-0 md:ml-10">
+                          {/* Sources */}
+                          <div className="flex flex-wrap gap-2">
+                            {evidence.sources.slice(0, 5).map((src: any, i: number) => (
+                              <a
+                                key={src.id || i}
+                                href={src.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-white/80 px-3 py-1 text-xs text-text-secondary hover:border-text-primary hover:text-text-primary transition-colors"
+                              >
+                                <span className={`h-1.5 w-1.5 rounded-full ${
+                                  src.trustLevel === 'legally-binding' ? 'bg-emerald-500' :
+                                  src.trustLevel === 'official-portal' ? 'bg-blue-500' : 'bg-amber-500'
+                                }`} />
+                                {src.label}
+                              </a>
+                            ))}
+                          </div>
+                          {/* Follow-up suggestions */}
+                          <div className="border-t border-border/40 pt-3">
+                            <p className="text-xs font-semibold text-text-muted mb-2">Follow-ups</p>
+                            <div className="space-y-1.5">
+                              {getFollowUps(msg).map((q, i) => (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => setValue(q)}
+                                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-text-secondary hover:bg-white/80 hover:text-text-primary transition-colors"
+                                >
+                                  <span className="text-text-muted">↳</span>
+                                  {q}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {isSending && messages.length > 0 && !messages[messages.length - 1]?.parts?.some((p: any) => p.type === 'text' && p.text) && (
+                  <div className="flex items-center gap-2 text-sm text-text-muted animate-pulse ml-0 md:ml-10">
+                    <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-bounce" />
+                    Searching infrastructure records...
+                  </div>
+                )}
+                <div ref={bottomRef} className="h-2" />
             </div>
           </div>
         )}
-        <div ref={bottomRef} className="h-2" />
       </div>
 
       {displayError && (
@@ -384,7 +470,7 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
       )}
 
       <motion.div
-        className="fixed bottom-0 left-0 right-0 z-20 md:left-[260px]"
+        className="fixed bottom-16 left-0 right-0 z-20 md:bottom-0 md:left-[260px]"
         initial={false}
         animate={{ y: messages.length === 0 ? '-32vh' : 0 }}
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
@@ -397,11 +483,11 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
             background:
               messages.length === 0
                 ? 'transparent'
-                : 'linear-gradient(to bottom, transparent, rgb(250, 248, 243))',
+                : 'linear-gradient(to bottom, transparent, rgb(251, 247, 240))',
           }}
         />
-        <div className="relative w-full px-4 py-4 md:px-6">
-          <div className="mx-auto w-full max-w-3xl">
+        <div className="relative w-full px-4 pb-5 pt-3 md:px-6 md:pb-6">
+          <div className="mx-auto w-full max-w-[900px]">
             {voiceSessionPhase && (
               <VoiceSessionBar
                 phase={voiceSessionPhase}

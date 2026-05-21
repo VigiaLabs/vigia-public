@@ -19,31 +19,46 @@ export function ChatMessage({ message, isActive, isSpeaking, messageRef }: Props
   const isUser = message.role === 'user';
 
   return (
-    <div
-      ref={messageRef}
-      className={cn(isUser ? 'flex justify-end' : 'scroll-mt-28')}
+    <div ref={messageRef} className={cn(isUser ? 'flex justify-end' : 'scroll-mt-28')}
     >
       <motion.div
         layout
         className={cn(
           isUser
-            ? 'shell-bubble-user max-w-[70%] break-words whitespace-pre-wrap'
-            : 'shell-bubble-assistant relative whitespace-pre-wrap rounded-2xl transition-[box-shadow,background-color] duration-300',
-          !isUser &&
-            isActive &&
-            'bg-[#fbf8f2] px-4 py-3 shadow-[0_0_0_1px_rgba(235,228,216,0.9),0_8px_32px_rgba(17,17,17,0.04)]',
-          !isUser && isSpeaking && 'ring-1 ring-[#ebe4d8]/80'
+            ? 'shell-bubble-user max-w-[85%] break-words whitespace-pre-wrap md:max-w-[70%]'
+            : 'shell-bubble-assistant w-full'
         )}
       >
-        {!isUser && isSpeaking && (
-          <motion.span
-            className="absolute -left-0.5 top-4 h-[calc(100%-2rem)] w-0.5 rounded-full bg-gradient-to-b from-[#4285F4] via-[#EA4335] to-[#34A853]"
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
-            aria-hidden
-          />
+        {isUser ? (
+          text
+        ) : (
+          <div
+            className={cn(
+              'shell-answer-card transition-[box-shadow,background-color] duration-300',
+              isActive && 'bg-[#fcf8f1] shadow-[0_0_0_1px_rgba(226,215,201,0.9),0_12px_32px_rgba(18,14,10,0.10)]',
+              isSpeaking && 'ring-1 ring-[#e6d9c7]'
+            )}
+          >
+            {!isUser && isSpeaking && (
+              <motion.span
+                className="absolute left-0 top-4 h-[calc(100%-2rem)] w-0.5 rounded-full bg-gradient-to-b from-[#1f3a5f] via-[#b8683c] to-[#2f7c66]"
+                animate={{ opacity: [0.5, 1, 0.5] }}
+                transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
+                aria-hidden
+              />
+            )}
+            <div className="flex items-center justify-between gap-3 pb-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="shell-answer-tag">Answer</span>
+                <span className="shell-answer-meta">VIGIA analysis</span>
+              </div>
+              {isActive && <span className="shell-answer-live">Live</span>}
+            </div>
+            <div className="shell-answer-body whitespace-pre-wrap break-words">
+              {text}
+            </div>
+          </div>
         )}
-        {text}
       </motion.div>
     </div>
   );

@@ -1,1 +1,2 @@
-export { POST, runtime } from '../voice/speak/route';
+export { POST } from '../voice/speak/route';
+export const runtime = 'edge';

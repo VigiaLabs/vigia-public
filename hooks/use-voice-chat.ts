@@ -53,8 +53,6 @@ export function useVoiceChat({
   const chat = useChat({
     id,
     messages: initialMessages,
-    api,
-    body: voiceLocale ? { voiceLocale } : undefined,
     onError: (error) => {
       onVoiceError?.(error);
     },

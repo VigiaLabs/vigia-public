@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# CDK build artifacts (contain account IDs)
+infrastructure/cdk/cdk.out/
+infrastructure/cdk/cdk.context.json
+
+# Infrastructure dependencies
+infrastructure/node_modules/
