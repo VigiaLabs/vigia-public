@@ -1,18 +1,12 @@
-import path from 'node:path';
-import Database from 'better-sqlite3';
+import { generateObject } from 'ai';
+import { bedrock } from '@ai-sdk/amazon-bedrock';
+import { z } from 'zod';
 import type { NormalizedEvidence, Payload } from '../state';
+import { callVigiaTool } from '../../mcp/client';
 
-const DB_PATH = path.join(process.cwd(), 'data', 'nhai_mock.db');
-
-interface FTSRow {
-  content: string;
-  section_title: string;
-  page_number: number;
-}
-
-function getDb(): Database.Database {
-  return new Database(DB_PATH, { readonly: true, fileMustExist: true });
-}
+const AdminExtractionSchema = z.object({
+  roadNumber: z.string().describe("The road number mentioned, e.g., 'NH-44', 'SH-15'. Null if none found.").nullable(),
+});
 
 export async function runAdminAgent(
   payload: Payload,
@@ -36,69 +30,67 @@ export async function runAdminAgent(
   }
 
   try {
-    const db = getDb();
+    // 1. Extract road number from user query
+    const { object } = await generateObject({
+      model: bedrock('amazon.nova-lite-v1:0'),
+      schema: AdminExtractionSchema,
+      prompt: `Extract the road number (like NH-44, SH-12) from the following query:\n\n"${searchTerm}"`,
+    });
 
-    // FTS5 query — tokenize search term for MATCH syntax
-    const matchQuery = searchTerm
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((w) => `"${w}"`)
-      .join(' OR ');
-
-    const rows = db
-      .prepare(
-        `SELECT content, section_title, page_number
-         FROM nhai_sections
-         WHERE nhai_sections MATCH ?
-         ORDER BY rank
-         LIMIT 5`
-      )
-      .all(matchQuery) as FTSRow[];
-
-    db.close();
-
-    if (!rows.length) {
+    if (!object.roadNumber) {
       return {
         agentId: 'admin',
         status: 'completed',
         confidence: 0.3,
-        findings: ['No matching contract sections found for query.'],
+        findings: ['No specific road number identified in the query to look up contracts.'],
         citations: [],
         latencyMs: Date.now() - start,
       };
     }
 
-    const findings = rows.map(
-      (r) => `[p.${r.page_number}] ${r.section_title}: ${r.content.slice(0, 200)}`
+    // 2. Call MCP Server
+    const result = await callVigiaTool('search_tenders', { roadNumber: object.roadNumber });
+    
+    let tenders: any[] = [];
+    if (result && result.content && result.content[0] && result.content[0].text) {
+      tenders = JSON.parse(result.content[0].text);
+    }
+
+    if (!tenders.length || tenders[0].projectName.includes('not found')) {
+      return {
+        agentId: 'admin',
+        status: 'completed',
+        confidence: 0.8,
+        findings: [`No matching contract records found for ${object.roadNumber}.`],
+        citations: [],
+        latencyMs: Date.now() - start,
+      };
+    }
+
+    // Format findings
+    const findings = tenders.map(
+      (t) => `Contract for ${t.roadNumber}: Project '${t.projectName}', Concessionaire: ${t.concessionaire}, Mode: ${t.mode}, State: ${t.state}.`
     );
 
-    const citations = rows.map((r, i) => ({
-      sourceId: `nhai-p${r.page_number}-${i}`,
-      label: r.section_title,
+    const citations = tenders.map((t, i) => ({
+      sourceId: `nhai-${t.roadNumber}-${i}`,
+      label: `NHAI Public Data (${t.roadNumber})`,
       trustLevel: 'legally-binding' as const,
     }));
-
-    // Heuristic: confidence based on number of results
-    const confidence = Math.min(0.5 + rows.length * 0.1, 1);
-
-    // Check if findings suggest compliance
-    const hasComplianceLanguage = findings.some((f) =>
-      /compliant|completed|satisfactor/i.test(f)
-    );
 
     return {
       agentId: 'admin',
       status: 'completed',
-      confidence,
-      severity: hasComplianceLanguage ? 'none' : 'moderate',
+      confidence: 0.9,
+      severity: 'none',
       findings,
       citations,
-      metadata: { matchQuery, resultCount: rows.length, retryQuery },
+      metadata: { roadNumber: object.roadNumber, resultCount: tenders.length },
       latencyMs: Date.now() - start,
     };
   } catch (err: unknown) {
     const reason =
-      err instanceof Error ? err.message : 'Unknown SQLite error';
+      err instanceof Error ? err.message : 'Unknown MCP error';
     return {
       agentId: 'admin',
       status: 'error',

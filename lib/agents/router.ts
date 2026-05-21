@@ -20,7 +20,8 @@ function formatHistory(history?: Array<{ role: string; content: string }>): stri
 export async function routerNode(state: VigiaState): Promise<Partial<VigiaState>> {
   const { payload } = state;
   const hasImage = !!payload.imageUrl;
-  const hasGps = !!payload.gps;
+  // Detect GPS coordinates in payload.gps or embedded in text (e.g. "13.1994, 77.4282")
+  const hasGps = !!payload.gps || (payload.text ? !!payload.text.match(/(-?\d{1,2}\.\d+)[,\s]+(-?\d{1,3}\.\d+)/) : false);
   const historyContext = formatHistory(payload.history);
 
   try {
