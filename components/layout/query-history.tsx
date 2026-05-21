@@ -34,10 +34,20 @@ export function QueryHistory({ onSelect }: Props) {
   useEffect(() => {
     let mounted = true;
     getThreads(20).then((threads) => { if (mounted) { setItems(threads); setLoading(false); } });
+
+    const onThreadsUpdated = () => {
+      void getThreads(20).then((threads) => { if (mounted) setItems(threads); });
+    };
+    window.addEventListener('vigia:threads-updated', onThreadsUpdated);
+
     const interval = setInterval(() => {
       getThreads(20).then((threads) => { if (mounted) setItems(threads); });
     }, 3000);
-    return () => { mounted = false; clearInterval(interval); };
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+      window.removeEventListener('vigia:threads-updated', onThreadsUpdated);
+    };
   }, [refresh]);
 
   async function handleDelete(e: React.MouseEvent, threadId: string) {

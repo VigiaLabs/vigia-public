@@ -1,67 +1,190 @@
 'use client';
 
-import { ArrowUp } from 'lucide-react';
+import { useRef } from 'react';
+import { motion } from 'framer-motion';
+import { ArrowUp, ImageIcon, MapPin, X } from 'lucide-react';
 import { useOnlineStatus } from '@/lib/db/use-online-status';
+import { VoiceInput } from './voice-input';
 
-type InputBarProps = {
+export interface InputBarProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
   isSending: boolean;
-};
+  onVoiceCapture: (blob: Blob) => void | Promise<void>;
+  isProcessingVoice?: boolean;
+  isSpeaking?: boolean;
+  isVoiceRecording?: boolean;
+  onVoiceRecordingChange?: (recording: boolean) => void;
+  stopTTS?: () => void;
+  hasMessages?: boolean;
+  imageDataUrl?: string | null;
+  onImageSelect?: (dataUrl: string) => void;
+  onImageClear?: () => void;
+  sendLocation?: boolean;
+  onToggleLocation?: () => void;
+  onPaste?: (e: React.ClipboardEvent) => void;
+}
 
 export function InputBar({
   value,
   onChange,
   onSubmit,
   isSending,
+  onVoiceCapture,
+  isProcessingVoice = false,
+  isSpeaking = false,
+  isVoiceRecording: isVoiceRecordingProp,
+  onVoiceRecordingChange,
+  stopTTS,
+  hasMessages = false,
+  imageDataUrl,
+  onImageSelect,
+  onImageClear,
+  sendLocation = false,
+  onToggleLocation,
+  onPaste,
 }: InputBarProps) {
   const isOnline = useOnlineStatus();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const isBusy = isSending || isProcessingVoice || isVoiceRecordingProp;
+  const inputDisabled = isVoiceRecordingProp || isProcessingVoice || isSending;
+
+  function handleImageFile(file: File) {
+    if (!file.type.startsWith('image/') || !onImageSelect) return;
+    const reader = new FileReader();
+    reader.onload = () => onImageSelect(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const next = e.target.value;
+    if (isSpeaking) stopTTS?.();
+    onChange(next);
+  }
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-20 md:left-[260px]">
-      <div className="pointer-events-none absolute inset-0 top-0 h-24 bg-gradient-to-b from-transparent via-cream/70 to-cream" />
-
-      <div className="relative w-full px-4 py-4 md:px-8 md:py-6">
-        <div className="w-full md:mx-auto md:max-w-3xl">
-          {!isOnline && (
-            <div className="mb-2 flex items-center gap-2 text-xs text-amber-700">
-              <div className="h-1.5 w-1.5 rounded-full bg-amber-600" />
-              <span className="font-normal">Offline — will sync when connected</span>
-            </div>
-          )}
-
-          <div className="shell-input-shell flex items-end gap-2">
-            <input
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !isSending) {
-                  e.preventDefault();
-                  onSubmit();
-                }
-              }}
-              className="flex-1 bg-transparent text-sm font-normal text-text-primary outline-none placeholder:font-normal placeholder:text-text-muted disabled:opacity-50"
-              placeholder="What would you like to know?"
-              disabled={isSending}
-              aria-label="Ask a question"
-            />
-
+    <>
+      {imageDataUrl && onImageClear && (
+        <motion.div
+          className="shell-card mb-2 flex items-center gap-2 px-3 py-2 text-xs text-text-secondary"
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+        >
+          <span className="flex items-center gap-1.5">
+            <ImageIcon className="h-3.5 w-3.5" />
+            Image attached
+          </span>
+          <button
+            type="button"
+            onClick={onImageClear}
+            className="ml-auto rounded-full p-0.5 hover:bg-[#f3ede4]"
+            aria-label="Remove image"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </motion.div>
+      )}
+      <motion.div
+        className="shell-input-shell flex items-center gap-3"
+        onPaste={onPaste}
+        animate={{ width: '100%', maxWidth: 'none' }}
+      >
+        {onImageSelect && (
+          <>
             <button
-              onClick={onSubmit}
-              disabled={isSending || !value.trim()}
-              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-text-secondary transition-colors duration-200 disabled:text-[#d6cfc4] enabled:hover:bg-[#f4efe6] enabled:text-text-primary"
-              aria-label="Send message"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-text-muted transition-all hover:text-text-primary active:animate-button-bounce"
+              aria-label="Attach image"
             >
-              {isSending ? (
+              <ImageIcon className="h-4 w-4" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleImageFile(f);
+                e.target.value = '';
+              }}
+            />
+          </>
+        )}
+        {onToggleLocation && (
+          <button
+            type="button"
+            onClick={onToggleLocation}
+            className={`flex h-5 w-5 flex-shrink-0 items-center justify-center transition-all active:animate-button-bounce ${
+              sendLocation
+                ? 'rounded-full bg-[#111111] text-white'
+                : 'text-text-muted hover:text-text-primary'
+            }`}
+            aria-label="Toggle location"
+          >
+            <MapPin className="h-4 w-4" />
+          </button>
+        )}
+        <input
+          value={value}
+          onChange={handleInputChange}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey && !inputDisabled) {
+              e.preventDefault();
+              onSubmit();
+            }
+          }}
+          className="min-w-0 flex-1 bg-transparent text-base text-text-primary placeholder:text-text-muted disabled:opacity-50"
+          placeholder={
+            isVoiceRecordingProp
+              ? 'Listening...'
+              : isSpeaking
+                ? 'Type to stop speaking...'
+                : isProcessingVoice
+                  ? 'Transcribing audio...'
+                  : !hasMessages
+                    ? 'Ask about roads, budgets, or infrastructure...'
+                    : !isOnline
+                      ? 'Offline — queries queued'
+                      : 'Ask about roads, budgets, or upload an image...'
+          }
+          disabled={inputDisabled}
+          aria-label="Ask a question"
+        />
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          <VoiceInput
+            size="compact"
+            onAudioCapture={onVoiceCapture}
+            onRecordingChange={(recording) => {
+              if (recording) stopTTS?.();
+              onVoiceRecordingChange?.(recording);
+            }}
+            isDisabled={
+              ((isSending || isProcessingVoice) && !isVoiceRecordingProp) ||
+              !isOnline
+            }
+          />
+          {!isVoiceRecordingProp && (value.trim() || isSending) && (
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={isBusy || !value.trim()}
+              className="flex h-5 w-5 flex-shrink-0 items-center justify-center text-text-secondary transition-all disabled:text-[#d6cfc4] enabled:hover:text-text-primary enabled:active:animate-button-bounce"
+              aria-label="Send"
+            >
+              {isBusy ? (
                 <div className="h-3 w-3 animate-spin rounded-full border-2 border-[#b8b0a0] border-t-text-primary" />
               ) : (
                 <ArrowUp className="h-4 w-4" />
               )}
             </button>
-          </div>
+          )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </>
   );
 }

@@ -1,8 +1,21 @@
+import {
+  convertToModelMessages,
+  streamText,
+  type UIMessage,
+} from 'ai';
+import { bedrock } from '@ai-sdk/amazon-bedrock';
 import { NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/security/rate-limit';
+import {
+  buildMultilingualSystemPrompt,
+  isVoiceLocale,
+} from '@/lib/voice/locale';
+import { VIGIA_BASE_SYSTEM_PROMPT } from '@/lib/voice/chat-prompt';
+import type { VoiceLocale } from '@/types/voice';
 
-const MAX_BODY_BYTES = 16 * 1024;
-const MAX_MESSAGE_CHARS = 2000;
+export const runtime = 'nodejs';
+
+const MAX_BODY_BYTES = 256 * 1024;
 const RATE_LIMIT = {
   windowMs: 60_000,
   limit: 30,
@@ -31,6 +44,31 @@ function isSameOrigin(req: Request): boolean {
   }
 }
 
+function resolveChatLocale(
+  voiceLocale: VoiceLocale | null,
+  messages: UIMessage[]
+): VoiceLocale | null {
+  if (voiceLocale) return voiceLocale;
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role !== 'user') continue;
+
+    const text = msg.parts
+      ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+      .map((p) => p.text)
+      .join('');
+
+    if (!text) continue;
+
+    if (/[\u0900-\u097F]/.test(text)) return 'hi-IN';
+    if (/[\u0B80-\u0BFF]/.test(text)) return 'ta-IN';
+    break;
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
   const ip = getClientIp(req);
   const rate = checkRateLimit(`chat:${ip}`, RATE_LIMIT);
@@ -56,14 +94,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const contentType = req.headers.get('content-type') || '';
-    if (!contentType.toLowerCase().includes('application/json')) {
-      return NextResponse.json(
-        { error: 'Content-Type must be application/json' },
-        { status: 415, headers: { 'Cache-Control': 'no-store' } }
-      );
-    }
-
     const rawBody = await req.text();
     if (rawBody.length > MAX_BODY_BYTES) {
       return NextResponse.json(
@@ -72,32 +102,48 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = JSON.parse(rawBody || '{}') as { message?: unknown };
+    const parsed = JSON.parse(rawBody || '{}') as {
+      messages?: UIMessage[];
+      voiceLocale?: unknown;
+    };
+
+    const { messages } = parsed;
+
+    if (!Array.isArray(messages) || messages.length === 0) {
+      return NextResponse.json(
+        { error: 'Messages array is required' },
+        { status: 400, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    const requestVoiceLocale =
+      typeof parsed.voiceLocale === 'string' && isVoiceLocale(parsed.voiceLocale)
+        ? parsed.voiceLocale
+        : null;
+
+    const chatLocale = resolveChatLocale(requestVoiceLocale, messages);
+    const system = chatLocale
+      ? buildMultilingualSystemPrompt(VIGIA_BASE_SYSTEM_PROMPT, chatLocale)
+      : VIGIA_BASE_SYSTEM_PROMPT;
+
+    const result = streamText({
+      model: bedrock('amazon.nova-lite-v1:0'),
+      system,
+      messages: await convertToModelMessages(messages),
+    });
+
+    return result.toUIMessageStreamResponse({
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  } catch (error) {
+    console.error('Chat stream error:', error);
+
     const message =
-      typeof body?.message === 'string' ? body.message.trim() : '';
+      error instanceof Error ? error.message : 'Failed to generate response';
 
-    if (!message) {
-      return NextResponse.json(
-        { error: 'Message is required' },
-        { status: 400, headers: { 'Cache-Control': 'no-store' } }
-      );
-    }
-
-    if (message.length > MAX_MESSAGE_CHARS) {
-      return NextResponse.json(
-        { error: `Message too long. Maximum ${MAX_MESSAGE_CHARS} characters.` },
-        { status: 400, headers: { 'Cache-Control': 'no-store' } }
-      );
-    }
-
-    return NextResponse.json({
-      reply: `Received: ${message}`,
-      sources: [],
-    }, { headers: { 'Cache-Control': 'no-store' } });
-  } catch {
     return NextResponse.json(
-      { error: 'Invalid request' },
-      { status: 400, headers: { 'Cache-Control': 'no-store' } }
+      { error: message },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
     );
   }
 }
