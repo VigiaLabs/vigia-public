@@ -42,12 +42,6 @@ export function MessageFeed({ messages }: MessageFeedProps) {
             ) : (
               <div className="space-y-6">
                 <div className="shell-answer-card">
-                  <div className="flex items-center justify-between gap-3 pb-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="shell-answer-tag">Answer</span>
-                      <span className="shell-answer-meta">VIGIA analysis</span>
-                    </div>
-                  </div>
                   {message.content.split('\n\n').map((paragraph, idx) => {
                     const trimmed = paragraph.trim();
                     if (!trimmed) return null;

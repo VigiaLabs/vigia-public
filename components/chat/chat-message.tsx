@@ -19,7 +19,7 @@ export function ChatMessage({ message, isActive, isSpeaking, messageRef }: Props
   const isUser = message.role === 'user';
 
   return (
-    <div ref={messageRef} className={cn(isUser ? 'flex justify-end' : 'scroll-mt-28')}
+    <div ref={messageRef} className={cn(isUser ? 'flex justify-end' : 'scroll-mt-32 md:scroll-mt-28')}
     >
       <motion.div
         layout
@@ -47,13 +47,11 @@ export function ChatMessage({ message, isActive, isSpeaking, messageRef }: Props
                 aria-hidden
               />
             )}
-            <div className="flex items-center justify-between gap-3 pb-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="shell-answer-tag">Answer</span>
-                <span className="shell-answer-meta">VIGIA analysis</span>
+            {(isActive || isSpeaking) && (
+              <div className="flex items-center justify-end gap-3 pb-3">
+                {isActive && <span className="shell-answer-live">Live</span>}
               </div>
-              {isActive && <span className="shell-answer-live">Live</span>}
-            </div>
+            )}
             <div className="shell-answer-body whitespace-pre-wrap break-words">
               {text}
             </div>

@@ -111,7 +111,7 @@ async function requestAzureTranscription(
 
   const form = new FormData();
   const ext = extensionForMime(mimeType);
-  form.append('audio', new Blob([audioBuffer], { type: mimeType }), `audio.${ext}`);
+  form.append('audio', new Blob([new Uint8Array(audioBuffer)], { type: mimeType }), `audio.${ext}`);
   form.append('definition', JSON.stringify(buildTranscriptionDefinition(locales)));
 
   const response = await fetch(endpoint, {

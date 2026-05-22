@@ -88,7 +88,7 @@ export function InputBar({
       : isSpeaking
         ? 'Type to interrupt...'
         : !hasMessages
-          ? 'Ask about roads, budgets, or infrastructure...'
+          ? 'Describe your query…'
           : !isOnline
             ? 'Offline — queries queued'
             : 'Ask a follow-up...';

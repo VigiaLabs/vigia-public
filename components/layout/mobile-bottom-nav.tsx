@@ -47,9 +47,12 @@ export function MobileBottomNav() {
               History
             </button>
           </BottomSheetTrigger>
-          <BottomSheetContent className="bg-white">
-            <div className="space-y-4">
-              <div className="text-sm font-semibold text-text-primary">Recent searches</div>
+          <BottomSheetContent className="bg-white px-5 pb-8">
+            <div className="space-y-1">
+              <div className="text-base font-semibold tracking-tight text-text-primary">Recent</div>
+              <p className="text-xs text-text-muted">Your infrastructure search history</p>
+            </div>
+            <div className="mt-4">
               <QueryHistory onSelect={(threadId) => router.push(`/t/${threadId}`)} />
             </div>
           </BottomSheetContent>

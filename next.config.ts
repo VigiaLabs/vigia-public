@@ -1,21 +1,26 @@
 import type { NextConfig } from 'next';
+import path from 'path';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const nextPWA = require('next-pwa');
+const withPWA = require('next-pwa');
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-const baseConfig: NextConfig = {
-  turbopack: {
-    root: __dirname,
-  },
+const sharedConfig = {
+  outputFileTracingRoot: path.join(__dirname),
 };
 
-const pwaConfig = {
+const devConfig: NextConfig = {
+  ...sharedConfig,
+};
+
+const prodConfig = {
+  ...sharedConfig,
+  turbopack: {},
   pwa: {
     dest: 'public',
     register: true,
     skipWaiting: true,
-    disable: process.env.NODE_ENV === 'development',
+    disable: false,
     runtimeCaching: [
       {
         urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com/,
@@ -24,7 +29,7 @@ const pwaConfig = {
           cacheName: 'google-fonts-cache',
           expiration: {
             maxEntries: 30,
-            maxAgeSeconds: 365 * 24 * 60 * 60, // 1 year
+            maxAgeSeconds: 365 * 24 * 60 * 60,
           },
         },
       },
@@ -35,7 +40,7 @@ const pwaConfig = {
           cacheName: 'next-static-cache',
           expiration: {
             maxEntries: 60,
-            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+            maxAgeSeconds: 30 * 24 * 60 * 60,
           },
         },
       },
@@ -46,13 +51,12 @@ const pwaConfig = {
           cacheName: 'next-image-cache',
           expiration: {
             maxEntries: 50,
-            maxAgeSeconds: 24 * 60 * 60, // 1 day
+            maxAgeSeconds: 24 * 60 * 60,
           },
         },
       },
-      // NOTE: /api/chat is intentionally NOT cached — LLM responses must never be stale
     ],
   },
 };
 
-export default isDevelopment ? baseConfig : nextPWA({ ...baseConfig, ...pwaConfig } as any);
+export default isDevelopment ? devConfig : withPWA(prodConfig);

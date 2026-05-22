@@ -58,12 +58,6 @@ export function TabbedResults({
         <div className="space-y-4">
           {contradictionVerified && <ContradictionBanner />}
           <div className="shell-answer-card">
-            <div className="flex items-center justify-between gap-3 pb-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="shell-answer-tag">Answer</span>
-                <span className="shell-answer-meta">VIGIA analysis</span>
-              </div>
-            </div>
             <div className="shell-answer-body whitespace-pre-wrap">{auditFinding}</div>
           </div>
         </div>

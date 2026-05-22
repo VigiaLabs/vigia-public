@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { FileText, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
+import { getLandingGreeting, LANDING_SUGGESTIONS } from '@/lib/chat/greeting';
 import type { UIMessage } from 'ai';
 import {
   createThread,
@@ -353,28 +353,7 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   }
 
   const displayError = error ?? voiceError;
-  const onboardingCards = [
-    {
-      title: 'Verified sources',
-      description: 'Trace every claim back to official evidence and RTI records.',
-      icon: ShieldCheck,
-    },
-    {
-      title: 'Spatial signal',
-      description: 'Layer corridor plans, map context, and on-ground alerts.',
-      icon: MapPin,
-    },
-    {
-      title: 'Actionable briefs',
-      description: 'Turn audits into escalation-ready summaries and actions.',
-      icon: FileText,
-    },
-    {
-      title: 'Faster insights',
-      description: 'Ask once, get a structured answer with clear next steps.',
-      icon: Sparkles,
-    },
-  ];
+  const landingGreeting = useMemo(() => getLandingGreeting(), []);
 
   if (!messagesLoaded) {
     return <div className="flex h-screen items-center justify-center text-text-muted text-sm">Loading...</div>;
@@ -382,49 +361,8 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
 
   return (
     <div className="relative flex h-screen flex-col bg-transparent overflow-hidden">
-      <div className="flex-1 overflow-y-auto pb-60 pt-6 md:pb-48 md:pt-8">
-        {messages.length === 0 ? (
-          <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
-            <div className="w-full max-w-2xl space-y-9 text-center">
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-              >
-                <h1 className="mb-2 text-5xl font-semibold tracking-[-0.03em] text-text-primary md:text-6xl">
-                  VIGIA
-                </h1>
-                <p className="text-sm text-text-muted">Infrastructure intelligence, verified.</p>
-              </motion.div>
-
-              <motion.div
-                className="flex flex-wrap justify-center gap-2"
-                initial={{ opacity: 0, y: 15 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, delay: 0.5 }}
-              >
-                {['Build infrastructure plan', 'Analyze budget', 'Track spatial data'].map(
-                  (action, i) => (
-                    <motion.button
-                      key={action}
-                      type="button"
-                      className="inline-flex items-center rounded-full border border-border bg-white px-4 py-2 text-[13px] font-medium text-text-secondary shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-all hover:border-[#c4c4c8] hover:bg-[#fafafa] hover:text-text-primary"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.28, delay: 0.58 + i * 0.07 }}
-                      onClick={() => {
-                        if (isTTSActive || isVoiceTurn) interruptSpeaking();
-                        setValue(action);
-                      }}
-                    >
-                      {action}
-                    </motion.button>
-                  )
-                )}
-              </motion.div>
-            </div>
-          </div>
-        ) : (
+      <div className="flex-1 overflow-y-auto pb-[calc(env(safe-area-inset-bottom,0px)+11.5rem)] pt-3 md:pb-48 md:pt-8">
+        {messages.length > 0 && (
           <div className="mx-auto w-full min-w-0 max-w-[900px] px-4 md:px-6">
             <div className="space-y-8">
                 {messages.map((msg) => {
@@ -514,7 +452,7 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
       </div>
 
       {displayError && (
-        <div className="fixed bottom-36 left-0 right-0 z-20 md:left-[260px]">
+        <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+10.5rem)] left-0 right-0 z-20 md:bottom-36 md:left-[var(--sidebar-width,0px)] md:transition-[left] md:duration-300">
           <div className="mx-auto w-full max-w-3xl px-4 md:px-6">
             <div className="shell-card px-4 py-2.5 text-sm text-red-700">{displayError}</div>
           </div>
@@ -522,9 +460,9 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
       )}
 
       <motion.div
-        className="fixed bottom-16 left-0 right-0 z-20 md:bottom-0 md:left-[260px]"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+4.25rem)] left-0 right-0 z-20 transition-[left] duration-300 md:bottom-0 md:left-[var(--sidebar-width,0px)]"
         initial={false}
-        animate={{ y: messages.length === 0 ? '-32vh' : 0 }}
+        animate={{ y: messages.length === 0 ? '-28vh' : 0 }}
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
       >
         <motion.div
@@ -540,6 +478,22 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
         />
         <div className="relative w-full px-4 pb-6 pt-3 md:px-6 md:pb-8">
           <div className="mx-auto w-full max-w-[900px]">
+            {messages.length === 0 && (
+              <motion.div
+                className="mb-8 text-center"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+              >
+                <h1 className="text-[22px] font-medium tracking-[-0.02em] text-text-primary md:text-[26px]">
+                  {landingGreeting.headline}
+                </h1>
+                <p className="mt-2 text-sm text-text-muted md:text-[15px]">
+                  {landingGreeting.subline}
+                </p>
+              </motion.div>
+            )}
+
             {voiceSessionPhase && (
               <VoiceSessionBar
                 phase={voiceSessionPhase}
@@ -567,6 +521,32 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
               onToggleLocation={() => setSendLocation((v) => !v)}
               onPaste={handlePaste}
             />
+
+            {messages.length === 0 && (
+              <motion.div
+                className="mt-5 flex flex-wrap justify-center gap-2"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35, delay: 0.12 }}
+              >
+                {LANDING_SUGGESTIONS.map((action, i) => (
+                  <motion.button
+                    key={action}
+                    type="button"
+                    className="inline-flex items-center rounded-full border border-border bg-white px-4 py-2 text-[13px] font-medium text-text-secondary shadow-[0_1px_2px_rgba(0,0,0,0.04)] transition-all hover:border-[#c4c4c8] hover:bg-[#fafafa] hover:text-text-primary"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.28, delay: 0.2 + i * 0.06 }}
+                    onClick={() => {
+                      if (isTTSActive || isVoiceTurn) interruptSpeaking();
+                      setValue(action);
+                    }}
+                  >
+                    {action}
+                  </motion.button>
+                ))}
+              </motion.div>
+            )}
           </div>
         </div>
       </motion.div>
