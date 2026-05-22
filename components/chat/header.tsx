@@ -13,7 +13,7 @@ export function ChatHeader() {
   const [active, setActive] = useState(0);
 
   return (
-    <header className="sticky top-0 z-20 border-b border-border/70 bg-cream/85 backdrop-blur-xl">
+    <header className="sticky top-0 z-20 border-b border-border bg-white/90 backdrop-blur-xl">
       <div className="mx-auto max-w-[900px] px-4 py-2.5 md:px-6">
         <div className="flex items-center justify-between">
           <nav className="flex items-center gap-1">

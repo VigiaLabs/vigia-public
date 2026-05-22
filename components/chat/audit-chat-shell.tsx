@@ -92,7 +92,7 @@ export function AuditChatShell() {
       {/* Input */}
       <form
         onSubmit={handleSubmit}
-        className="sticky bottom-0 border-t border-border bg-cream px-4 py-4"
+        className="sticky bottom-0 border-t border-border bg-white px-4 py-4"
       >
         <div className="shell-input-shell flex items-center gap-2">
           <input
@@ -106,7 +106,7 @@ export function AuditChatShell() {
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition-colors disabled:text-[#d6cfc4] enabled:hover:bg-[#f4efe6] enabled:text-text-primary"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-text-secondary transition-colors disabled:text-[#d4d4d8] enabled:hover:bg-[#f4f4f5] enabled:text-text-primary"
             aria-label="Submit"
           >
             {isLoading ? (

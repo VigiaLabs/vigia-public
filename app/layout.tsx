@@ -101,7 +101,7 @@ export default function RootLayout({
         <link rel="icon" type="image/x-icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
-      <body className="flex min-h-screen h-full bg-cream text-text-primary">
+      <body className="flex min-h-screen h-full bg-white text-text-primary">
         <AI>
           <AppShell>{children}</AppShell>
         </AI>

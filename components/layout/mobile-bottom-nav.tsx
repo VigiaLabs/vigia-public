@@ -12,7 +12,7 @@ export function MobileBottomNav() {
   const isHome = pathname === '/';
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-border/80 bg-white/90 px-4 pb-[calc(env(safe-area-inset-bottom,0)+1rem)] pt-2 shadow-[0_-10px_30px_rgba(18,14,10,0.12)] backdrop-blur md:hidden">
+    <div className="fixed bottom-0 left-0 right-0 z-30 border-t border-border bg-white/95 px-4 pb-[calc(env(safe-area-inset-bottom,0)+1rem)] pt-2 shadow-[0_-1px_0_rgba(0,0,0,0.06)] backdrop-blur md:hidden">
       <div className="mx-auto flex max-w-md items-end justify-between">
         <div className="flex items-end gap-4">
           <button
@@ -31,7 +31,7 @@ export function MobileBottomNav() {
         <button
           type="button"
           onClick={() => router.push('/')}
-          className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1f3a5f] text-white shadow-[0_10px_24px_rgba(18,14,10,0.18)]"
+          className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1f3a5f] text-white shadow-[0_4px_14px_rgba(31,58,95,0.32)]"
           aria-label="New thread"
         >
           <Plus className="h-5 w-5" />
@@ -47,7 +47,7 @@ export function MobileBottomNav() {
               History
             </button>
           </BottomSheetTrigger>
-          <BottomSheetContent className="bg-[#fdfaf4]">
+          <BottomSheetContent className="bg-white">
             <div className="space-y-4">
               <div className="text-sm font-semibold text-text-primary">Recent searches</div>
               <QueryHistory onSelect={(threadId) => router.push(`/t/${threadId}`)} />

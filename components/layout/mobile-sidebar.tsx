@@ -10,7 +10,7 @@ export function MobileSidebar() {
       <Sheet>
         <SheetTrigger asChild>
           <button
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white/90 shadow-[0_1px_2px_rgba(17,17,17,0.04)] backdrop-blur transition-colors hover:bg-white active:bg-[#f7f4ee]"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)] backdrop-blur transition-colors hover:bg-[#fafafa] active:bg-[#f4f4f5]"
             aria-label="Toggle sidebar"
           >
             <Menu className="h-5 w-5 text-text-primary" />

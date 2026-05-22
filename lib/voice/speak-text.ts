@@ -64,6 +64,10 @@ export async function speakText(text: string, options?: SpeakTextOptions): Promi
   }
 
   const blob = await response.blob();
+  if (blob.size === 0) {
+    throw new Error('Speech synthesis returned empty audio');
+  }
+
   currentObjectUrl = URL.createObjectURL(blob);
   currentAudio = new Audio(currentObjectUrl);
   currentAudio.playbackRate = PLAYBACK_RATE;

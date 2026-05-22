@@ -38,7 +38,7 @@ export function TabbedResults({
 
   return (
     <div className="space-y-3 animate-fade-in">
-      <div className="flex flex-wrap items-center gap-2 rounded-full border border-border/80 bg-white/80 p-1 shadow-[0_6px_18px_rgba(18,14,10,0.06)]">
+      <div className="flex flex-wrap items-center gap-2 rounded-full border border-border bg-white p-1 shadow-[0_1px_3px_rgba(0,0,0,0.06)]">
         {(['answer', 'sources', 'maps'] as Tab[]).map((tab) => (
           <button
             key={tab}

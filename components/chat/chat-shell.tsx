@@ -41,6 +41,7 @@ import { useVoiceChat } from '@/hooks/use-voice-chat';
 import { getMessageText } from '@/lib/voice/get-message-text';
 import { speakText, stopSpeaking } from '@/lib/voice/speak-text';
 import { stripMarkdown } from '@/lib/voice/strip-markdown';
+import { resolveVoiceLocale } from '@/lib/voice/locale';
 import type { VoiceLocale } from '@/types/voice';
 
 type Props = { threadId?: string };
@@ -71,16 +72,7 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   const [chatId, setChatId] = useState(() => initialThreadId ?? crypto.randomUUID());
 
   // Pre-load messages for existing threads
-  const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
   const [messagesLoaded, setMessagesLoaded] = useState(!initialThreadId);
-
-  useEffect(() => {
-    if (!initialThreadId) { setMessagesLoaded(true); return; }
-    getMessagesByThread(initialThreadId).then((msgs) => {
-      if (msgs.length) setInitialMessages(toUIMessages(msgs));
-      setMessagesLoaded(true);
-    });
-  }, [initialThreadId]);
 
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLoadingSpeech, setIsLoadingSpeech] = useState(false);
@@ -92,6 +84,7 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const activeMessageRef = useRef<HTMLDivElement | null>(null);
   const voiceTurnRef = useRef(false);
+  const pendingVoiceTtsLocaleRef = useRef<VoiceLocale | null>(null);
   const loadedThreadRef = useRef<string | null>(null);
 
   const isTTSActive = isSpeaking || isLoadingSpeech;
@@ -120,11 +113,16 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     setSpeakingMessageId(null);
   }, []);
 
+  const cancelPendingVoiceReply = useCallback(() => {
+    voiceTurnRef.current = false;
+    pendingVoiceTtsLocaleRef.current = null;
+    setIsVoiceTurn(false);
+  }, []);
+
   const interruptSpeaking = useCallback(() => {
     stopTTS();
-    voiceTurnRef.current = false;
-    setIsVoiceTurn(false);
-  }, [stopTTS]);
+    cancelPendingVoiceReply();
+  }, [stopTTS, cancelPendingVoiceReply]);
 
   const playTTS = useCallback(
     async (text: string, messageId: string, locale?: VoiceLocale) => {
@@ -151,20 +149,28 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     isProcessingVoice,
     voiceError,
     voiceLocale,
+    turnLocaleRef,
     clearVoiceError,
     clearVoiceLocale,
     status,
     setMessages,
   } = useVoiceChat({
     id: chatId,
-    initialMessages,
     speakResponses: false,
     onVoiceError: (err) => setError(err.message),
-    onBeforeSend: async ({ text }) => {
+    onBeforeSend: async ({ text, locale }) => {
+      pendingVoiceTtsLocaleRef.current = locale;
       const threadId = await ensureThread(text);
       await saveMessage(threadId, 'user', text);
     },
     onFinish: async (message) => {
+      const shouldSpeak = voiceTurnRef.current;
+      const preferredLocale =
+        pendingVoiceTtsLocaleRef.current ??
+        turnLocaleRef.current ??
+        voiceLocale ??
+        undefined;
+
       const threadId = currentThreadId;
       if (threadId && message.role === 'assistant') {
         const text = getMessageText(message);
@@ -172,17 +178,35 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
         notifyThreadsUpdated();
       }
 
-      if (!voiceTurnRef.current || message.role !== 'assistant') return;
-      voiceTurnRef.current = false;
+      if (!shouldSpeak || message.role !== 'assistant') {
+        pendingVoiceTtsLocaleRef.current = null;
+        return;
+      }
 
-      const cleanText = stripMarkdown(getMessageText(message));
+      voiceTurnRef.current = false;
+      pendingVoiceTtsLocaleRef.current = null;
+
+      let cleanText = stripMarkdown(getMessageText(message));
+      if (!cleanText) {
+        for (let i = messages.length - 1; i >= 0; i -= 1) {
+          if (messages[i].role !== 'assistant') continue;
+          cleanText = stripMarkdown(getMessageText(messages[i]));
+          if (cleanText) break;
+        }
+      }
+
       if (!cleanText) {
         setIsVoiceTurn(false);
         return;
       }
 
+      const ttsLocale = resolveVoiceLocale({
+        text: cleanText,
+        preferredLocale,
+      });
+
       try {
-        await playTTS(cleanText, message.id, voiceLocale ?? undefined);
+        await playTTS(cleanText, message.id, ttsLocale);
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') return;
         const msg = err instanceof Error ? err.message : 'Speech playback failed';
@@ -192,6 +216,20 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
       }
     },
   });
+
+  // Load persisted messages into useChat after the hook is initialised.
+  // useChat only reads `initialMessages` at mount, so we must call setMessages
+  // directly once the async DB fetch completes.
+  useEffect(() => {
+    if (!initialThreadId) {
+      setMessagesLoaded(true);
+      return;
+    }
+    getMessagesByThread(initialThreadId).then((msgs) => {
+      if (msgs.length) setMessages(toUIMessages(msgs));
+      setMessagesLoaded(true);
+    });
+  }, [initialThreadId, setMessages]);
 
   const isSending = status === 'streaming' || status === 'submitted';
   const isBusy = isSending || isProcessingVoice || isVoiceRecording;
@@ -255,7 +293,10 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   }, [messages, isSending, isTTSActive, isVoiceTurn, isProcessingVoice, scrollToActiveMessage]);
 
   function handleInputChange(next: string) {
-    if (isTTSActive || isVoiceTurn) interruptSpeaking();
+    // Only cancel a pending spoken reply once audio is already playing.
+    // Typing during "Generating response" must not clear voiceTurnRef — that
+    // was preventing TTS after longer Malayalam turns.
+    if (isTTSActive) interruptSpeaking();
     setValue(next);
   }
 
@@ -280,12 +321,12 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     clearVoiceError();
     setError(null);
     voiceTurnRef.current = true;
+    pendingVoiceTtsLocaleRef.current = null;
     setIsVoiceTurn(true);
     try {
       await handleVoiceCapture(blob);
     } catch {
-      voiceTurnRef.current = false;
-      setIsVoiceTurn(false);
+      cancelPendingVoiceReply();
     }
   };
 
@@ -341,7 +382,7 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
 
   return (
     <div className="relative flex h-screen flex-col bg-transparent overflow-hidden">
-      <div className="flex-1 overflow-y-auto pb-56 pt-6 md:pb-44 md:pt-8">
+      <div className="flex-1 overflow-y-auto pb-60 pt-6 md:pb-48 md:pt-8">
         {messages.length === 0 ? (
           <div className="flex min-h-[60vh] flex-col items-center justify-center px-4">
             <div className="w-full max-w-2xl space-y-9 text-center">
@@ -350,13 +391,14 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
               >
-                <h1 className="mb-3 text-5xl font-semibold tracking-tight text-text-primary md:text-6xl">
+                <h1 className="mb-2 text-5xl font-semibold tracking-[-0.03em] text-text-primary md:text-6xl">
                   VIGIA
                 </h1>
+                <p className="text-sm text-text-muted">Infrastructure intelligence, verified.</p>
               </motion.div>
 
               <motion.div
-                className="flex flex-wrap justify-center gap-3"
+                className="flex flex-wrap justify-center gap-2"
                 initial={{ opacity: 0, y: 15 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35, delay: 0.5 }}
@@ -366,10 +408,10 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                     <motion.button
                       key={action}
                       type="button"
-                      className="inline-flex items-center rounded-full border border-border bg-white/90 px-4 py-2 text-xs font-medium text-text-secondary shadow-[0_6px_14px_rgba(18,14,10,0.08)] transition-all hover:scale-105 hover:border-text-primary hover:text-text-primary active:animate-button-bounce"
-                      initial={{ opacity: 0, y: 10 }}
+                      className="inline-flex items-center rounded-full border border-border bg-white px-4 py-2 text-[13px] font-medium text-text-secondary shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-all hover:border-[#c4c4c8] hover:bg-[#fafafa] hover:text-text-primary"
+                      initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.3, delay: 0.58 + i * 0.08 }}
+                      transition={{ duration: 0.28, delay: 0.58 + i * 0.07 }}
                       onClick={() => {
                         if (isTTSActive || isVoiceTurn) interruptSpeaking();
                         setValue(action);
@@ -428,17 +470,19 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                             ))}
                           </div>
                           {/* Follow-up suggestions */}
-                          <div className="border-t border-border/40 pt-3">
-                            <p className="text-xs font-semibold text-text-muted mb-2">Follow-ups</p>
-                            <div className="space-y-1.5">
+                          <div className="pt-3">
+                            <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-text-muted">
+                              Follow-ups
+                            </p>
+                            <div className="space-y-1">
                               {getFollowUps(msg).map((q, i) => (
                                 <button
                                   key={i}
                                   type="button"
                                   onClick={() => setValue(q)}
-                                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-text-secondary hover:bg-white/80 hover:text-text-primary transition-colors"
+                                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-[#f4f4f5] hover:text-text-primary"
                                 >
-                                  <span className="text-text-muted">↳</span>
+                                  <span className="shrink-0 text-[#c4c4c8]">→</span>
                                   {q}
                                 </button>
                               ))}
@@ -450,9 +494,17 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                   );
                 })}
                 {isSending && messages.length > 0 && !messages[messages.length - 1]?.parts?.some((p: any) => p.type === 'text' && p.text) && (
-                  <div className="flex items-center gap-2 text-sm text-text-muted animate-pulse ml-0 md:ml-10">
-                    <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-bounce" />
-                    Searching infrastructure records...
+                  <div className="flex items-center gap-2.5 ml-0 md:ml-10">
+                    <div className="flex gap-1">
+                      {[0, 1, 2].map((i) => (
+                        <span
+                          key={i}
+                          className="inline-block h-1.5 w-1.5 rounded-full bg-[#c4c4c8]"
+                          style={{ animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-[13px] text-text-muted">Searching infrastructure records…</span>
                   </div>
                 )}
                 <div ref={bottomRef} className="h-2" />
@@ -477,16 +529,16 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
       >
         <motion.div
           className="pointer-events-none absolute inset-0"
-          animate={messages.length === 0 ? { height: 0 } : { height: 112 }}
+          animate={messages.length === 0 ? { height: 0 } : { height: 140 }}
           transition={{ duration: 0.5 }}
           style={{
             background:
               messages.length === 0
                 ? 'transparent'
-                : 'linear-gradient(to bottom, transparent, rgb(251, 247, 240))',
+                : 'linear-gradient(to bottom, transparent, rgb(255, 255, 255) 70%)',
           }}
         />
-        <div className="relative w-full px-4 pb-5 pt-3 md:px-6 md:pb-6">
+        <div className="relative w-full px-4 pb-6 pt-3 md:px-6 md:pb-8">
           <div className="mx-auto w-full max-w-[900px]">
             {voiceSessionPhase && (
               <VoiceSessionBar

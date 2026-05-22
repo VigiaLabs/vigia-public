@@ -8,11 +8,16 @@ import {
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 import { NextResponse } from 'next/server';
 import { checkRateLimit } from '@/lib/security/rate-limit';
-import { isVoiceLocale, buildMultilingualSystemPrompt } from '@/lib/voice/locale';
+import {
+  augmentModelMessagesForLanguage,
+  buildMultilingualSystemPrompt,
+  buildResponseLanguageContext,
+  isVoiceLocale,
+  resolveChatResponseLanguage,
+} from '@/lib/voice/locale';
 import { VIGIA_BASE_SYSTEM_PROMPT } from '@/lib/voice/chat-prompt';
 import { runPipeline } from '@/lib/agents/graph';
 import { extractUIPayload } from '@/lib/agents/ui-hook';
-import type { VoiceLocale } from '@/types/voice';
 import type { Payload } from '@/lib/agents/state';
 
 export const runtime = 'nodejs';
@@ -24,22 +29,20 @@ function getClientIp(req: Request): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || req.headers.get('x-real-ip') || 'unknown';
 }
 
-function resolveChatLocale(voiceLocale: VoiceLocale | null, messages: UIMessage[]): VoiceLocale | null {
-  if (voiceLocale) return voiceLocale;
-  const lastUserMsg = messages.findLast((m) => m.role === 'user');
-  if (!lastUserMsg) return null;
-  const text = lastUserMsg.parts
-    ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-    .map((p) => p.text)
-    .join('');
-  if (!text) return null;
-  const totalChars = text.replace(/\s/g, '').length;
-  if (totalChars > 0) {
-    const devanagari = (text.match(/[\u0900-\u097F]/g) || []).length;
-    if (devanagari / totalChars > 0.3) return 'hi-IN';
-    const tamil = (text.match(/[\u0B80-\u0BFF]/g) || []).length;
-    if (tamil / totalChars > 0.3) return 'ta-IN';
+function parseRequestLanguage(parsed: {
+  responseLanguage?: unknown;
+  voiceLocale?: unknown;
+}): string | null {
+  if (parsed.responseLanguage === null) return null;
+
+  if (typeof parsed.responseLanguage === 'string' && isVoiceLocale(parsed.responseLanguage)) {
+    return parsed.responseLanguage;
   }
+
+  if (typeof parsed.voiceLocale === 'string' && isVoiceLocale(parsed.voiceLocale)) {
+    return parsed.voiceLocale;
+  }
+
   return null;
 }
 
@@ -56,15 +59,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
     }
 
-    const parsed = JSON.parse(rawBody || '{}') as { messages?: UIMessage[]; voiceLocale?: unknown };
+    const parsed = JSON.parse(rawBody || '{}') as {
+      messages?: UIMessage[];
+      responseLanguage?: unknown;
+      voiceLocale?: unknown;
+    };
     const { messages } = parsed;
     if (!Array.isArray(messages) || messages.length === 0) {
       return NextResponse.json({ error: 'Messages array is required' }, { status: 400 });
     }
 
-    const requestVoiceLocale = typeof parsed.voiceLocale === 'string' && isVoiceLocale(parsed.voiceLocale) ? parsed.voiceLocale : null;
-    const chatLocale = resolveChatLocale(requestVoiceLocale, messages);
-    const baseSystem = chatLocale ? buildMultilingualSystemPrompt(VIGIA_BASE_SYSTEM_PROMPT, chatLocale) : VIGIA_BASE_SYSTEM_PROMPT;
+    const requestLanguage = parseRequestLanguage(parsed);
+    const responseLanguage = resolveChatResponseLanguage(requestLanguage, messages);
+    const baseSystem = buildMultilingualSystemPrompt(VIGIA_BASE_SYSTEM_PROMPT, responseLanguage);
 
     // Extract user query text for the pipeline
     const lastUserMsg = messages.findLast((m) => m.role === 'user');
@@ -104,7 +111,8 @@ export async function POST(req: Request) {
                 pipelineContext += '\n';
               }
             }
-            pipelineContext += '\n\nIMPORTANT: Answer ONLY using the evidence above. Cite the sources. If evidence is insufficient, say so.';
+            pipelineContext +=
+              '\n\nIMPORTANT: Answer ONLY using the evidence above. Cite the sources. If evidence is insufficient, say so.';
           }
 
           // Prepare annotation for frontend
@@ -121,12 +129,16 @@ export async function POST(req: Request) {
         }
 
         // ─── Phase 2: Stream the LLM response with pipeline context ─
-        const system = baseSystem + pipelineContext;
+        const system = baseSystem + pipelineContext + buildResponseLanguageContext(responseLanguage);
+        const modelMessages = augmentModelMessagesForLanguage(
+          await convertToModelMessages(messages),
+          responseLanguage
+        );
 
         const result = streamText({
           model: bedrock('amazon.nova-lite-v1:0'),
           system,
-          messages: await convertToModelMessages(messages),
+          messages: modelMessages,
           providerOptions: {
             bedrock: { additionalModelResponseFieldPaths: ['/metadata'] },
           },

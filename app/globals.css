@@ -1,22 +1,23 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-cream: #fbf7f0;
-  --color-sidebar-bg: #f3ede3;
+  /* "cream" token kept as alias so existing classes still resolve */
+  --color-cream: #ffffff;
+  --color-sidebar-bg: #f7f7f8;
 
   --color-surface: #ffffff;
-  --color-surface-muted: #fdfaf4;
-  --color-border: #e6dccb;
-  --color-border-subtle: #f3eadc;
-  --color-text-primary: #181512;
-  --color-text-secondary: #5b5349;
-  --color-text-muted: #938a7d;
+  --color-surface-muted: #f4f4f5;
+  --color-border: #e4e4e7;
+  --color-border-subtle: #f4f4f5;
+  --color-text-primary: #09090b;
+  --color-text-secondary: #52525b;
+  --color-text-muted: #a1a1aa;
   --color-accent: #1f3a5f;
-  --color-accent-soft: #e7eef8;
-  --color-trust-green: #e6f5ea;
-  --color-trust-blue: #e7effc;
-  --color-trust-amber: #f7ecd7;
-  --color-severity-red: #b9382b;
+  --color-accent-soft: #eff6ff;
+  --color-trust-green: #dcfce7;
+  --color-trust-blue: #dbeafe;
+  --color-trust-amber: #fef3c7;
+  --color-severity-red: #dc2626;
 
   --font-sans: var(--font-body), 'Manrope', sans-serif;
   --font-heading: var(--font-display), 'Fraunces', serif;
@@ -139,15 +140,11 @@
 
 @layer base {
   html {
-    @apply bg-cream text-text-primary font-sans;
+    @apply bg-white text-text-primary font-sans;
   }
 
   body {
-    background:
-      radial-gradient(circle at top left, rgba(26, 25, 20, 0.05), transparent 34%),
-      radial-gradient(circle at 85% 12%, rgba(27, 38, 58, 0.06), transparent 28%),
-      linear-gradient(120deg, rgba(255, 255, 255, 0.9), rgba(251, 244, 234, 0.7)),
-      var(--color-cream);
+    background: #ffffff;
     @apply text-text-primary font-sans antialiased;
   }
 
@@ -168,7 +165,7 @@
   textarea,
   select,
   summary {
-    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#b8b0a0] focus-visible:ring-offset-2 focus-visible:ring-offset-cream transition-all duration-150;
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a1a1aa] focus-visible:ring-offset-2 focus-visible:ring-offset-white transition-all duration-150;
   }
 
   /* Typography utilities for reading comfort */
@@ -187,15 +184,15 @@
 
 @layer components {
   .shell-panel {
-    @apply rounded-[28px] border border-border/80 bg-white/90 shadow-[0_1px_2px_rgba(18,14,10,0.05),0_18px_40px_rgba(18,14,10,0.08)] backdrop-blur;
+    @apply rounded-[28px] border border-border bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06),0_12px_32px_rgba(0,0,0,0.06)] backdrop-blur;
   }
 
   .shell-card {
-    @apply rounded-2xl border border-border/80 bg-white shadow-[0_1px_2px_rgba(18,14,10,0.05)];
+    @apply rounded-2xl border border-border bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)];
   }
 
   .shell-input-shell {
-    @apply rounded-[24px] border border-border/80 bg-white/95 px-4 py-3.5 shadow-[0_2px_10px_rgba(18,14,10,0.08)] backdrop-blur transition focus-within:border-[#cfc6b8];
+    @apply rounded-[24px] border border-border bg-white px-4 py-3.5 shadow-[0_1px_4px_rgba(0,0,0,0.06),0_4px_16px_rgba(0,0,0,0.04)] backdrop-blur transition focus-within:border-[#a1a1aa] focus-within:shadow-[0_1px_4px_rgba(0,0,0,0.08),0_4px_20px_rgba(0,0,0,0.06)];
   }
 
   .shell-input-shell input:focus {
@@ -211,11 +208,11 @@
   }
 
   .shell-chip-inactive {
-    @apply text-text-muted hover:bg-[#f2ece1] hover:text-text-primary;
+    @apply text-text-muted hover:bg-[#f4f4f5] hover:text-text-primary;
   }
 
   .shell-bubble-user {
-    @apply rounded-2xl border border-border/80 bg-[#f4efe6] px-4 py-3 text-sm text-text-primary shadow-[0_1px_2px_rgba(18,14,10,0.05)];
+    @apply rounded-2xl border border-border/80 bg-[#f4f4f5] px-4 py-3 text-sm text-text-primary shadow-[0_1px_2px_rgba(0,0,0,0.04)];
   }
 
   .shell-bubble-assistant {
@@ -223,11 +220,11 @@
   }
 
   .shell-answer-card {
-    @apply relative rounded-[24px] border border-border/80 bg-white/95 px-5 py-4 shadow-[0_10px_28px_rgba(18,14,10,0.08)];
+    @apply relative rounded-[24px] border border-border/80 bg-white px-5 py-4 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.04)];
   }
 
   .shell-answer-tag {
-    @apply inline-flex items-center rounded-full border border-border/80 bg-[#f6f1e7] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-secondary;
+    @apply inline-flex items-center rounded-full border border-border bg-[#f4f4f5] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-text-secondary;
   }
 
   .shell-answer-meta {
@@ -239,7 +236,7 @@
   }
 
   .shell-answer-live {
-    @apply inline-flex items-center gap-1 rounded-full border border-[#d8c8b3] bg-[#f7efe4] px-2 py-1 text-[11px] font-medium text-text-secondary;
+    @apply inline-flex items-center gap-1 rounded-full border border-border bg-[#f4f4f5] px-2 py-1 text-[11px] font-medium text-text-secondary;
   }
 
   .shell-section-label {
@@ -247,19 +244,19 @@
   }
 
   .shell-muted-card {
-    @apply rounded-2xl border border-[#eadfcd] bg-[#fbf7f1] shadow-[0_1px_2px_rgba(18,14,10,0.05)];
+    @apply rounded-2xl border border-border bg-[#fafafa] shadow-[0_1px_2px_rgba(0,0,0,0.04)];
   }
 
   .shell-badge {
-    @apply inline-flex items-center rounded-full border border-[#dfd1bf] bg-[#f6efe3] px-2.5 py-1 text-[11px] font-medium text-text-secondary;
+    @apply inline-flex items-center rounded-full border border-border bg-[#f4f4f5] px-2.5 py-1 text-[11px] font-medium text-text-secondary;
   }
 
   .shell-source-card {
-    @apply rounded-2xl border border-border/80 bg-white/90 px-3 py-2 text-left shadow-[0_4px_16px_rgba(18,14,10,0.08)] transition-colors hover:bg-white;
+    @apply rounded-2xl border border-border/80 bg-white px-3 py-2 text-left shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-colors hover:bg-[#fafafa];
   }
 
   .shell-evidence-card {
-    @apply rounded-2xl border border-border/80 bg-white/90 shadow-[0_6px_18px_rgba(18,14,10,0.08)] transition-colors;
+    @apply rounded-2xl border border-border/80 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.05)] transition-colors;
   }
 }
 

@@ -33,14 +33,14 @@ export function MobileSourcesSheet({ variant = 'chip' }: { variant?: Variant }) 
         ) : (
           <button
             type="button"
-            className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-text-secondary shadow-[0_6px_18px_rgba(18,14,10,0.08)] transition-colors hover:bg-white"
+            className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold text-text-secondary shadow-[0_1px_3px_rgba(0,0,0,0.06)] transition-colors hover:bg-[#fafafa]"
           >
             <FileText className="h-3.5 w-3.5" />
             Sources
           </button>
         )}
       </BottomSheetTrigger>
-      <BottomSheetContent className="bg-[#fdfaf4]">
+      <BottomSheetContent className="bg-white">
         <div className="space-y-6">
           {status === 'loading' && (
             <div className="shell-muted-card p-4 text-xs text-text-muted">

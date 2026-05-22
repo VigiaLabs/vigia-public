@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DeepgramClient } from '@deepgram/sdk';
+import { transcribeWithAzure, isAzureSttConfigured } from '@/lib/voice/azure-stt';
 import { getDeepgramApiKey } from '@/lib/voice/config';
 import {
   DEFAULT_VOICE_LOCALE,
-  detectLocaleFromScript,
   normalizeLanguageCode,
+  resolveResponseLanguage,
 } from '@/lib/voice/locale';
 import type { TranscriptionResponse, VoiceLocale } from '@/types/voice';
 
@@ -41,30 +42,69 @@ function resolveTranscriptionLocale(
   transcript: string,
   detectedLanguage?: string
 ): VoiceLocale {
-  const scriptLocale = detectLocaleFromScript(transcript);
-  if (scriptLocale) return scriptLocale;
+  const sttLocale = normalizeLanguageCode(detectedLanguage)?.code ?? detectedLanguage ?? null;
+  return (
+    resolveResponseLanguage({
+      text: transcript,
+      sttLocale,
+    })?.code ?? DEFAULT_VOICE_LOCALE
+  );
+}
 
-  const sttLocale = normalizeLanguageCode(detectedLanguage);
-  if (sttLocale) return sttLocale;
+async function transcribeWithDeepgram(audioBuffer: Buffer): Promise<TranscriptionResponse> {
+  const apiKey = getDeepgramApiKey();
+  if (!apiKey) {
+    throw new Error(
+      'Deepgram API key is not configured. Set DEEPGRAM_API_KEY or DEEPGRAM_KEY in .env.local'
+    );
+  }
 
-  return DEFAULT_VOICE_LOCALE;
+  const deepgram = new DeepgramClient({ apiKey });
+
+  const result = await deepgram.listen.v1.media.transcribeFile(audioBuffer, {
+    model: 'nova-2',
+    detect_language: true,
+    punctuate: true,
+    smart_format: true,
+    keywords: [
+      'NHAI',
+      'Gati Shakti',
+      'pothole',
+      'tender',
+      'infrastructure',
+      'rupees',
+    ],
+  });
+
+  if (!isListenResponse(result)) {
+    throw new Error('Transcription is processing asynchronously; sync response expected.');
+  }
+
+  const channel = extractChannel(result);
+  const text = extractTranscript(channel);
+
+  if (!text) {
+    throw new Error('No speech detected in audio');
+  }
+
+  const locale = resolveTranscriptionLocale(text, channel?.detected_language);
+  const confidence =
+    typeof channel?.language_confidence === 'number'
+      ? channel.language_confidence
+      : undefined;
+
+  return {
+    text,
+    locale,
+    ...(confidence !== undefined ? { confidence } : {}),
+  };
 }
 
 export async function transcribeAudioRequest(request: NextRequest) {
   try {
-    const apiKey = getDeepgramApiKey();
-    if (!apiKey) {
-      return NextResponse.json(
-        {
-          error:
-            'Deepgram API key is not configured. Set DEEPGRAM_API_KEY or DEEPGRAM_KEY in .env.local',
-        },
-        { status: 500 }
-      );
-    }
-
-    const body = (await request.json()) as { audio?: unknown };
+    const body = (await request.json()) as { audio?: unknown; mimeType?: unknown };
     const audioBase64 = typeof body.audio === 'string' ? body.audio.trim() : '';
+    const mimeType = typeof body.mimeType === 'string' ? body.mimeType : 'audio/webm';
 
     if (!audioBase64) {
       return NextResponse.json(
@@ -78,56 +118,31 @@ export async function transcribeAudioRequest(request: NextRequest) {
       return NextResponse.json({ error: 'Audio data is empty' }, { status: 400 });
     }
 
-    const deepgram = new DeepgramClient({ apiKey });
+    let payload: TranscriptionResponse;
 
-    const result = await deepgram.listen.v1.media.transcribeFile(audioBuffer, {
-      model: 'nova-2',
-      detect_language: true,
-      punctuate: true,
-      smart_format: true,
-      keywords: [
-        'NHAI',
-        'Gati Shakti',
-        'pothole',
-        'tender',
-        'infrastructure',
-        'rupees',
-      ],
-    });
-
-    if (!isListenResponse(result)) {
-      return NextResponse.json(
-        { error: 'Transcription is processing asynchronously; sync response expected.' },
-        { status: 502 }
-      );
+    if (isAzureSttConfigured()) {
+      const azureResult = await transcribeWithAzure(audioBuffer, mimeType);
+      payload = {
+        text: azureResult.text,
+        locale: azureResult.locale,
+        ...(azureResult.confidence !== undefined ? { confidence: azureResult.confidence } : {}),
+      };
+    } else {
+      payload = await transcribeWithDeepgram(audioBuffer);
     }
-
-    const channel = extractChannel(result);
-    const text = extractTranscript(channel);
-
-    if (!text) {
-      return NextResponse.json({ error: 'No speech detected in audio' }, { status: 422 });
-    }
-
-    const locale = resolveTranscriptionLocale(text, channel?.detected_language);
-    const confidence =
-      typeof channel?.language_confidence === 'number'
-        ? channel.language_confidence
-        : undefined;
-
-    const payload: TranscriptionResponse = {
-      text,
-      locale: locale ?? DEFAULT_VOICE_LOCALE,
-      ...(confidence !== undefined ? { confidence } : {}),
-    };
 
     return NextResponse.json(payload);
   } catch (error) {
-    console.error('Deepgram transcription error:', error);
+    console.error('Transcription error:', error);
 
     const message =
       error instanceof Error ? error.message : 'Failed to transcribe audio';
 
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status =
+      message.includes('No speech detected') ? 422 :
+      message.includes('not configured') ? 500 :
+      500;
+
+    return NextResponse.json({ error: message }, { status });
   }
 }

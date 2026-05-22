@@ -1,11 +1,17 @@
-/** BCP-47 locales supported by the voice pipeline (India neural voices). */
-export type VoiceLocale = 'en-IN' | 'hi-IN' | 'ta-IN';
+/** BCP-47 locale code (e.g. hi-IN, en-IN). Not limited to a fixed set. */
+export type VoiceLocale = string;
 
 export type VoiceProfile = {
   locale: VoiceLocale;
   langCode: VoiceLocale;
   voiceName: string;
   label: string;
+};
+
+export type DetectedLanguage = {
+  code: VoiceLocale;
+  name: string;
+  nativeName: string;
 };
 
 export type TranscriptionResponse = {

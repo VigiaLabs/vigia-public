@@ -35,7 +35,7 @@ export function ChatMessage({ message, isActive, isSpeaking, messageRef }: Props
           <div
             className={cn(
               'shell-answer-card transition-[box-shadow,background-color] duration-300',
-              isActive && 'bg-[#fcf8f1] shadow-[0_0_0_1px_rgba(226,215,201,0.9),0_12px_32px_rgba(18,14,10,0.10)]',
+              isActive && 'bg-[#fafafa] shadow-[0_0_0_1px_rgba(228,228,231,0.9),0_8px_24px_rgba(0,0,0,0.08)]',
               isSpeaking && 'ring-1 ring-[#e6d9c7]'
             )}
           >

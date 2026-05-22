@@ -26,7 +26,10 @@ export async function transcribeVoiceBlob(blob: Blob): Promise<TranscriptionResp
   const response = await fetch('/api/voice/transcribe', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ audio }),
+    body: JSON.stringify({
+      audio,
+      mimeType: blob.type || 'audio/webm',
+    }),
   });
 
   const data = (await response.json()) as TranscriptionResponse & { error?: string };
