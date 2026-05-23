@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PanelLeftClose, Plus, Search, Settings2, X } from 'lucide-react';
-import { VigiaLogo } from '@/components/brand/vigia-logo';
+import { PanelLeftClose, Plus, Search, Settings2, X, ChevronRight } from 'lucide-react';
 import {
   SIDEBAR_EXPANDED_WIDTH,
   SIDEBAR_RAIL_WIDTH,
@@ -98,10 +97,7 @@ function SidebarRail({
         title="Open sidebar"
         className="group mb-5 flex items-center justify-center rounded-xl p-0.5 transition-transform duration-200 hover:scale-[1.04] active:scale-[0.96]"
       >
-        <VigiaLogo
-          size="sm"
-          className="transition-shadow duration-200 group-hover:shadow-[0_4px_16px_rgba(0,0,0,0.22)]"
-        />
+        <ChevronRight className="h-5 w-5 text-text-secondary group-hover:text-text-primary" strokeWidth={1.75} />
       </button>
 
       <div className="flex flex-col items-center gap-1">
@@ -241,9 +237,8 @@ export function SidebarContent({
     <div className="flex h-full min-w-0 flex-col px-4 py-4">
       <div className="mb-4 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <VigiaLogo size="sm" />
           <div className="min-w-0">
-            <div className="text-[15px] font-semibold tracking-tight text-text-primary">Vigia</div>
+            <div className="text-[15px] font-bold uppercase tracking-tight text-text-primary">VIGIA</div>
             <div className="text-[11px] font-medium text-text-muted">Infrastructure search</div>
           </div>
         </div>

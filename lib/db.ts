@@ -12,6 +12,7 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   createdAt: number;
+  metadata?: Record<string, unknown>;
 }
 
 class VigiaDB extends Dexie {
@@ -21,6 +22,11 @@ class VigiaDB extends Dexie {
   constructor() {
     super('VigiaDB');
     this.version(1).stores({
+      threads: 'id, updatedAt',
+      messages: 'id, threadId, createdAt',
+    });
+    // v2: adds metadata column (no index change needed, Dexie handles it)
+    this.version(2).stores({
       threads: 'id, updatedAt',
       messages: 'id, threadId, createdAt',
     });
@@ -36,12 +42,20 @@ export async function createThread(id: string, title: string): Promise<void> {
 export async function saveMessage(
   threadId: string,
   role: 'user' | 'assistant',
-  content: string
+  content: string,
+  metadata?: Record<string, unknown>
 ): Promise<string> {
   const id = crypto.randomUUID();
-  await db.messages.put({ id, threadId, role, content, createdAt: Date.now() });
+  await db.messages.put({ id, threadId, role, content, createdAt: Date.now(), metadata });
   await db.threads.update(threadId, { updatedAt: Date.now() });
   return id;
+}
+
+export async function updateMessageMetadata(
+  messageId: string,
+  metadata: Record<string, unknown>
+): Promise<void> {
+  await db.messages.update(messageId, { metadata });
 }
 
 export async function getThreads(limit = 30): Promise<Thread[]> {

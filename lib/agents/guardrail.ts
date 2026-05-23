@@ -1,8 +1,18 @@
 import type { NormalizedEvidence, DebugTraceEntry, VigiaState } from './state';
 
 /**
+ * Check if vision evidence is a citizen claim (zero-trust model).
+ */
+function isCitizenClaim(evidence: NormalizedEvidence[]): boolean {
+  const vision = evidence.find((e) => e.agentId === 'vision');
+  if (!vision) return false;
+  return vision.citations.some((c) => c.trustLevel === 'citizen-claim');
+}
+
+/**
  * Hardened contradiction detection.
  * Both agents must be completed with high confidence before triggering.
+ * Citizen claims are excluded — they cannot trigger contradictions.
  */
 function detectContradiction(evidence: NormalizedEvidence[]): boolean {
   const admin = evidence.find((e) => e.agentId === 'admin');
@@ -11,6 +21,9 @@ function detectContradiction(evidence: NormalizedEvidence[]): boolean {
   if (!admin || !vision) return false;
   if (admin.status !== 'completed' || vision.status !== 'completed') return false;
   if (vision.confidence < 0.7) return false;
+
+  // Citizen claims cannot override official records
+  if (vision.citations.some((c) => c.trustLevel === 'citizen-claim')) return false;
 
   const adminClaimsCompliant = admin.findings.some((f) =>
     /compliant|completed|satisfactor/i.test(f)
@@ -31,6 +44,30 @@ function detectContradiction(evidence: NormalizedEvidence[]): boolean {
 export function guardrailNode(
   state: VigiaState
 ): Partial<VigiaState> {
+  // Citizen claim: set pending action for user follow-up, skip contradiction
+  if (isCitizenClaim(state.evidence)) {
+    const vision = state.evidence.find((e) => e.agentId === 'vision')!;
+    const trace: DebugTraceEntry = {
+      node: 'guardrail',
+      timestamp: Date.now(),
+      decision: 'Citizen claim detected — setting pending action for user review, no contradiction triggered',
+    };
+    return {
+      contradictionDetected: false,
+      pendingAction: {
+        type: 'flag-for-review',
+        coordinates: state.payload.gps,
+        visionFindings: vision.findings,
+        suggestedActions: [
+          'Flag this coordinate for official PWD review',
+          'Verify against DePIN telemetry data',
+        ],
+      },
+      pipelineStatus: 'synthesizing',
+      debugTrace: [trace],
+    };
+  }
+
   const contradiction = detectContradiction(state.evidence);
 
   // No contradiction — proceed to synthesis

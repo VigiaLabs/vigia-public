@@ -1,6 +1,6 @@
 'use client';
 
-import { VigiaLogo } from '@/components/brand/vigia-logo';
+import { ChevronRight } from 'lucide-react';
 import { useSidebar } from '@/lib/context/sidebar-context';
 import { cn } from '@/lib/utils';
 
@@ -23,10 +23,7 @@ export function SidebarTrigger({ className }: Props) {
         className
       )}
     >
-      <VigiaLogo
-        size="sm"
-        className="transition-shadow duration-200 group-hover:shadow-[0_4px_16px_rgba(0,0,0,0.22)]"
-      />
+      <ChevronRight className="h-5 w-5 text-text-secondary group-hover:text-text-primary" strokeWidth={1.75} />
     </button>
   );
 }

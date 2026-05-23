@@ -19,6 +19,14 @@
   --color-trust-amber: #fef3c7;
   --color-severity-red: #dc2626;
 
+  /*
+    Fonts
+    - --font-body and --font-display are set by `next/font` in `app/layout.tsx`.
+    - These fallback values ensure a consistent system stack if the variable isn't set.
+  */
+  --font-body: 'Manrope', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+
   --font-sans: var(--font-body), 'Manrope', sans-serif;
   --font-heading: var(--font-display), 'Fraunces', serif;
 
@@ -226,11 +234,12 @@
   }
 
   .shell-bubble-assistant {
-    @apply text-[15px] leading-[1.75] text-text-primary;
+    @apply text-[17px] leading-[1.85] text-text-primary;
   }
 
+  /* Remove boxed rounded card for assistant answers — render as plain text blocks */
   .shell-answer-card {
-    @apply relative rounded-[24px] border border-border/80 bg-white px-5 py-4 shadow-[0_1px_3px_rgba(0,0,0,0.06),0_8px_24px_rgba(0,0,0,0.04)];
+    @apply relative bg-transparent border-0 shadow-none px-0 py-0;
   }
 
   .shell-answer-tag {
@@ -242,7 +251,7 @@
   }
 
   .shell-answer-body {
-    @apply text-[15px] leading-[1.8] text-text-primary;
+    @apply text-[17px] leading-[1.85] text-text-primary;
   }
 
   .shell-answer-live {

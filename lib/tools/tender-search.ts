@@ -54,21 +54,36 @@ export async function searchTenderByRoadNumber(roadNumber: string): Promise<Tend
   let fts5Results: TenderResult[] = [];
   let vectorResults: TenderResult[] = [];
 
+  // Also query PMGSY rural roads if relevant keywords detected
+  if (PMGSY_TRIGGER.test(query)) {
+    const pmgsyResults = await queryPmgsyContracts(query);
+    fts5Results = [...fts5Results, ...pmgsyResults];
+  }
+
   // FTS5 first for road-ID queries, vector first for semantic
   if (hasRoadId) {
-    fts5Results = await queryFts5(query);
+    fts5Results = [...fts5Results, ...(await queryFts5(query))];
     if (fts5Results.length < 5) {
       vectorResults = await queryPgvector(query, 5);
     }
   } else {
     vectorResults = await queryPgvector(query, 5);
     if (vectorResults.length < 5) {
-      fts5Results = await queryFts5(query);
+      fts5Results = [...fts5Results, ...(await queryFts5(query))];
     }
   }
 
   const fused = reciprocalRankFusion(fts5Results, vectorResults);
   if (fused.length === 0) return getFallbackTenderData(roadNumber);
+
+  // Stage 2: Cross-encoder reranking (if available)
+  if (fused.length > 5 && process.env.COHERE_API_KEY) {
+    const { rerankChunks } = await import('./reranker');
+    const docs = fused.slice(0, 20).map(r => `${r.roadNumber} ${r.projectName} ${r.concessionaire} ${r.mode} ${r.state}`);
+    const reranked = await rerankChunks(query, docs, 5);
+    return reranked.map(r => ({ ...fused[r.index], score: r.relevanceScore }));
+  }
+
   return fused.slice(0, 10);
 }
 
@@ -121,7 +136,7 @@ async function queryFts5(query: string): Promise<TenderResult[]> {
       totalLengthKm: extractLength(row.content),
       startDate: extractDate(row.content),
       state: extractState(row.content),
-      budgetCrore: null,
+      budgetCrore: extractBudget(row.content),
       source: 'NHAI Awarded Projects PDF',
       sourceUrl: resolveSourceUrl('nhai-awarded-22-23'),
       score: 1 / (i + 1),
@@ -171,8 +186,12 @@ async function queryPgvector(query: string, limit: number = 5): Promise<TenderRe
 // --- Helpers ---
 
 function extractConcessionaire(text: string): string {
-  const match = text.match(/([A-Z][a-zA-Z\s]+(?:Pvt\.?\s*Ltd\.?|Limited|JV|LLP))/);
-  return match ? match[1].trim() : 'Not available in public records';
+  // Normalize newlines for matching
+  const normalized = text.replace(/\n/g, ' ');
+  const match = normalized.match(/([A-Z][a-zA-Z\s]+(?:Pvt\.?\s*Ltd\.?|Limited|JV|LLP|Corp|Nigam))/);
+  if (!match) return 'Not available in public records';
+  // Clean up: remove leading mode keywords that get captured
+  return match[1].replace(/^(?:G\s+)?(?:EPC|HAM|BOT|DBFOT|Item Rate)\s+/i, '').trim();
 }
 
 function extractMode(text: string): string {
@@ -180,17 +199,31 @@ function extractMode(text: string): string {
   if (/\bEPC\b/.test(text)) return 'EPC';
   if (/\bBOT\b/.test(text)) return 'BOT';
   if (/\bDBFOT\b/.test(text)) return 'DBFOT';
+  if (/\bItem Rate\b/i.test(text)) return 'Item Rate';
   return 'Unknown';
 }
 
 function extractLength(text: string): number | null {
-  const match = text.match(/(\d+\.?\d*)\s*[Kk][Mm]/);
-  return match ? parseFloat(match[1]) : null;
+  // Match patterns like "39.41Telangana" (length immediately before state) or "39.41 km"
+  const normalized = text.replace(/\n/g, ' ');
+  // Try explicit km pattern first
+  const kmMatch = normalized.match(/(\d+\.?\d*)\s*[Kk][Mm]\b/);
+  if (kmMatch && parseFloat(kmMatch[1]) < 500) return parseFloat(kmMatch[1]);
+  // Try the NHAI table format: length before state name
+  const tableMatch = normalized.match(/(\d{1,3}\.\d{1,2})\s*(?:Telangana|Maharashtra|Karnataka|Kerala|Tamil Nadu|Andhra Pradesh|Rajasthan|Uttar Pradesh|Bihar|Gujarat|Haryana|Punjab|Madhya Pradesh|Odisha|West Bengal)/);
+  if (tableMatch) return parseFloat(tableMatch[1]);
+  return null;
 }
 
 function extractDate(text: string): string | null {
   const match = text.match(/(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})/);
   return match ? match[1] : null;
+}
+
+function extractBudget(text: string): number | null {
+  // Match "847.87  31/03/2023" pattern (budget before date in NHAI tables)
+  const match = text.match(/(\d{2,5}\.\d{1,2})\s+\d{2}\/\d{2}\/\d{4}/);
+  return match ? parseFloat(match[1]) : null;
 }
 
 function extractState(text: string): string {
@@ -217,4 +250,47 @@ function getFallbackTenderData(roadNumber: string): TenderResult[] {
     sourceUrl: 'https://nhai.gov.in',
     score: 0,
   }];
+}
+
+// ─── PMGSY Rural Roads Query ────────────────────────────────────────
+
+const PMGSY_TRIGGER = /\b(village|pmgsy|rural|gram sadak|habitation|RCPLWEA|Khammam|Warangal|Pune|Nagpur)\b/i;
+
+export async function queryPmgsyContracts(query: string): Promise<TenderResult[]> {
+  try {
+    const Database = (await import('better-sqlite3') as any).default ?? (await import('better-sqlite3'));
+    const dbPath = join(process.cwd(), 'data', 'nhai_mock.db');
+    if (!existsSync(dbPath)) return [];
+
+    const db = new Database(dbPath, { readonly: true });
+
+    const exists = db.prepare(
+      `SELECT name FROM sqlite_master WHERE type='table' AND name='pmgsy_contracts'`
+    ).get();
+    if (!exists) { db.close(); return []; }
+
+    const ftsQuery = query.split(/\s+/).filter(w => w.length > 2).join(' OR ');
+    const rows = db.prepare(
+      `SELECT road_name, state, district, contractor, cost_lakhs, length_km, status, scheme, source_url
+       FROM pmgsy_contracts WHERE pmgsy_contracts MATCH ? ORDER BY rank LIMIT 5`
+    ).all(ftsQuery) as any[];
+
+    db.close();
+
+    return rows.map((r, i) => ({
+      roadNumber: `PMGSY-${r.district}`,
+      projectName: r.road_name,
+      concessionaire: r.contractor ?? 'SRRDA',
+      mode: r.scheme ?? 'PMGSY',
+      totalLengthKm: r.length_km ? parseFloat(r.length_km) : null,
+      startDate: null,
+      state: r.state,
+      budgetCrore: r.cost_lakhs ? parseFloat(r.cost_lakhs) / 100 : null,
+      source: 'PMGSY OMMAS Portal',
+      sourceUrl: r.source_url || 'https://omms.nic.in',
+      score: 1 / (i + 1),
+    }));
+  } catch {
+    return [];
+  }
 }

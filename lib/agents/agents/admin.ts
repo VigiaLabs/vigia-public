@@ -2,11 +2,9 @@ import { generateObject } from 'ai';
 import { bedrock } from '@ai-sdk/amazon-bedrock';
 import { z } from 'zod';
 import type { NormalizedEvidence, Payload, VigiaState } from '../state';
-import { searchTenderByRoadNumber } from '../../tools/tender-search';
 import { getRoadInfoByCoordinates } from '../../tools/gati-shakti';
 import { getRTIAuthority } from '../../tools/rti-lookup';
 import { getComplaintAuthority } from '../../tools/complaint-routing';
-import { getCurrentRoadCondition, getExecutiveEngineer, getHistoricalCondition } from '../../tools/mock-data';
 import { resolveCountry, queryInternational } from '../../tools/global-engine';
 
 const RoadExtractSchema = z.object({
@@ -134,89 +132,38 @@ export async function runAdminAgent(
         };
       }
 
-      case 'condition': {
-        const rn = roadNumber ?? 'Unknown';
-        const condition = await getCurrentRoadCondition(rn);
-        const history = await getHistoricalCondition(rn);
-        const isMock = condition.source === 'MOCK';
-        return {
-          agentId: 'admin',
-          status: 'completed',
-          confidence: isMock ? 0.3 : 0.8,
-          severity: condition.conditionScore <= 4 ? 'severe' : condition.conditionScore <= 6 ? 'moderate' : 'minor',
-          findings: [
-            `Road condition: ${condition.conditionLabel} (score: ${condition.conditionScore}/10)`,
-            `Last inspected: ${condition.lastInspected}`,
-            ...condition.hazards.map((h) => `Hazard: ${h}`),
-            `Historical trend: ${history.records.map((r) => `${r.date}: ${r.conditionScore}/10`).join(', ')}`,
-          ],
-          citations: [{ sourceId: 'road-condition', label: `${condition.source} Data`, trustLevel: 'verified-spatial' }],
-          metadata: { ...condition, isMock },
-          latencyMs: Date.now() - start,
-        };
-      }
-
-      case 'personnel': {
-        const rn = roadNumber ?? 'Unknown';
-        const st = state ?? 'Unknown';
-        const ee = await getExecutiveEngineer(rn, st);
-        const isMock = ee.source === 'MOCK';
-        return {
-          agentId: 'admin',
-          status: 'completed',
-          confidence: isMock ? 0.2 : 0.8,
-          findings: [
-            `Designation: ${ee.designation}`,
-            `Division: ${ee.division}`,
-            ee.name !== 'Data not publicly available' ? `Name: ${ee.name}` : 'Name: Not publicly available (file RTI to obtain)',
-            ee.phone ? `Phone: ${ee.phone}` : 'Phone: Not publicly available',
-            `Office: ${ee.officeAddress}`,
-          ],
-          citations: [{ sourceId: 'personnel-data', label: ee.source, trustLevel: 'official-portal' }],
-          metadata: { ...ee, isMock },
-          latencyMs: Date.now() - start,
-        };
-      }
-
+      case 'condition':
+      case 'personnel':
       case 'tender_search':
       default: {
-        if (!roadNumber) {
+        // Unified semantic search across all data (pgvector → FTS5 fallback)
+        const { searchUnified, getSourceLabel, getTrustLevel } = await import('../../tools/search-unified');
+        const results = await searchUnified(text, 8);
+
+        if (results.length === 0) {
           return {
             agentId: 'admin',
             status: 'completed',
-            confidence: 0.3,
-            findings: ['No specific road number identified. Please mention a road like NH-44 or SH-15.'],
+            confidence: 0.1,
+            findings: ['No relevant data found in VIGIA index for this query.'],
             citations: [],
             latencyMs: Date.now() - start,
           };
         }
 
-        const tenders = await searchTenderByRoadNumber(roadNumber);
-        const noMatch = !tenders.length || tenders[0].projectName.includes('not found');
-
-        if (noMatch) {
-          return {
-            agentId: 'admin',
-            status: 'completed',
-            confidence: 0.5,
-            findings: [`No contract records found for ${roadNumber} in indexed NHAI data.`],
-            citations: [{ sourceId: 'nhai-search', label: 'NHAI Public Data', url: 'https://nhai.gov.in', trustLevel: 'legally-binding' }],
-            latencyMs: Date.now() - start,
-          };
-        }
-
+        const topSimilarity = results[0].similarity;
         return {
           agentId: 'admin',
           status: 'completed',
-          confidence: 0.9,
-          findings: tenders.map((t) => `${t.roadNumber}: "${t.projectName}" by ${t.concessionaire} (${t.mode}), ${t.state}`),
-          citations: tenders.map((t, i) => ({
-            sourceId: `nhai-${t.roadNumber}-${i}`,
-            label: t.source,
-            url: t.sourceUrl,
-            trustLevel: 'legally-binding' as const,
+          confidence: topSimilarity > 0.8 ? 0.9 : topSimilarity > 0.6 ? 0.7 : 0.5,
+          findings: results.map(r => r.chunkText),
+          citations: results.map((r, i) => ({
+            sourceId: `${r.sourceType}-${i}`,
+            label: getSourceLabel(r.sourceType),
+            url: (r.metadata as any)?.source_url ?? undefined,
+            trustLevel: getTrustLevel(r.sourceType),
           })),
-          metadata: { roadNumber, resultCount: tenders.length },
+          metadata: { resultCount: results.length, topSimilarity },
           latencyMs: Date.now() - start,
         };
       }

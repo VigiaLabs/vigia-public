@@ -49,7 +49,19 @@ INSTRUCTIONS:
 - Reference evidence by sourceId in your citations array.
 - Use formal audit language suitable for an official report.
 - If a contradiction is flagged, lead with the discrepancy.
-- Number citations sequentially starting from 1.`;
+- Number citations sequentially starting from 1.
+
+CONTEXT EXPANSION DIRECTIVE:
+1. Answer the primary question directly and concisely first.
+2. If the retrieved evidence contains ANY of the following metadata about the project or road—Sanctioned Budget, Project Mode (EPC/HAM/BOT), Timeline/Completion Date, Kilometer stretch, Concessionaire, or Implementing Agency—you MUST include a "Project Overview" section using markdown bullet points summarizing all available details.
+3. Format the expanded metadata as:
+   **Project Overview**
+   - **Mode:** EPC / HAM / BOT (if available)
+   - **Sanctioned Cost:** ₹X Cr (if available)
+   - **Stretch:** km X to km Y (if available)
+   - **Completion Date:** date (if available)
+   - **Implementing Agency:** name (if available)
+4. STRICT: Only include metadata that is explicitly present in the EVIDENCE above. Do NOT hallucinate or infer values not found in the retrieved chunks.`;
 }
 
 export async function synthesizerNode(state: VigiaState): Promise<Partial<VigiaState>> {

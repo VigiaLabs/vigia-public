@@ -1,4 +1,4 @@
-import type { DebugTraceEntry, VigiaState } from './state';
+import type { DebugTraceEntry, PendingAction, VigiaState } from './state';
 
 export interface UIPayload {
   auditFinding: string;
@@ -25,6 +25,7 @@ export interface UIPayload {
     severity: string;
     label: string;
   }>;
+  pendingAction?: PendingAction;
   contradictionVerified: boolean;
   debugTrace: VigiaState['debugTrace'];
   totalLatencyMs: number;
@@ -117,6 +118,7 @@ export function extractUIPayload(state: VigiaState): UIPayload {
     budgetData,
     spatialMarkers,
     evidenceImages,
+    pendingAction: state.pendingAction,
     contradictionVerified: state.contradictionVerified,
     debugTrace: state.debugTrace,
     totalLatencyMs: state.totalLatencyMs ?? Date.now() - state.startedAt,

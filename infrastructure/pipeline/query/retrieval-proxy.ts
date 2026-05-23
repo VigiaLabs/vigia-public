@@ -42,11 +42,26 @@ interface ChunkResult {
   chunkText: string;
   similarity: number;
   sourcePdfHash: string;
+  sourceType: string;
+  state: string | null;
+  district: string | null;
+  metadata: Record<string, unknown> | null;
 }
 
 export async function handler(event: { body?: string }): Promise<{ statusCode: number; body: string }> {
   try {
-    const { query, limit = 10 } = JSON.parse(event.body ?? '{}') as ProxyRequest;
+    const parsed = JSON.parse(event.body ?? '{}') as any;
+
+    // Route by action
+    if (parsed.action === 'init-unified') {
+      return handleInitUnified();
+    }
+    if (parsed.action === 'store') {
+      return handleStore(parsed.chunks);
+    }
+
+    // Default: search
+    const { query, limit = 10 } = parsed as ProxyRequest;
     if (!query) return { statusCode: 400, body: JSON.stringify({ error: 'query is required' }) };
 
     // Generate embedding via Bedrock Titan
@@ -64,6 +79,8 @@ export async function handler(event: { body?: string }): Promise<{ statusCode: n
     try {
       const result = await client.query(
         `SELECT road_number, concessionaire, chunk_text, source_pdf_hash,
+                COALESCE(source_type, 'nhai_contract') as source_type,
+                state, district, metadata,
                 1 - (embedding <=> $1::vector) AS similarity
          FROM contract_embeddings
          ORDER BY embedding <=> $1::vector
@@ -77,6 +94,10 @@ export async function handler(event: { body?: string }): Promise<{ statusCode: n
         chunkText: r.chunk_text?.slice(0, 500),
         similarity: parseFloat(r.similarity),
         sourcePdfHash: r.source_pdf_hash,
+        sourceType: r.source_type ?? 'nhai_contract',
+        state: r.state ?? null,
+        district: r.district ?? null,
+        metadata: r.metadata ?? null,
       }));
 
       return { statusCode: 200, body: JSON.stringify({ chunks, count: chunks.length }) };
@@ -86,5 +107,49 @@ export async function handler(event: { body?: string }): Promise<{ statusCode: n
   } catch (err) {
     console.error('Proxy error:', err);
     return { statusCode: 500, body: JSON.stringify({ error: err instanceof Error ? err.message : 'Internal error' }) };
+  }
+}
+
+// ─── Write Handlers (for unified embedder) ──────────────────────────
+
+async function handleInitUnified(): Promise<{ statusCode: number; body: string }> {
+  const pool = await getPool();
+  const client = await pool.connect();
+  try {
+    await client.query(`ALTER TABLE contract_embeddings ADD COLUMN IF NOT EXISTS source_type VARCHAR(20) DEFAULT 'nhai_contract'`);
+    await client.query(`ALTER TABLE contract_embeddings ADD COLUMN IF NOT EXISTS state VARCHAR(50)`);
+    await client.query(`ALTER TABLE contract_embeddings ADD COLUMN IF NOT EXISTS district VARCHAR(50)`);
+    await client.query(`ALTER TABLE contract_embeddings ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`);
+    await client.query(`DELETE FROM contract_embeddings WHERE source_type != 'nhai_contract'`);
+    return { statusCode: 200, body: JSON.stringify({ message: 'Schema initialized, non-NHAI entries cleared' }) };
+  } finally {
+    client.release();
+  }
+}
+
+async function handleStore(chunks: any[]): Promise<{ statusCode: number; body: string }> {
+  if (!chunks?.length) return { statusCode: 400, body: JSON.stringify({ error: 'chunks array required' }) };
+
+  const pool = await getPool();
+  const client = await pool.connect();
+  try {
+    for (const chunk of chunks) {
+      await client.query(
+        `INSERT INTO contract_embeddings (chunk_text, embedding, source_type, state, district, road_number, concessionaire, source_pdf_hash, metadata)
+         VALUES ($1, $2::vector, $3, $4, $5, NULL, NULL, $6, $7)`,
+        [
+          chunk.chunkText,
+          `[${chunk.embedding.join(',')}]`,
+          chunk.sourceType,
+          chunk.state ?? null,
+          chunk.district ?? null,
+          chunk.sourceType,
+          JSON.stringify(chunk.metadata ?? {}),
+        ]
+      );
+    }
+    return { statusCode: 200, body: JSON.stringify({ stored: chunks.length }) };
+  } finally {
+    client.release();
   }
 }

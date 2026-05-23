@@ -14,7 +14,7 @@ export default function ChatLayout({ children }: { children: React.ReactNode }) 
     <EvidenceProvider>
       <div className="flex min-h-screen flex-col">
         <ChatHeader />
-        <ChatShell key={threadId ?? 'new'} threadId={threadId} />
+        <ChatShell threadId={threadId} />
         {children}
       </div>
     </EvidenceProvider>

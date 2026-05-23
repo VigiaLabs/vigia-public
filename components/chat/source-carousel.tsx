@@ -55,12 +55,17 @@ export function SourceCarousel({ sources = [] }: { sources?: SourceItem[] }) {
           className="opacity-0 animate-slide-in-left"
           style={{ animationDelay: `${i * 80}ms`, animationFillMode: "forwards" }}
         >
-          <button className="shell-source-card group w-full" type="button">
+          <a
+            href={source.url ?? '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shell-source-card group block w-full"
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1 min-w-0">
                 <div className="mb-1 flex items-center gap-2">
                   <FileText className="h-3.5 w-3.5 flex-shrink-0 text-text-muted" />
-                  <span className="text-xs text-text-muted">{getDomain(source.url)}</span>
+                  <span className="text-xs text-[#2563eb] underline decoration-[#2563eb]/30 underline-offset-2">{getDomain(source.url)}</span>
                 </div>
                 <p className="line-clamp-2 text-sm font-normal text-text-primary group-hover:text-text-primary/80">
                   {source.label}
@@ -70,7 +75,7 @@ export function SourceCarousel({ sources = [] }: { sources?: SourceItem[] }) {
                 {meta.label}
               </span>
             </div>
-          </button>
+          </a>
         </div>
         );
       })}

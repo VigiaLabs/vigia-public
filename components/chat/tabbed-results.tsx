@@ -57,7 +57,7 @@ export function TabbedResults({
       {activeTab === 'answer' && (
         <div className="space-y-4">
           {contradictionVerified && <ContradictionBanner />}
-          <div className="shell-answer-card">
+          <div>
             <div className="shell-answer-body whitespace-pre-wrap">{auditFinding}</div>
           </div>
         </div>

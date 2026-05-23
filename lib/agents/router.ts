@@ -35,10 +35,13 @@ GPS COORDINATES ATTACHED: ${hasGps}
 INTENT CATEGORIES (pick exactly one):
 - "complaint" → user wants to file a complaint, report a pothole, ask who to call about road damage
 - "rti" → user mentions RTI, Right to Information, wants to file an information request
-- "condition" → user asks about road condition, history, how bad a road is, damage assessment
+- "condition" → user asks about CURRENT road condition, damage assessment, how bad it is NOW
 - "personnel" → user asks about executive engineer, who is in charge, contact details
-- "tender_search" → user asks about contractor, budget, tender, cost, project details, concessionaire
+- "tender_search" → user asks about contractor, budget, tender, cost, project details, concessionaire, OR asks about maintenance timelines, last relaying date, project completion, defect liability period, when road was built/resurfaced
 - "conversational" → greetings, small talk, asking what the system does
+
+CRITICAL ROUTING RULE:
+Questions about "last relaying," "maintenance date," "when was it resurfaced," "completion date," "DLP," or "defect liability" MUST be routed to "tender_search" — NOT "condition." These dates are found in contract PDFs, not condition monitoring systems.
 
 AGENT SELECTION RULES (only for non-conversational intents):
 - Add "vision" ONLY if IMAGE ATTACHED is true

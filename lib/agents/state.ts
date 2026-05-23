@@ -25,7 +25,7 @@ export const CitationSchema = z.object({
   sourceId: z.string(),
   label: z.string(),
   url: z.string().optional(),
-  trustLevel: z.enum(['verified-spatial', 'legally-binding', 'official-portal']),
+  trustLevel: z.enum(['verified-spatial', 'legally-binding', 'official-portal', 'citizen-claim']),
 });
 
 export const NormalizedEvidenceSchema = z.object({
@@ -68,7 +68,17 @@ export const PipelineStatusSchema = z.enum([
   'synthesizing',
   'complete',
   'failed',
+  'awaiting-user-action',
 ]);
+
+// ─── Pending Action (Zero-Trust Vision) ─────────────────────────────
+
+export const PendingActionSchema = z.object({
+  type: z.enum(['flag-for-review', 'verify-depin']),
+  coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
+  visionFindings: z.array(z.string()),
+  suggestedActions: z.array(z.string()),
+});
 
 // ─── Full Graph State Schema ────────────────────────────────────────
 
@@ -83,6 +93,7 @@ export const VigiaStateSchema = z.object({
   retryQuery: z.string().optional(),
   contradictionDetected: z.boolean().default(false),
   contradictionVerified: z.boolean().default(false),
+  pendingAction: PendingActionSchema.optional(),
   auditFinding: z.string().optional(),
   synthesizedCitations: z.array(SynthesizedCitationSchema).optional(),
   pipelineStatus: PipelineStatusSchema,
@@ -98,6 +109,7 @@ export type NormalizedEvidence = z.infer<typeof NormalizedEvidenceSchema>;
 export type SynthesizedCitation = z.infer<typeof SynthesizedCitationSchema>;
 export type DebugTraceEntry = z.infer<typeof DebugTraceEntrySchema>;
 export type PipelineStatus = z.infer<typeof PipelineStatusSchema>;
+export type PendingAction = z.infer<typeof PendingActionSchema>;
 export type VigiaState = z.infer<typeof VigiaStateSchema>;
 
 // ─── LangGraph State Annotation ─────────────────────────────────────
@@ -126,6 +138,7 @@ export const VigiaStateAnnotation = Annotation.Root({
     reducer: (_a, b) => b,
     default: () => false,
   }),
+  pendingAction: Annotation<PendingAction | undefined>,
   auditFinding: Annotation<string | undefined>,
   synthesizedCitations: Annotation<SynthesizedCitation[] | undefined>,
   pipelineStatus: Annotation<PipelineStatus>,

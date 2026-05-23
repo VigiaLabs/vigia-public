@@ -66,13 +66,17 @@ Focus on: potholes, surface cracks, aggregate exposure, drainage issues, lane ma
       status: 'completed',
       confidence: object.confidence,
       severity: object.severity,
-      findings: object.findings,
+      findings: [
+        `[CITIZEN CLAIM] ${object.findings[0]}`,
+        ...object.findings.slice(1),
+        'Note: This is an unverified citizen submission. Official condition data may differ.',
+      ],
       citations: [
         {
-          sourceId: 'vision-irap-assessment',
-          label: 'iRAP Visual Assessment',
+          sourceId: 'vision-citizen-claim',
+          label: 'Citizen Photo Assessment',
           url: payload.imageUrl,
-          trustLevel: 'verified-spatial',
+          trustLevel: 'citizen-claim',
         },
       ],
       metadata: {

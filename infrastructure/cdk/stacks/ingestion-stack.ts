@@ -288,6 +288,86 @@ export class VigiaIngestionStack extends cdk.Stack {
       targets: [new targets.LambdaFunction(fts5Loader)],
     });
 
+    // ─── Lambda: unified-embedder (PWD + PMGSY + Authority → pgvector) ─
+
+    const unifiedEmbedder = new NodejsFunction(this, 'UnifiedEmbedder', {
+      functionName: 'vigia-unified-embedder',
+      runtime: lambda.Runtime.NODEJS_22_X,
+      entry: path.join(pipelineDir, '..', '..', 'scripts', 'embed-unified.ts'),
+      handler: 'main',
+      memorySize: 1024,
+      timeout: cdk.Duration.minutes(5),
+      bundling: { externalModules: [] },
+      environment: {
+        AWS_REGION_OVERRIDE: 'us-east-1',
+      },
+    });
+
+    unifiedEmbedder.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['bedrock:InvokeModel'],
+      resources: ['arn:aws:bedrock:*::foundation-model/amazon.titan-embed-text-v2:0'],
+    }));
+    unifiedEmbedder.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['lambda:InvokeFunction'],
+      resources: [retrievalProxy.functionArn],
+    }));
+
+    // Daily 04:00 UTC — re-embeds PWD + PMGSY + authority data
+    new events.Rule(this, 'UnifiedEmbedderSchedule', {
+      ruleName: 'vigia-unified-embedder-daily',
+      schedule: events.Schedule.cron({ hour: '4', minute: '0' }),
+      targets: [new targets.LambdaFunction(unifiedEmbedder)],
+    });
+
+    // ─── Lambda: PWD Directory Scraper (weekly) ─────────────────────
+
+    const pwdScraper = new lambda.Function(this, 'PwdScraper', {
+      functionName: 'vigia-pwd-scraper',
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'pwd_scraper.handler',
+      code: lambda.Code.fromAsset(path.join(pipelineDir, 'track-b', 'pwd-scraper')),
+      memorySize: 512,
+      timeout: cdk.Duration.minutes(5),
+      environment: {
+        STRUCTURED_BUCKET: structuredBucket.bucketName,
+        TARGET_STATES: 'Telangana,Maharashtra',
+      },
+    });
+
+    structuredBucket.grantWrite(pwdScraper);
+
+    // Weekly Sunday 04:00 UTC — scrapes TG/MH PWD directories
+    new events.Rule(this, 'PwdScraperSchedule', {
+      ruleName: 'vigia-pwd-scraper-weekly',
+      schedule: events.Schedule.cron({ hour: '4', minute: '0', weekDay: 'SUN' }),
+      targets: [new targets.LambdaFunction(pwdScraper)],
+    });
+
+    // ─── Lambda: PMGSY OMMAS Scraper (weekly) ───────────────────────
+
+    const pmgsyScraper = new lambda.Function(this, 'PmgsyScraper', {
+      functionName: 'vigia-pmgsy-scraper',
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'pmgsy_scraper.handler',
+      code: lambda.Code.fromAsset(path.join(pipelineDir, 'track-b')),
+      memorySize: 2048,
+      timeout: cdk.Duration.minutes(10),
+      environment: {
+        STRUCTURED_BUCKET: structuredBucket.bucketName,
+        TARGET_STATES: 'Telangana,Maharashtra',
+        TARGET_DISTRICTS: 'Khammam,Warangal,Pune,Nagpur',
+      },
+    });
+
+    structuredBucket.grantWrite(pmgsyScraper);
+
+    // Weekly Sunday 04:30 UTC — scrapes OMMAS portal
+    new events.Rule(this, 'PmgsyScraperSchedule', {
+      ruleName: 'vigia-pmgsy-scraper-weekly',
+      schedule: events.Schedule.cron({ hour: '4', minute: '30', weekDay: 'SUN' }),
+      targets: [new targets.LambdaFunction(pmgsyScraper)],
+    });
+
     // ─── Outputs ────────────────────────────────────────────────────
 
     new cdk.CfnOutput(this, 'RawBucketName', { value: rawBucket.bucketName });

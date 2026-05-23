@@ -4,8 +4,10 @@ import type { Payload, VigiaState } from './state';
 import { routerNode } from './router';
 import { ingestNode } from './ingest';
 import { guardrailNode } from './guardrail';
-import { synthesizerNode } from './synthesizer';
 import { uiHookNode } from './ui-hook';
+
+// Re-export node functions for inline execution in the API route
+export { routerNode, ingestNode, guardrailNode, uiHookNode };
 
 /**
  * Conditional edge after router:
@@ -22,11 +24,11 @@ function routeAfterRouter(
 /**
  * Conditional edge after guardrail:
  * - If contradiction detected and retry not exhausted → loop back to ingest
- * - Otherwise → proceed to synthesizer
+ * - Otherwise → proceed to ui_hook (synthesizer removed)
  */
 function routeAfterGuardrail(
   state: typeof VigiaStateAnnotation.State
-): 'ingest' | 'synthesizer' {
+): 'ingest' | 'ui_hook' {
   if (
     state.contradictionDetected &&
     state.retryCount < 2 &&
@@ -34,7 +36,7 @@ function routeAfterGuardrail(
   ) {
     return 'ingest';
   }
-  return 'synthesizer';
+  return 'ui_hook';
 }
 
 // ─── Build the Graph ────────────────────────────────────────────────
@@ -43,7 +45,6 @@ const workflow = new StateGraph(VigiaStateAnnotation)
   .addNode('router', routerNode)
   .addNode('ingest', ingestNode)
   .addNode('guardrail', guardrailNode)
-  .addNode('synthesizer', synthesizerNode)
   .addNode('ui_hook', uiHookNode)
   .addEdge(START, 'router')
   .addConditionalEdges('router', routeAfterRouter, {
@@ -53,9 +54,8 @@ const workflow = new StateGraph(VigiaStateAnnotation)
   .addEdge('ingest', 'guardrail')
   .addConditionalEdges('guardrail', routeAfterGuardrail, {
     ingest: 'ingest',
-    synthesizer: 'synthesizer',
+    ui_hook: 'ui_hook',
   })
-  .addEdge('synthesizer', 'ui_hook')
   .addEdge('ui_hook', END);
 
 export const vigiaGraph = workflow.compile();

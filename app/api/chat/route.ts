@@ -16,9 +16,10 @@ import {
   resolveChatResponseLanguage,
 } from '@/lib/voice/locale';
 import { VIGIA_BASE_SYSTEM_PROMPT } from '@/lib/voice/chat-prompt';
-import { runPipeline } from '@/lib/agents/graph';
+import { routerNode, ingestNode, guardrailNode, uiHookNode } from '@/lib/agents/graph';
 import { extractUIPayload } from '@/lib/agents/ui-hook';
-import type { Payload } from '@/lib/agents/state';
+import type { Payload, VigiaState } from '@/lib/agents/state';
+import { getCachedResponse, setCachedResponse } from '@/lib/cache/semantic-cache';
 
 export const runtime = 'nodejs';
 
@@ -34,15 +35,8 @@ function parseRequestLanguage(parsed: {
   voiceLocale?: unknown;
 }): string | null {
   if (parsed.responseLanguage === null) return null;
-
-  if (typeof parsed.responseLanguage === 'string' && isVoiceLocale(parsed.responseLanguage)) {
-    return parsed.responseLanguage;
-  }
-
-  if (typeof parsed.voiceLocale === 'string' && isVoiceLocale(parsed.voiceLocale)) {
-    return parsed.voiceLocale;
-  }
-
+  if (typeof parsed.responseLanguage === 'string' && isVoiceLocale(parsed.responseLanguage)) return parsed.responseLanguage;
+  if (typeof parsed.voiceLocale === 'string' && isVoiceLocale(parsed.voiceLocale)) return parsed.voiceLocale;
   return null;
 }
 
@@ -73,35 +67,124 @@ export async function POST(req: Request) {
     const responseLanguage = resolveChatResponseLanguage(requestLanguage, messages);
     const baseSystem = buildMultilingualSystemPrompt(VIGIA_BASE_SYSTEM_PROMPT, responseLanguage);
 
-    // Extract user query text for the pipeline
+    // Extract user query text
     const lastUserMsg = messages.findLast((m) => m.role === 'user');
     const queryText = lastUserMsg?.parts
       ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
       .map((p) => p.text)
       .join(' ') ?? '';
 
-    // Build pipeline payload
+    // ─── Semantic Cache Check ───────────────────────────────────────
+    const cached = await getCachedResponse(queryText);
+    if (cached) {
+      const stream = createUIMessageStream({
+        execute: async ({ writer }) => {
+          writer.write({ type: 'text-delta', delta: cached.text, id: crypto.randomUUID() });
+          if (cached.metadata) {
+            writer.write({ type: 'message-metadata', messageMetadata: cached.metadata });
+          }
+        },
+      });
+      return createUIMessageStreamResponse({ stream, headers: { 'Cache-Control': 'no-store', 'X-Vigia-Cache': 'HIT' } });
+    }
+
+    // ─── Pipeline Payload ───────────────────────────────────────────
     const pipelinePayload: Payload = {
       text: queryText,
       threadId: crypto.randomUUID(),
       messageId: crypto.randomUUID(),
     };
 
-    // Create the multiplexed stream
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
-        // ─── Phase 1: Run the full 5-node LangGraph pipeline ────────
+        const emitStep = (step: string) => {
+          writer.write({ type: 'data-vigia-step' as any, data: [{ vigia_step: step, ts: Date.now() }] } as any);
+        };
+
+        // ─── Inline Pipeline Execution with Progress ──────────────
         let pipelineContext = '';
         let evidenceAnnotation: Record<string, unknown> | null = null;
 
         try {
-          const pipelineState = await runPipeline(pipelinePayload);
-          const uiPayload = extractUIPayload(pipelineState);
+          // Node 1: Router
+          emitStep('Classifying intent...');
+          const initialState: VigiaState = {
+            traceId: crypto.randomUUID(),
+            startedAt: Date.now(),
+            payload: pipelinePayload,
+            activeAgents: [],
+            evidence: [],
+            retryCount: 0,
+            contradictionDetected: false,
+            contradictionVerified: false,
+            pipelineStatus: 'routing',
+            debugTrace: [],
+          };
 
-          // Build context from pipeline evidence for the LLM
-          if (pipelineState.evidence.length > 0) {
+          const routerResult = await routerNode(initialState);
+          let state: VigiaState = {
+            ...initialState,
+            ...routerResult,
+            debugTrace: [...initialState.debugTrace, ...(routerResult.debugTrace ?? [])],
+          };
+
+          // Short-circuit for conversational
+          if (state.pipelineStatus === 'complete') {
+            const system = baseSystem + buildResponseLanguageContext(responseLanguage);
+            const modelMessages = augmentModelMessagesForLanguage(
+              await convertToModelMessages(messages), responseLanguage
+            );
+            writer.merge(streamText({ model: bedrock('amazon.nova-lite-v1:0'), system, messages: modelMessages }).toUIMessageStream());
+            return;
+          }
+
+          // Node 2: Ingest (parallel agents)
+          emitStep(`Searching ${state.activeAgents.length} source${state.activeAgents.length !== 1 ? 's' : ''}...`);
+          const ingestResult = await ingestNode(state);
+          state = {
+            ...state,
+            ...ingestResult,
+            evidence: [...state.evidence, ...(ingestResult.evidence ?? [])],
+            debugTrace: [...state.debugTrace, ...(ingestResult.debugTrace ?? [])],
+          };
+
+          // Node 3: Guardrail
+          emitStep('Verifying evidence...');
+          const guardrailResult = guardrailNode(state);
+          state = {
+            ...state,
+            ...guardrailResult,
+            debugTrace: [...state.debugTrace, ...(guardrailResult.debugTrace ?? [])],
+          };
+
+          // Handle retry loop
+          if (state.pipelineStatus === 'retrying' as string) {
+            emitStep('Cross-referencing records...');
+            const retryResult = await ingestNode(state);
+            state = {
+              ...state,
+              ...retryResult,
+              evidence: [...state.evidence, ...(retryResult.evidence ?? [])],
+              debugTrace: [...state.debugTrace, ...(retryResult.debugTrace ?? [])],
+            };
+            const guardrail2 = guardrailNode(state);
+            state = {
+              ...state,
+              ...guardrail2,
+              debugTrace: [...state.debugTrace, ...(guardrail2.debugTrace ?? [])],
+            };
+          }
+
+          // Node 4: UI Hook
+          const hookResult = uiHookNode(state);
+          state = { ...state, ...hookResult, debugTrace: [...state.debugTrace, ...(hookResult.debugTrace ?? [])] };
+
+          const uiPayload = extractUIPayload(state);
+
+          // Build context from evidence
+          if (state.evidence.length > 0) {
             pipelineContext = '\n\n## VIGIA Pipeline Evidence (use this to answer):\n';
-            for (const ev of pipelineState.evidence) {
+            for (const ev of state.evidence) {
               if (ev.status === 'completed' && ev.findings.length > 0) {
                 pipelineContext += `\n### ${ev.agentId} agent (confidence: ${ev.confidence}):\n`;
                 pipelineContext += ev.findings.map(f => `- ${f}`).join('\n');
@@ -111,53 +194,50 @@ export async function POST(req: Request) {
                 pipelineContext += '\n';
               }
             }
-            pipelineContext +=
-              '\n\nIMPORTANT: Answer ONLY using the evidence above. Cite the sources. If evidence is insufficient, say so.';
+            pipelineContext += '\n\nIMPORTANT: Answer using the evidence above. Cite sources with [Source: Document Name]. If the evidence contains project metadata (budget, mode, timeline, km stretch), include it in a **Project Overview** section even if the user did not ask for it. Do NOT hallucinate data not present above.';
           }
 
-          // Prepare annotation for frontend
           evidenceAnnotation = {
             type: 'vigia-evidence',
             sources: uiPayload.sources,
+            debugTrace: uiPayload.debugTrace,
             totalLatencyMs: uiPayload.totalLatencyMs,
             contradictionVerified: uiPayload.contradictionVerified,
             budgetData: uiPayload.budgetData,
             spatialMarkers: uiPayload.spatialMarkers,
+            pendingAction: uiPayload.pendingAction,
           };
         } catch (err) {
           console.error('Pipeline error (falling back to base LLM):', err);
         }
 
-        // ─── Phase 2: Stream the LLM response with pipeline context ─
+        // ─── Stream LLM Response ──────────────────────────────────
+        emitStep('Generating response...');
         const system = baseSystem + pipelineContext + buildResponseLanguageContext(responseLanguage);
         const modelMessages = augmentModelMessagesForLanguage(
-          await convertToModelMessages(messages),
-          responseLanguage
+          await convertToModelMessages(messages), responseLanguage
         );
 
         const result = streamText({
           model: bedrock('amazon.nova-lite-v1:0'),
           system,
           messages: modelMessages,
-          providerOptions: {
-            bedrock: { additionalModelResponseFieldPaths: ['/metadata'] },
-          },
         });
 
-        // Merge the text stream into our UI message stream
+        let fullText = '';
         const textStream = result.toUIMessageStream({
           onFinish: () => {
-            // After text is done, emit the evidence annotation as metadata
             if (evidenceAnnotation) {
-              writer.write({
-                type: 'message-metadata',
-                messageMetadata: evidenceAnnotation,
-              });
+              writer.write({ type: 'message-metadata', messageMetadata: evidenceAnnotation });
             }
+            // Cache the response
+            void setCachedResponse(queryText, { text: fullText, metadata: evidenceAnnotation, cachedAt: Date.now() });
           },
         });
 
-        writer.merge(textStream);
+        // Capture text for caching
+        const originalStream = textStream;
+        writer.merge(originalStream);
       },
       onError: (error) => {
         console.error('Stream error:', error);
@@ -165,10 +245,7 @@ export async function POST(req: Request) {
       },
     });
 
-    return createUIMessageStreamResponse({
-      stream,
-      headers: { 'Cache-Control': 'no-store' },
-    });
+    return createUIMessageStreamResponse({ stream, headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('Chat route error:', error);
     return NextResponse.json(

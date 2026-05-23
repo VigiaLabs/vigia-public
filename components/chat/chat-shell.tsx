@@ -9,8 +9,15 @@ import {
   createThread,
   saveMessage,
   getMessagesByThread,
+  updateMessageMetadata,
 } from '@/lib/db';
 import { ChatMessage } from '@/components/chat/chat-message';
+import { PipelineTrace } from '@/components/chat/pipeline-trace';
+import { SourcesPanel } from '@/components/chat/sources-panel';
+import { MessageActionBar } from '@/components/chat/message-action-bar';
+import { PendingActionCard } from '@/components/chat/pending-action-card';
+import { LivePipeline } from '@/components/chat/live-pipeline';
+import { useEvidence } from '@/components/chat/evidence-context';
 
 /** Generate follow-up questions based on the assistant's response */
 function getFollowUps(msg: UIMessage): string[] {
@@ -47,12 +54,13 @@ import type { VoiceLocale } from '@/types/voice';
 type Props = { threadId?: string };
 
 function toUIMessages(
-  records: Array<{ id: string; role: string; content: string }>
+  records: Array<{ id: string; role: string; content: string; metadata?: Record<string, unknown> }>
 ): UIMessage[] {
   return records.map((m) => ({
     id: m.id,
     role: m.role as UIMessage['role'],
     parts: [{ type: 'text', text: m.content }],
+    ...(m.metadata ? { metadata: m.metadata } : {}),
   }));
 }
 
@@ -81,11 +89,13 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   const [isVoiceRecording, setIsVoiceRecording] = useState(false);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [sendLocation, setSendLocation] = useState(true);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const activeMessageRef = useRef<HTMLDivElement | null>(null);
   const voiceTurnRef = useRef(false);
   const pendingVoiceTtsLocaleRef = useRef<VoiceLocale | null>(null);
   const loadedThreadRef = useRef<string | null>(null);
+  const selfCreatedThreadRef = useRef<string | null>(null);
 
   const isTTSActive = isSpeaking || isLoadingSpeech;
 
@@ -98,12 +108,13 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
       const trimmedTitle = title.length > 40 ? `${title.slice(0, 40)}…` : title;
       await createThread(threadId, trimmedTitle);
       setCurrentThreadId(threadId);
+      selfCreatedThreadRef.current = threadId;
       notifyThreadsUpdated();
-      // Update URL without triggering Next.js navigation/remount
-      window.history.replaceState(window.history.state, '', `/t/${threadId}`);
+      // Use router.replace so Next.js tracks the URL for future navigations
+      router.replace(`/t/${threadId}`, { scroll: false });
       return threadId;
     },
-    [currentThreadId]
+    [currentThreadId, router]
   );
 
   const stopTTS = useCallback(() => {
@@ -174,7 +185,8 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
       const threadId = currentThreadId;
       if (threadId && message.role === 'assistant') {
         const text = getMessageText(message);
-        if (text) await saveMessage(threadId, 'assistant', text);
+        const metadata = (message as any).metadata as Record<string, unknown> | undefined;
+        if (text) await saveMessage(threadId, 'assistant', text, metadata);
         notifyThreadsUpdated();
       }
 
@@ -217,22 +229,17 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     },
   });
 
-  // Load persisted messages into useChat after the hook is initialised.
-  // useChat only reads `initialMessages` at mount, so we must call setMessages
-  // directly once the async DB fetch completes.
-  useEffect(() => {
-    if (!initialThreadId) {
-      setMessagesLoaded(true);
-      return;
-    }
-    getMessagesByThread(initialThreadId).then((msgs) => {
-      if (msgs.length) setMessages(toUIMessages(msgs));
-      setMessagesLoaded(true);
-    });
-  }, [initialThreadId, setMessages]);
+  // Message loading is handled in the initialThreadId effect above
 
   const isSending = status === 'streaming' || status === 'submitted';
   const isBusy = isSending || isProcessingVoice || isVoiceRecording;
+
+  // Extract pipeline progress steps from stream data annotations
+  const pipelineSteps = useMemo(() => {
+    if (!isSending) return [];
+    // Show a generic progress indicator while the pipeline runs
+    return ['Processing query...'];
+  }, [isSending]);
 
   const voiceSessionPhase = useMemo((): VoiceSessionPhase | null => {
     if (!isVoiceTurn && !isTTSActive) return null;
@@ -268,20 +275,29 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   }, [stopTTS]);
 
   useEffect(() => {
+    // Skip if this is a self-initiated router.replace after creating a thread
+    if (initialThreadId && initialThreadId === selfCreatedThreadRef.current) {
+      selfCreatedThreadRef.current = null;
+      return;
+    }
+    selfCreatedThreadRef.current = null;
+
     setCurrentThreadId(initialThreadId ?? null);
     if (!initialThreadId) {
       setChatId(crypto.randomUUID());
+      setMessages([]);
+      setMessagesLoaded(true);
     } else {
       setChatId(initialThreadId);
+      // Load messages for the thread
+      setMessagesLoaded(false);
+      getMessagesByThread(initialThreadId).then((msgs) => {
+        if (msgs.length) setMessages(toUIMessages(msgs));
+        else setMessages([]);
+        setMessagesLoaded(true);
+      });
     }
-  }, [initialThreadId]);
-
-  useEffect(() => {
-    if (!initialThreadId && !currentThreadId) {
-      setMessages([]);
-      return;
-    }
-  }, [initialThreadId, currentThreadId, setMessages]);
+  }, [initialThreadId, setMessages]);
 
   useEffect(() => {
     if (!messages.length) return;
@@ -355,6 +371,16 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   const displayError = error ?? voiceError;
   const landingGreeting = useMemo(() => getLandingGreeting(), []);
 
+  const evidenceCtx = useEvidence();
+
+  const handleOpenSources = useCallback((evidenceData: any) => {
+    if ('setPayload' in evidenceCtx) {
+      evidenceCtx.setPayload(evidenceData);
+      evidenceCtx.setStatus('ready');
+    }
+    setSourcesOpen(true);
+  }, [evidenceCtx]);
+
   if (!messagesLoaded) {
     return <div className="flex h-screen items-center justify-center text-text-muted text-sm">Loading...</div>;
   }
@@ -380,69 +406,70 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                     : null;
 
                   return (
-                    <div key={msg.id}>
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                      className={isAssistant ? 'ml-0 md:ml-10' : undefined}
+                    >
+                      {isAssistant && evidence?.debugTrace?.length > 0 && (
+                        <div className="mb-1">
+                          <PipelineTrace
+                            steps={evidence.debugTrace}
+                            totalLatencyMs={evidence.totalLatencyMs}
+                          />
+                        </div>
+                      )}
                       <ChatMessage
                         message={msg}
                         isActive={isActive}
                         isSpeaking={isSpeakingThis}
                         messageRef={isActive ? activeMessageRef : undefined}
+                        sources={evidence?.sources}
                       />
-                      {isAssistant && evidence?.sources?.length > 0 && (
-                        <div className="mt-4 space-y-4 ml-0 md:ml-10">
-                          {/* Sources */}
-                          <div className="flex flex-wrap gap-2">
-                            {evidence.sources.slice(0, 5).map((src: any, i: number) => (
-                              <a
-                                key={src.id || i}
-                                href={src.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 rounded-full border border-border/60 bg-white/80 px-3 py-1 text-xs text-text-secondary hover:border-text-primary hover:text-text-primary transition-colors"
-                              >
-                                <span className={`h-1.5 w-1.5 rounded-full ${
-                                  src.trustLevel === 'legally-binding' ? 'bg-emerald-500' :
-                                  src.trustLevel === 'official-portal' ? 'bg-blue-500' : 'bg-amber-500'
-                                }`} />
-                                {src.label}
-                              </a>
-                            ))}
-                          </div>
+                      {isAssistant && evidence && (
+                        <div className="mt-4 space-y-4">
+                          <MessageActionBar
+                            text={getMessageText(msg)}
+                            onRegenerate={undefined}
+                            sources={evidence.sources}
+                            onOpenSources={() => handleOpenSources(evidence)}
+                          />
+                          {evidence.pendingAction && (
+                            <PendingActionCard action={evidence.pendingAction} />
+                          )}
                           {/* Follow-up suggestions */}
-                          <div className="pt-3">
+                          <div className="pt-2">
                             <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-text-muted">
                               Follow-ups
                             </p>
                             <div className="space-y-1">
                               {getFollowUps(msg).map((q, i) => (
-                                <button
+                                <motion.button
                                   key={i}
                                   type="button"
                                   onClick={() => setValue(q)}
+                                  initial={{ opacity: 0, x: -6 }}
+                                  animate={{ opacity: 1, x: 0 }}
+                                  transition={{ duration: 0.2, delay: i * 0.03 }}
+                                  whileHover={{ x: 2 }}
                                   className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-[#f4f4f5] hover:text-text-primary"
                                 >
                                   <span className="shrink-0 text-[#c4c4c8]">→</span>
                                   {q}
-                                </button>
+                                </motion.button>
                               ))}
                             </div>
                           </div>
                         </div>
                       )}
-                    </div>
+                    </motion.div>
                   );
                 })}
                 {isSending && messages.length > 0 && !messages[messages.length - 1]?.parts?.some((p: any) => p.type === 'text' && p.text) && (
-                  <div className="flex items-center gap-2.5 ml-0 md:ml-10">
-                    <div className="flex gap-1">
-                      {[0, 1, 2].map((i) => (
-                        <span
-                          key={i}
-                          className="inline-block h-1.5 w-1.5 rounded-full bg-[#c4c4c8]"
-                          style={{ animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite` }}
-                        />
-                      ))}
-                    </div>
-                    <span className="text-[13px] text-text-muted">Searching infrastructure records…</span>
+                  <div className="ml-0 md:ml-10">
+                    <LivePipeline steps={pipelineSteps} />
                   </div>
                 )}
                 <div ref={bottomRef} className="h-2" />
@@ -450,6 +477,8 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
           </div>
         )}
       </div>
+
+      <SourcesPanel open={sourcesOpen} onClose={() => setSourcesOpen(false)} />
 
       {displayError && (
         <div className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+10.5rem)] left-0 right-0 z-20 md:bottom-36 md:left-[var(--sidebar-width,0px)] md:transition-[left] md:duration-300">

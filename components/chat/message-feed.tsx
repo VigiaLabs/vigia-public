@@ -41,7 +41,7 @@ export function MessageFeed({ messages }: MessageFeedProps) {
               </div>
             ) : (
               <div className="space-y-6">
-                <div className="shell-answer-card">
+                <div className="">
                   {message.content.split('\n\n').map((paragraph, idx) => {
                     const trimmed = paragraph.trim();
                     if (!trimmed) return null;
