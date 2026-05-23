@@ -57,6 +57,7 @@ export function useVoiceChat({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [voiceLocale, setVoiceLocale] = useState<VoiceLocale | null>(null);
+  const [pipelineSteps, setPipelineSteps] = useState<string[]>([]);
   const voiceTurnActiveRef = useRef(false);
   const turnLocaleRef = useRef<VoiceLocale | null>(null);
 
@@ -66,7 +67,15 @@ export function useVoiceChat({
     onError: (error) => {
       onVoiceError?.(error);
     },
+    onData: (part) => {
+      if (part.type !== 'data-vigia-step') return;
+      const items = part.data as Array<{ vigia_step?: string }>;
+      const step = items?.[0]?.vigia_step;
+      if (!step) return;
+      setPipelineSteps((prev) => (prev.includes(step) ? prev : [...prev, step]));
+    },
     onFinish: async ({ message, isError, isAbort }) => {
+      setPipelineSteps([]);
       await onFinish?.(message);
 
       if (isError || isAbort || message.role !== 'assistant') {
@@ -113,7 +122,10 @@ export function useVoiceChat({
         resolveTurnLanguage(text, options?.locale)?.code ?? null;
 
       turnLocaleRef.current = locale;
-      flushSync(() => setVoiceLocale(locale));
+      flushSync(() => {
+        setVoiceLocale(locale);
+        setPipelineSteps([]);
+      });
 
       await chat.sendMessage(message, { body: buildLanguageRequestBody(locale) });
     },
@@ -145,6 +157,7 @@ export function useVoiceChat({
         await onBeforeSend?.({ text, locale });
 
         voiceTurnActiveRef.current = true;
+        setPipelineSteps([]);
         await chat.sendMessage({ text }, { body: buildLanguageRequestBody(locale) });
       } catch (error) {
         voiceTurnActiveRef.current = false;
@@ -182,5 +195,6 @@ export function useVoiceChat({
     stopSpeaking,
     getMessageText,
     stripMarkdown,
+    pipelineSteps,
   };
 }

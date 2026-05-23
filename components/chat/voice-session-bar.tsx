@@ -12,7 +12,7 @@ export type VoiceSessionPhase =
 const PHASE_LABEL: Record<VoiceSessionPhase, string> = {
   listening: 'Listening',
   transcribing: 'Transcribing',
-  thinking: 'Generating response',
+  thinking: 'Working on your question',
   speaking: 'Speaking',
 };
 
@@ -26,24 +26,21 @@ export function VoiceSessionBar({ phase, onStopSpeaking }: Props) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.32, ease: [0.25, 0.1, 0.25, 1] }}
       className="mb-3 flex justify-center"
     >
-        <div className="shell-card flex items-center gap-3 rounded-full border border-[#ebe4d8] bg-white/95 px-4 py-2 shadow-[0_4px_24px_rgba(17,17,17,0.06)] backdrop-blur-sm">
-          {isSpeaking ? (
-            <VoiceVisualizer onClick={onStopSpeaking ?? (() => {})} />
-          ) : (
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#111111]/20" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-[#111111]" />
-            </span>
-          )}
-          <span className="text-xs font-medium tracking-wide text-text-secondary">
-            {PHASE_LABEL[phase]}
-          </span>
-        </div>
+      <div className="flex items-center gap-2.5 rounded-full border border-border/70 bg-white/90 px-4 py-2 shadow-[0_1px_8px_rgba(0,0,0,0.04)] backdrop-blur-sm">
+        {isSpeaking ? (
+          <VoiceVisualizer onClick={onStopSpeaking ?? (() => {})} />
+        ) : (
+          <span className="shell-speaking-indicator" aria-hidden />
+        )}
+        <span className="text-[12px] font-medium text-text-secondary">
+          {PHASE_LABEL[phase]}
+        </span>
+      </div>
     </motion.div>
   );
 }

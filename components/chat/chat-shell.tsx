@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { getLandingGreeting, LANDING_SUGGESTIONS } from '@/lib/chat/greeting';
 import type { UIMessage } from 'ai';
 import {
@@ -17,6 +17,7 @@ import { SourcesPanel } from '@/components/chat/sources-panel';
 import { MessageActionBar } from '@/components/chat/message-action-bar';
 import { PendingActionCard } from '@/components/chat/pending-action-card';
 import { LivePipeline } from '@/components/chat/live-pipeline';
+import { SourcesStrip } from '@/components/chat/sources-strip';
 import { useEvidence } from '@/components/chat/evidence-context';
 
 /** Generate follow-up questions based on the assistant's response */
@@ -165,6 +166,7 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     clearVoiceLocale,
     status,
     setMessages,
+    pipelineSteps,
   } = useVoiceChat({
     id: chatId,
     speakResponses: false,
@@ -234,12 +236,17 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   const isSending = status === 'streaming' || status === 'submitted';
   const isBusy = isSending || isProcessingVoice || isVoiceRecording;
 
-  // Extract pipeline progress steps from stream data annotations
-  const pipelineSteps = useMemo(() => {
-    if (!isSending) return [];
-    // Show a generic progress indicator while the pipeline runs
-    return ['Processing query...'];
-  }, [isSending]);
+  const lastAssistantHasText = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role !== 'assistant') continue;
+      return messages[i].parts?.some(
+        (p): p is { type: 'text'; text: string } => p.type === 'text' && !!p.text
+      ) ?? false;
+    }
+    return false;
+  }, [messages]);
+
+  const showGeneratingCard = isSending && messages.length > 0 && !lastAssistantHasText;
 
   const voiceSessionPhase = useMemo((): VoiceSessionPhase | null => {
     if (!isVoiceTurn && !isTTSActive) return null;
@@ -373,16 +380,26 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
 
   const evidenceCtx = useEvidence();
 
-  const handleOpenSources = useCallback((evidenceData: any) => {
+  const handleOpenSources = useCallback((evidenceData: any, highlightSourceId?: string) => {
     if ('setPayload' in evidenceCtx) {
       evidenceCtx.setPayload(evidenceData);
       evidenceCtx.setStatus('ready');
+      evidenceCtx.setHighlightedSourceId(highlightSourceId ?? null);
     }
     setSourcesOpen(true);
   }, [evidenceCtx]);
 
   if (!messagesLoaded) {
-    return <div className="flex h-screen items-center justify-center text-text-muted text-sm">Loading...</div>;
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-3 bg-transparent">
+        <div className="shell-think-dots" aria-hidden>
+          <span />
+          <span />
+          <span />
+        </div>
+        <p className="text-[13px] text-text-muted">Loading conversation</p>
+      </div>
+    );
   }
 
   return (
@@ -393,6 +410,8 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
             <div className="space-y-8">
                 {messages.map((msg) => {
                   const isAssistant = msg.role === 'assistant';
+                  const isLastAssistant = isAssistant && msg.id === lastAssistantId;
+                  const isStreamingThis = isLastAssistant && status === 'streaming';
                   const isActive =
                     isAssistant &&
                     msg.id === (speakingMessageId ?? lastAssistantId) &&
@@ -408,9 +427,9 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                   return (
                     <motion.div
                       key={msg.id}
-                      initial={{ opacity: 0, y: 8 }}
+                      initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                      transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
                       className={isAssistant ? 'ml-0 md:ml-10' : undefined}
                     >
                       {isAssistant && evidence?.debugTrace?.length > 0 && (
@@ -423,55 +442,73 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                       )}
                       <ChatMessage
                         message={msg}
-                        isActive={isActive}
+                        isStreaming={isStreamingThis}
                         isSpeaking={isSpeakingThis}
                         messageRef={isActive ? activeMessageRef : undefined}
                         sources={evidence?.sources}
+                        onOpenSource={
+                          evidence
+                            ? (sourceId) => handleOpenSources(evidence, sourceId)
+                            : undefined
+                        }
                       />
                       {isAssistant && evidence && (
-                        <div className="mt-4 space-y-4">
+                        <div className="shell-answer-footer mt-5 space-y-4">
+                          {evidence.sources?.length > 0 && (
+                            <SourcesStrip
+                              sources={evidence.sources}
+                              onOpenAll={() => handleOpenSources(evidence)}
+                              onOpenSource={(sourceId) => handleOpenSources(evidence, sourceId)}
+                            />
+                          )}
                           <MessageActionBar
                             text={getMessageText(msg)}
                             onRegenerate={undefined}
-                            sources={evidence.sources}
-                            onOpenSources={() => handleOpenSources(evidence)}
                           />
                           {evidence.pendingAction && (
                             <PendingActionCard action={evidence.pendingAction} />
                           )}
-                          {/* Follow-up suggestions */}
-                          <div className="pt-2">
-                            <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-text-muted">
-                              Follow-ups
-                            </p>
-                            <div className="space-y-1">
-                              {getFollowUps(msg).map((q, i) => (
-                                <motion.button
-                                  key={i}
-                                  type="button"
-                                  onClick={() => setValue(q)}
-                                  initial={{ opacity: 0, x: -6 }}
-                                  animate={{ opacity: 1, x: 0 }}
-                                  transition={{ duration: 0.2, delay: i * 0.03 }}
-                                  whileHover={{ x: 2 }}
-                                  className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13px] text-text-secondary transition-colors hover:bg-[#f4f4f5] hover:text-text-primary"
-                                >
-                                  <span className="shrink-0 text-[#c4c4c8]">→</span>
-                                  {q}
-                                </motion.button>
-                              ))}
+                          {getFollowUps(msg).length > 0 && (
+                            <div className="border-t border-border/40 pt-4">
+                              <p className="mb-2.5 text-[13px] font-medium text-text-secondary">
+                                Related
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {getFollowUps(msg).map((q, i) => (
+                                  <motion.button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => setValue(q)}
+                                    initial={{ opacity: 0, y: 4 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.3, delay: 0.08 + i * 0.04, ease: [0.25, 0.1, 0.25, 1] }}
+                                    className="rounded-full border border-border/80 bg-white px-3.5 py-1.5 text-left text-[13px] text-text-secondary transition-colors hover:border-border hover:bg-[#fafafa] hover:text-text-primary"
+                                  >
+                                    {q}
+                                  </motion.button>
+                                ))}
+                              </div>
                             </div>
-                          </div>
+                          )}
                         </div>
                       )}
                     </motion.div>
                   );
                 })}
-                {isSending && messages.length > 0 && !messages[messages.length - 1]?.parts?.some((p: any) => p.type === 'text' && p.text) && (
-                  <div className="ml-0 md:ml-10">
-                    <LivePipeline steps={pipelineSteps} />
-                  </div>
-                )}
+                <AnimatePresence>
+                  {showGeneratingCard && (
+                    <motion.div
+                      key="generating"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+                      className="ml-0 md:ml-10"
+                    >
+                      <LivePipeline steps={pipelineSteps} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <div ref={bottomRef} className="h-2" />
             </div>
           </div>

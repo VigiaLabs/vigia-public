@@ -1,39 +1,43 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Loader2 } from 'lucide-react';
 
-type Props = { steps: string[] };
+type Props = {
+  steps: string[];
+};
+
+const EASE = [0.25, 0.1, 0.25, 1] as const;
 
 export function LivePipeline({ steps }: Props) {
-  if (!steps.length) return null;
-
-  const lastIdx = steps.length - 1;
+  const currentStep = steps.length > 0 ? steps[steps.length - 1] : 'Thinking';
 
   return (
-    <div className="mb-3 flex items-center gap-2 text-xs text-text-muted">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.35, ease: EASE }}
+      className="shell-think-status"
+      aria-live="polite"
+      aria-busy="true"
+    >
       <AnimatePresence mode="wait">
-        {steps.map((step, i) => (
-          <motion.span
-            key={step}
-            className="inline-flex items-center gap-1"
-            initial={{ opacity: 0, x: -4 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            {i < lastIdx ? (
-              <CheckCircle2 className="h-3 w-3 text-emerald-500" strokeWidth={2.5} />
-            ) : (
-              <Loader2 className="h-3 w-3 animate-spin text-text-muted" strokeWidth={2.5} />
-            )}
-            <span className={i < lastIdx ? 'text-text-muted/60' : 'text-text-secondary'}>
-              {step}
-            </span>
-            {i < lastIdx && <span className="mx-1 text-border">→</span>}
-          </motion.span>
-        ))}
+        <motion.span
+          key={currentStep}
+          initial={{ opacity: 0, filter: 'blur(4px)' }}
+          animate={{ opacity: 1, filter: 'blur(0px)' }}
+          exit={{ opacity: 0, filter: 'blur(2px)' }}
+          transition={{ duration: 0.32, ease: EASE }}
+          className="shell-think-status-text"
+        >
+          {currentStep.replace(/\.\.\.$/, '')}
+        </motion.span>
       </AnimatePresence>
-    </div>
+      <span className="shell-think-dots" aria-hidden>
+        <span />
+        <span />
+        <span />
+      </span>
+    </motion.div>
   );
 }

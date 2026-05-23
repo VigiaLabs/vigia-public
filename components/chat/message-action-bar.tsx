@@ -2,17 +2,11 @@
 
 import { useState } from 'react';
 import { Share2, Copy, RefreshCw, ThumbsUp, ThumbsDown } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { SourceCluster } from './source-cluster';
-
-type Source = { id: string; label: string; trustLevel: string; url?: string };
 
 type Props = {
   text: string;
   onRegenerate?: () => void;
-  sources?: Source[];
-  onOpenSources?: () => void;
 };
 
 function ActionButton({
@@ -42,7 +36,7 @@ function ActionButton({
   );
 }
 
-export function MessageActionBar({ text, onRegenerate, sources, onOpenSources }: Props) {
+export function MessageActionBar({ text, onRegenerate }: Props) {
   const [copied, setCopied] = useState(false);
   const [vote, setVote] = useState<'up' | 'down' | null>(null);
 
@@ -88,16 +82,6 @@ export function MessageActionBar({ text, onRegenerate, sources, onOpenSources }:
       >
         <ThumbsDown className="h-3.5 w-3.5" strokeWidth={1.75} />
       </ActionButton>
-      {sources && sources.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, x: -4, scale: 0.98 }}
-          animate={{ opacity: 1, x: 0, scale: 1 }}
-          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="ml-2"
-        >
-          <SourceCluster sources={sources} onOpen={onOpenSources} />
-        </motion.div>
-      )}
     </div>
   );
 }

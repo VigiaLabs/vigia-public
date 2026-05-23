@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowUp, ImageIcon, Loader2, MapPin, X } from 'lucide-react';
+import { ArrowUp, ImageIcon, MapPin, X } from 'lucide-react';
 import { useOnlineStatus } from '@/lib/db/use-online-status';
 import { VoiceInput } from './voice-input';
 
@@ -222,7 +222,7 @@ export function InputBar({
                 }`}
               >
                 {isSending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2.5} />
+                  <span className="h-2.5 w-2.5 rounded-[2px] bg-white/90" aria-hidden />
                 ) : (
                   <ArrowUp className="h-3.5 w-3.5" strokeWidth={2.5} />
                 )}

@@ -11,12 +11,21 @@ type Source = { id: string; label: string; trustLevel: string; url?: string };
 type Props = {
   message: UIMessage;
   isActive?: boolean;
+  isStreaming?: boolean;
   isSpeaking?: boolean;
   messageRef?: React.Ref<HTMLDivElement>;
   sources?: Source[];
+  onOpenSource?: (sourceId: string) => void;
 };
 
-export function ChatMessage({ message, isActive, isSpeaking, messageRef, sources }: Props) {
+export function ChatMessage({
+  message,
+  isStreaming,
+  isSpeaking,
+  messageRef,
+  sources,
+  onOpenSource,
+}: Props) {
   const text = getMessageText(message);
   if (!text) return null;
 
@@ -26,6 +35,7 @@ export function ChatMessage({ message, isActive, isSpeaking, messageRef, sources
     <div ref={messageRef} className={cn(isUser ? 'flex justify-end' : 'scroll-mt-32 md:scroll-mt-28')}>
       <motion.div
         layout
+        transition={{ layout: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] } }}
         className={cn(
           isUser
             ? 'shell-bubble-user max-w-[85%] break-words whitespace-pre-wrap md:max-w-[70%]'
@@ -36,20 +46,19 @@ export function ChatMessage({ message, isActive, isSpeaking, messageRef, sources
           text
         ) : (
           <div className="relative">
-            {isSpeaking && (
-              <motion.span
-                className="absolute left-0 top-4 h-[calc(100%-2rem)] w-0.5 rounded-full bg-gradient-to-b from-[#1f3a5f] via-[#b8683c] to-[#2f7c66]"
-                animate={{ opacity: [0.5, 1, 0.5] }}
-                transition={{ repeat: Infinity, duration: 1.6, ease: 'easeInOut' }}
-                aria-hidden
-              />
-            )}
-            {(isActive || isSpeaking) && (
-              <div className="flex items-center justify-end gap-3 pb-3">
-                {isActive && <span className="shell-answer-live">Live</span>}
+            {isSpeaking && !isStreaming && (
+              <div className="mb-2.5 flex items-center gap-2">
+                <span className="shell-speaking-indicator" aria-hidden />
+                <span className="text-[12px] font-medium text-text-muted">Reading aloud</span>
               </div>
             )}
-            <MarkdownBody text={text} sources={sources} />
+
+            <MarkdownBody
+              text={text}
+              sources={sources}
+              isStreaming={isStreaming}
+              onOpenSource={onOpenSource}
+            />
           </div>
         )}
       </motion.div>
