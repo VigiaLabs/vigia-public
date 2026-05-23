@@ -105,3 +105,47 @@ export async function getRoadInfoByCoordinates(
     };
   }
 }
+
+/**
+ * Verify which states a road passes through using OpenStreetMap Overpass API.
+ * Used for cross-validation: prevents associating a road with the wrong state.
+ */
+export async function getStatesForRoad(roadNumber: string): Promise<string[]> {
+  try {
+    // Normalize: "NH-66" → "NH 66", also try "NH66"
+    const normalized = roadNumber.replace(/[-\s]+/g, ' ').toUpperCase();
+    const compact = roadNumber.replace(/[-\s]+/g, '');
+
+    const query = `[out:json][timeout:15];
+      relation["ref"~"^(${normalized}|${compact})$"]["route"="road"];
+      out tags;
+      way["ref"~"^(${normalized}|${compact})$"]["highway"];
+      out tags;`;
+
+    const params = new URLSearchParams({ data: query });
+    const response = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'VIGIA-Public-Tool/0.1.0' },
+      body: params.toString(),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    const data = await response.json();
+    if (!data.elements?.length) return [];
+
+    const states = new Set<string>();
+    for (const el of data.elements) {
+      const tags = el.tags ?? {};
+      if (tags['addr:state']) states.add(tags['addr:state']);
+      if (tags['is_in:state']) states.add(tags['is_in:state']);
+      // Extract from name patterns like "NH 66 (Goa)"
+      const name = tags.name ?? '';
+      const stateMatch = name.match(/\(([A-Za-z\s]+)\)/);
+      if (stateMatch) states.add(stateMatch[1]);
+    }
+
+    return Array.from(states).filter(s => s.length > 1);
+  } catch {
+    return []; // Timeout or error — skip validation
+  }
+}

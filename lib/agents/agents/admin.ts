@@ -152,11 +152,60 @@ export async function runAdminAgent(
         }
 
         const topSimilarity = results[0].similarity;
+
+        // Cross-validation: if a road number was extracted, verify geographic consistency
+        const findings = results.map(r => r.chunkText);
+        let crossValidationWarning = '';
+
+        if (roadNumber) {
+          // Hard check: does the road number actually appear in ANY retrieved chunk?
+          const roadInEvidence = results.some(r =>
+            r.chunkText.toLowerCase().includes(roadNumber!.toLowerCase().replace('-', '')) ||
+            r.chunkText.toLowerCase().includes(roadNumber!.toLowerCase())
+          );
+
+          if (!roadInEvidence) {
+            // Road number NOT in any chunk — this is a retrieval miss, not a match
+            return {
+              agentId: 'admin',
+              status: 'completed',
+              confidence: 0.1,
+              findings: [
+                `The VIGIA index does not currently contain specific data for ${roadNumber}. This road has not yet been ingested into our database.`,
+                `To get data for ${roadNumber} indexed, the road's contract PDFs need to be added to the Track A ingestion pipeline.`,
+              ],
+              citations: [],
+              metadata: { roadNumber, reason: 'road-not-in-evidence' },
+              latencyMs: Date.now() - start,
+            };
+          }
+
+          // Geographic cross-validation for low-similarity results
+          if (topSimilarity < 0.65) {
+            const { getStatesForRoad } = await import('../../tools/gati-shakti');
+            const roadStates = await getStatesForRoad(roadNumber);
+
+            if (roadStates.length > 0) {
+              const resultStates = results.map(r => r.state).filter(Boolean) as string[];
+              const hasMatch = resultStates.some(rs => roadStates.some(roadSt => roadSt.toLowerCase().includes(rs.toLowerCase()) || rs.toLowerCase().includes(roadSt.toLowerCase())));
+
+              if (!hasMatch) {
+                crossValidationWarning = `⚠️ GEOGRAPHIC MISMATCH: ${roadNumber} passes through [${roadStates.join(', ')}] according to OpenStreetMap. The retrieved evidence is about [${[...new Set(resultStates)].join(', ')}], which does NOT match. The data below is likely NOT relevant to ${roadNumber}.`;
+                findings.unshift(crossValidationWarning);
+              }
+            }
+          }
+        }
+
+        if (!crossValidationWarning && topSimilarity < 0.55) {
+          findings.unshift(`⚠️ LOW RELEVANCE WARNING: The retrieved evidence has low similarity (${topSimilarity.toFixed(2)}) to the query. The data below may NOT be about the specific road/project the user asked about. Verify relevance before presenting as an answer.`);
+        }
+
         return {
           agentId: 'admin',
           status: 'completed',
-          confidence: topSimilarity > 0.8 ? 0.9 : topSimilarity > 0.6 ? 0.7 : 0.5,
-          findings: results.map(r => r.chunkText),
+          confidence: topSimilarity > 0.8 ? 0.9 : topSimilarity > 0.6 ? 0.7 : topSimilarity > 0.5 ? 0.5 : 0.2,
+          findings,
           citations: results.map((r, i) => ({
             sourceId: `${r.sourceType}-${i}`,
             label: getSourceLabel(r.sourceType),
