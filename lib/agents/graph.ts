@@ -23,12 +23,17 @@ function routeAfterRouter(
 
 /**
  * Conditional edge after guardrail:
- * - If contradiction detected and retry not exhausted → loop back to ingest
- * - Otherwise → proceed to ui_hook (synthesizer removed)
+ * - If retrying (contradiction OR data void) and retry not exhausted → loop back to ingest
+ * - If authority fallback completed the pipeline → skip to end
+ * - Otherwise → proceed to ui_hook
  */
 function routeAfterGuardrail(
   state: typeof VigiaStateAnnotation.State
-): 'ingest' | 'ui_hook' {
+): 'ingest' | 'ui_hook' | '__end__' {
+  // Data void fallback sets pipelineStatus = 'complete' directly
+  if (state.pipelineStatus === 'complete') return '__end__';
+  // Retry loop: contradiction or data void
+  if (state.pipelineStatus === ('retrying' as string)) return 'ingest';
   if (
     state.contradictionDetected &&
     state.retryCount < 2 &&
@@ -55,6 +60,7 @@ const workflow = new StateGraph(VigiaStateAnnotation)
   .addConditionalEdges('guardrail', routeAfterGuardrail, {
     ingest: 'ingest',
     ui_hook: 'ui_hook',
+    __end__: END,
   })
   .addEdge('ui_hook', END);
 

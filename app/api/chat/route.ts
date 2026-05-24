@@ -18,6 +18,7 @@ import {
 import { VIGIA_BASE_SYSTEM_PROMPT } from '@/lib/voice/chat-prompt';
 import { routerNode, ingestNode, guardrailNode, uiHookNode } from '@/lib/agents/graph';
 import { extractUIPayload } from '@/lib/agents/ui-hook';
+import { scoreFaithfulness } from '@/lib/agents/faithfulness';
 import type { Payload, VigiaState } from '@/lib/agents/state';
 import { getCachedResponse, setCachedResponse } from '@/lib/cache/semantic-cache';
 
@@ -104,6 +105,7 @@ export async function POST(req: Request) {
         // ─── Inline Pipeline Execution with Progress ──────────────
         let pipelineContext = '';
         let evidenceAnnotation: Record<string, unknown> | null = null;
+        let retrievedChunks: string[] = [];
 
         try {
           // Node 1: Router
@@ -148,9 +150,18 @@ export async function POST(req: Request) {
             debugTrace: [...state.debugTrace, ...(ingestResult.debugTrace ?? [])],
           };
 
+          // Emit reasoning trace from Plan-and-Execute sub-graph
+          const adminEvidence = state.evidence.findLast(e => e.agentId === 'admin');
+          const reasoningTrace = (adminEvidence?.metadata as any)?.reasoningTrace as string[] | undefined;
+          if (reasoningTrace) {
+            for (const step of reasoningTrace) {
+              emitStep(step);
+            }
+          }
+
           // Node 3: Guardrail
           emitStep('Verifying evidence...');
-          const guardrailResult = guardrailNode(state);
+          const guardrailResult = await guardrailNode(state);
           state = {
             ...state,
             ...guardrailResult,
@@ -159,20 +170,32 @@ export async function POST(req: Request) {
 
           // Handle retry loop
           if (state.pipelineStatus === 'retrying' as string) {
-            emitStep('Cross-referencing records...');
+            // Emit contextual step based on what triggered the retry
+            const retryReason = state.contradictionDetected
+              ? 'Contradiction found — rewriting query...'
+              : 'Low confidence — broadening search...';
+            emitStep(retryReason);
+
             const retryResult = await ingestNode(state);
+            emitStep('Re-searching with refined query...');
             state = {
               ...state,
               ...retryResult,
               evidence: [...state.evidence, ...(retryResult.evidence ?? [])],
               debugTrace: [...state.debugTrace, ...(retryResult.debugTrace ?? [])],
             };
-            const guardrail2 = guardrailNode(state);
+            emitStep('Validating new evidence...');
+            const guardrail2 = await guardrailNode(state);
             state = {
               ...state,
               ...guardrail2,
               debugTrace: [...state.debugTrace, ...(guardrail2.debugTrace ?? [])],
             };
+
+            // If authority fallback was triggered
+            if (state.pipelineStatus === 'complete') {
+              emitStep('Routing to authority contacts...');
+            }
           }
 
           // Node 4: UI Hook
@@ -188,13 +211,14 @@ export async function POST(req: Request) {
               if (ev.status === 'completed' && ev.findings.length > 0) {
                 pipelineContext += `\n### ${ev.agentId} agent (confidence: ${ev.confidence}):\n`;
                 pipelineContext += ev.findings.map(f => `- ${f}`).join('\n');
+                retrievedChunks.push(...ev.findings);
                 if (ev.citations.length > 0) {
                   pipelineContext += '\nSources: ' + ev.citations.map(c => `[${c.label}](${c.url ?? ''})`).join(', ');
                 }
                 pipelineContext += '\n';
               }
             }
-            pipelineContext += '\n\nIMPORTANT: Answer using the evidence above. Cite sources with [Source: Document Name]. If the evidence contains project metadata (budget, mode, timeline, km stretch), include it in a **Project Overview** section even if the user did not ask for it. Do NOT hallucinate data not present above.';
+            pipelineContext += '\n\nIMPORTANT: Answer using ONLY the evidence above. Cite sources with [Source: Document Name]. If the evidence contains project metadata (budget, mode, timeline, km stretch), include it in a **Project Overview** section even if the user did not ask for it.\n\nSTRICT ANTI-HALLUCINATION RULES:\n- NEVER invent names, phone numbers, email addresses, or costs. If a phone number or name is not LITERALLY written in the evidence above, do NOT include one.\n- If the evidence does not contain the answer, say "This specific data is not available in the VIGIA index" — do NOT fill in the gap with made-up data.\n- Every name, number, email, and cost you output MUST appear verbatim in the evidence chunks above. If you cannot point to the exact line, do not include it.';
           }
 
           evidenceAnnotation = {
@@ -214,13 +238,17 @@ export async function POST(req: Request) {
         // ─── Stream LLM Response ──────────────────────────────────
         emitStep('Generating response...');
         const system = baseSystem + pipelineContext + buildResponseLanguageContext(responseLanguage);
-        const modelMessages = augmentModelMessagesForLanguage(
-          await convertToModelMessages(messages), responseLanguage
-        );
+
+        // Prevent chat history contamination: only include recent messages,
+        // and instruct the model to prioritize fresh evidence over prior responses
+        const allModelMessages = await convertToModelMessages(messages);
+        // Keep only last 6 messages for context, prioritize current turn
+        const recentMessages = allModelMessages.slice(-6);
+        const modelMessages = augmentModelMessagesForLanguage(recentMessages, responseLanguage);
 
         const result = streamText({
           model: bedrock('amazon.nova-lite-v1:0'),
-          system,
+          system: system + '\n\nCHAT HISTORY RULE: Your previous responses in this conversation may contain outdated or incorrect information. ALWAYS prioritize the fresh VIGIA Pipeline Evidence above over anything you said in earlier turns. If the evidence contradicts your prior response, the evidence is correct.',
           messages: modelMessages,
         });
 
@@ -228,6 +256,13 @@ export async function POST(req: Request) {
         const textStream = result.toUIMessageStream({
           onFinish: () => {
             if (evidenceAnnotation) {
+              // Run faithfulness scoring asynchronously (non-blocking)
+              if (retrievedChunks.length > 0 && fullText.length > 0) {
+                void scoreFaithfulness(fullText, retrievedChunks).then(({ score, flagged }) => {
+                  (evidenceAnnotation as any).faithfulnessScore = score;
+                  (evidenceAnnotation as any).flaggedClaims = flagged;
+                });
+              }
               writer.write({ type: 'message-metadata', messageMetadata: evidenceAnnotation });
             }
             // Cache the response

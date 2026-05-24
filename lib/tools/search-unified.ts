@@ -38,26 +38,21 @@ export function getTrustLevel(sourceType: string): 'legally-binding' | 'official
   return TRUST_LEVELS[sourceType] ?? 'official-portal';
 }
 
+export let lastSearchMode: 'pgvector' | 'fts5-fallback' | 'none' = 'none';
+
 export async function searchUnified(query: string, limit: number = 5): Promise<UnifiedResult[]> {
-  // Query both pgvector AND local FTS5, merge results by similarity
-  const [pgResults, ftsResults] = await Promise.all([
-    queryPgvectorUnified(query, limit),
-    queryLocalFts5Unified(query, limit),
-  ]);
+  // Primary: pgvector semantic search (real similarity scores)
+  const pgResults = await queryPgvectorUnified(query, limit);
 
-  // Merge and deduplicate by chunk text similarity
-  const all = [...pgResults, ...ftsResults];
-  const seen = new Set<string>();
-  const deduped = all.filter(r => {
-    const key = r.chunkText.slice(0, 80);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  if (pgResults.length > 0) {
+    lastSearchMode = 'pgvector';
+    return pgResults;
+  }
 
-  // Sort by similarity score and return top-K
-  deduped.sort((a, b) => b.similarity - a.similarity);
-  return deduped.slice(0, limit);
+  // Fallback: local FTS5 keyword search (degraded mode)
+  const ftsResults = await queryLocalFts5Unified(query, limit);
+  lastSearchMode = ftsResults.length > 0 ? 'fts5-fallback' : 'none';
+  return ftsResults;
 }
 
 async function queryPgvectorUnified(query: string, limit: number): Promise<UnifiedResult[]> {
@@ -104,7 +99,20 @@ async function queryLocalFts5Unified(query: string, limit: number): Promise<Unif
     const db = new Database(dbPath, { readonly: true });
     const results: UnifiedResult[] = [];
     const words = query.split(/\s+/).filter(w => w.length > 2);
-    const ftsQuery = words.slice(0, 8).join(' OR ');
+
+    // Boost road numbers in FTS5 query by putting them first (FTS5 ranks by term proximity)
+    const roadNumberMatch = query.match(/\b(NH[-\s]?\d+|SH[-\s]?\d+|MDR[-\s]?\d+)\b/i);
+    let ftsQuery: string;
+    if (roadNumberMatch) {
+      const raw = roadNumberMatch[1];
+      const numOnly = raw.replace(/[A-Za-z\-\s]/g, '');
+      const prefix = raw.replace(/[\d\-\s]/g, '').toUpperCase();
+      const otherWords = words.filter(w => !w.match(/^(NH|SH|MDR)[-\s]?\d+$/i) && w.length > 3);
+      // Put road number components first for better ranking
+      ftsQuery = [numOnly, prefix, ...otherWords.slice(0, 5)].join(' OR ');
+    } else {
+      ftsQuery = words.slice(0, 8).join(' OR ');
+    }
 
     // Determine query type to prioritize the right table
     const isPmgsyQuery = /\b(pmgsy|rural|village|gram sadak|habitation)\b/i.test(query);
@@ -131,21 +139,34 @@ async function queryLocalFts5Unified(query: string, limit: number): Promise<Unif
     } catch {}
 
     // Search pwd_contacts (prioritize for personnel queries)
+    // GEOGRAPHIC ENFORCEMENT: Require state/location match to prevent random results
     try {
       const exists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='pwd_contacts'`).get();
       if (exists) {
-        const rows = db.prepare(
-          `SELECT name, designation, division, state, phone, email, office_address, source_url FROM pwd_contacts WHERE pwd_contacts MATCH ? ORDER BY rank LIMIT ?`
-        ).all(ftsQuery, isPersonnelQuery ? limit : 2) as any[];
-        for (const r of rows) {
-          results.push({
-            chunkText: `${r.designation}, ${r.division}, ${r.state}. Phone: ${r.phone || 'N/A'}. Email: ${r.email || 'N/A'}. Office: ${r.office_address || 'N/A'}.`,
-            similarity: isPersonnelQuery ? 0.85 : 0.6,
-            sourceType: 'pwd_contact',
-            state: r.state, district: r.division,
-            metadata: { source_url: r.source_url, phone: r.phone, email: r.email },
-            roadNumber: null, concessionaire: null, sourcePdfHash: null,
-          });
+        const statePattern = /\b(telangana|maharashtra|kerala|tamil nadu|karnataka|andhra pradesh|rajasthan|gujarat|madhya pradesh|uttar pradesh|bihar|odisha|punjab|haryana|west bengal|assam|jharkhand|chhattisgarh|goa|himachal|uttarakhand|delhi)\b/i;
+        const stateMatch = query.match(statePattern);
+
+        if (isPersonnelQuery && !stateMatch) {
+          // No geographic context — return empty to prevent hallucination
+          // (admin.ts GPS gate should have caught this, but defense-in-depth)
+        } else {
+          const rows = stateMatch
+            ? db.prepare(
+                `SELECT name, designation, division, state, phone, email, office_address, source_url FROM pwd_contacts WHERE pwd_contacts MATCH ? AND state LIKE ? ORDER BY rank LIMIT ?`
+              ).all(ftsQuery, `%${stateMatch[1]}%`, isPersonnelQuery ? limit : 2) as any[]
+            : db.prepare(
+                `SELECT name, designation, division, state, phone, email, office_address, source_url FROM pwd_contacts WHERE pwd_contacts MATCH ? ORDER BY rank LIMIT ?`
+              ).all(ftsQuery, isPersonnelQuery ? limit : 2) as any[];
+          for (const r of rows) {
+            results.push({
+              chunkText: `${r.designation}, ${r.division}, ${r.state}. Phone: ${r.phone || 'N/A'}. Email: ${r.email || 'N/A'}. Office: ${r.office_address || 'N/A'}.`,
+              similarity: isPersonnelQuery ? 0.85 : 0.6,
+              sourceType: 'pwd_contact',
+              state: r.state, district: r.division,
+              metadata: { source_url: r.source_url, phone: r.phone, email: r.email },
+              roadNumber: null, concessionaire: null, sourcePdfHash: null,
+            });
+          }
         }
       }
     } catch {}

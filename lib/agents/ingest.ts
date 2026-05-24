@@ -5,7 +5,7 @@ import { runVisionAgent } from './agents/vision';
 import { runTelemetryAgent } from './agents/telemetry';
 import { dispatchWithFallback, type NetworkMode } from '../edge/failover';
 
-const AGENT_TIMEOUT_MS = 4000;
+const AGENT_TIMEOUT_MS = 6000;
 
 type AgentId = 'vision' | 'admin' | 'telemetry';
 
@@ -68,6 +68,7 @@ function dispatchAgent(
  *
  * Dispatches specialist agents concurrently via Promise.allSettled.
  * On retry (retryCount > 0): only dispatches Admin Agent with retryQuery.
+ * Multi-hop queries are decomposed into sub-queries for targeted retrieval.
  * Each agent gets its own AbortController with 4s timeout.
  */
 export async function ingestNode(
