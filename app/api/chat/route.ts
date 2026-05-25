@@ -205,8 +205,14 @@ export async function POST(req: Request) {
           const uiPayload = extractUIPayload(state);
 
           // Build context from evidence
-          if (state.evidence.length > 0) {
+          if (state.auditFinding) {
+            // Authority fallback or synthesizer already produced a finding
             pipelineContext = '\n\n## VIGIA Pipeline Evidence (use this to answer):\n';
+            pipelineContext += `\n### Authority Fallback:\n${state.auditFinding.split('\n').map(l => `- ${l}`).join('\n')}\n`;
+            pipelineContext += '\nIMPORTANT: Output the EXACT portal URLs, helpline numbers, and authority names shown above. Do NOT replace them with generic advice.';
+          }
+          if (state.evidence.length > 0) {
+            if (!pipelineContext) pipelineContext = '\n\n## VIGIA Pipeline Evidence (use this to answer):\n';
 
             // Detect if this is a personnel/contact query
             const isPersonnelQuery = state.intent === 'personnel' || /\b(engineer|officer|contact|phone|who is|name|complaint)\b/i.test(queryText);

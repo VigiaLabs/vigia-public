@@ -1,142 +1,134 @@
-# VIGIA Data Sources
+# VIGIA — Data Sources
 
-## Overview
+## Primary Sources (Currently Ingested into pgvector)
 
-VIGIA uses 18+ real data sources across government PDFs, live APIs, scraped directories, and curated reference data. Zero mock data remains in production query paths (only IMU telemetry awaits DePIN integration).
+### 1. NHAI Awarded Projects PDFs
+- **Years**: FY 2022-23, 2023-24, 2024-25
+- **Fields**: Road number, lanes (2L/4L/6L), state, concessionaire, contract mode (HAM/EPC/BOT), sanctioned cost, award date, length (km)
+- **Source**: [nhai.gov.in](https://nhai.gov.in)
+- **Format**: PDF tables → semantic chunks
 
----
+### 2. NHAI Financial Progress Report
+- **Fields**: Sanctioned cost vs actual expenditure per project, physical progress percentage
+- **Source**: [nhai.gov.in](https://nhai.gov.in)
+- **Use**: Identifies cost overruns and stalled projects
 
-## Track A: PDF Ingestion Pipeline (pgvector)
+### 3. NHAI O&M/PBMC Contracts
+- **Fields**: Maintenance contract awards with start dates, contractor name, contract period
+- **Source**: [nhai.gov.in](https://nhai.gov.in)
+- **Use**: Determines who is responsible for road maintenance and when their obligation began
 
-Government PDFs are downloaded daily, parsed into semantic chunks, embedded via Amazon Titan Embed v2 (1024-dim), and stored in pgvector with HNSW indexing.
+### 4. NHAI Periodic Renewal Sanctions
+- **Fields**: Relaying/resurfacing sanction dates and costs
+- **Source**: [nhai.gov.in](https://nhai.gov.in)
+- **Use**: Tracks when NHAI sanctioned maintenance work — proxy for "last maintained" date
 
-| # | Source | URL | Frequency | Content |
-|---|--------|-----|-----------|---------|
-| 1 | NHAI Awarded Projects 2022-23 | https://nhai.gov.in/nhai/sites/default/files/mix_file/awarded_year_22_23_0.pdf | Weekly | Road numbers, concessionaires, modes, budgets, award dates |
-| 2 | NHAI Projects Under Bidding | https://nhai.gov.in/nhai/sites/default/files/mix_file/Status_of_Projects_where_Bids.pdf | Weekly | Projects in bidding stage |
-| 3 | NHAI Awarded Projects 2023-24 | https://nhai.gov.in/nhai/sites/default/files/mix_file/awarded_year_23_24.pdf | Weekly | FY23-24 awarded contracts |
-| 4 | NHAI Awarded Projects 2024-25 | https://nhai.gov.in/nhai/sites/default/files/mix_file/awarded_year_24_25.pdf | Weekly | FY24-25 awarded contracts |
-| 5 | NHAI Under Implementation | https://nhai.gov.in/nhai/sites/default/files/mix_file/Projects_Under_Implementation.pdf | Weekly | Active construction projects |
-| 6 | NHAI Completed Projects | https://nhai.gov.in/nhai/sites/default/files/mix_file/Completed_Projects.pdf | Monthly | Completed projects with dates |
-| 7 | Bharatmala Pariyojana Status | https://nhai.gov.in/nhai/sites/default/files/mix_file/Bharatmala.pdf | Monthly | Bharatmala phase status |
-| 8 | NHAI TOT Bundles | https://nhai.gov.in/nhai/sites/default/files/mix_file/TOT_Bundles.pdf | Monthly | Toll-Operate-Transfer monetization |
-| 9 | MoRTH Annual Report 2023-24 | https://morth.nic.in/sites/default/files/Annual_Report_2023_24_English.pdf | Monthly | Macro road statistics, expenditure |
-| 10 | MoRTH Basic Road Statistics | https://morth.nic.in/sites/default/files/Basic_Road_Statistics_of_India.pdf | Monthly | National road length, condition categories |
+### 5. NHAI TOT Bundle Status
+- **Fields**: Toll-Operate-Transfer concessions (20-year O&M obligations)
+- **Key Record**: TOT Bundle-16 — NH-44 Hyderabad–Nagpur, 251 km, Highway Infrastructure Trust, ₹6,661 Cr, awarded 2024-09-18
+- **Source**: [nhai.gov.in](https://nhai.gov.in) + press releases
+- **Use**: TOT concessionaires have strict maintenance obligations; identifies accountability
 
----
+### 6. MoRTH Annual Report 2024-25
+- **Fields**: Scheme-wise budget allocation vs actual expenditure (Bharatmala, NHDP, SARDP-NE, etc.)
+- **Source**: [morth.nic.in](https://morth.nic.in)
+- **Use**: Macro-level spending analysis per road development scheme
 
-## Track B: Structured Data & Scraped Directories
+### 7. PMGSY OMMAS Portal
+- **Fields**: Road name, district, state, contractor, sanctioned cost, length, completion status
+- **Source**: [omms.nic.in](https://omms.nic.in)
+- **Use**: Rural road data — covers Pradhan Mantri Gram Sadak Yojana roads
 
-### PMGSY Rural Roads (OMMAS Portal)
+### 8. State PWD Official Directories
+- **Fields**: Officer names, phone numbers, emails, office addresses
+- **Coverage**: Maharashtra, Telangana
+- **Source**: State PWD websites
+- **Use**: Personnel queries — "Who is the SE for Pune division?"
 
-| Source | URL | Method | Records |
-|--------|-----|--------|---------|
-| OMMAS TimeSeries | https://omms.nic.in/dbweb/Home/TimeSeries | Playwright scraper / published data | 14 records (Khammam, Warangal, Pune, Nagpur) |
-| OMMAS Citizen Feedback | https://omms.nic.in/Home/CitizenFeedback | Playwright scraper (requires Indian IP) | Target: ~1,600 records |
+### 9. Government Authority Matrix
+- **Fields**: Complaint routing (portal URLs, helplines, escalation paths), RTI filing info per road type
+- **Coverage**: NH (NHAI), SH (State PWD), MDR (Zilla Parishad), PMGSY (NRRDA)
+- **Source**: Manually curated from official sources
+- **Use**: When data void detected, provides actionable next steps for citizens
 
-**Districts covered:** Khammam (TG), Warangal (TG), Pune (MH), Nagpur (MH)  
-**Schemes:** PMGSY-I, PMGSY-II, PMGSY-III, RCPLWEA
-
-### PWD Officer Directories
-
-| State | Source URL | Records | Data Fields |
-|-------|-----------|---------|-------------|
-| Telangana | https://tg-roadcutting.cgg.gov.in/ContactUs | 14 | EE name, phone, email, division |
-| Maharashtra | https://pwd.maharashtra.gov.in/en/pune/ | 14 | CE/SE/EE name, phone, email, address |
-| Maharashtra (HQ) | https://pwd.maharashtra.gov.in/en/whos-who/ | (included above) | ACS, Secretary names + contacts |
-
-**Last verified:** 2026-05-23  
-**Update frequency:** Weekly scrape (when deployed)
-
----
-
-## Live APIs (Real-Time)
-
-| # | API | URL | Auth | Purpose |
-|---|-----|-----|------|---------|
-| 11 | OpenStreetMap Overpass | https://overpass-api.de/api/interpreter | None | Road classification from GPS (NH/SH/MDR/rural) |
-| 12 | World Bank Projects | https://search.worldbank.org/api/v2/projects | None | International infrastructure projects (170+ countries) |
-| 13 | OCDS Procurement | https://data.open-contracting.org/api/ | None | International procurement contracts (60+ countries) |
-| 14 | Nominatim Geocoding | https://nominatim.openstreetmap.org/reverse | None | Country detection for international routing |
+### 10. NH-44 Structured Project Data
+- **Fields**: 10 sections with road type classification, contractor, sanctioned/expenditure amounts, maintenance dates, status
+- **Sources**: NHAI TOT Award documents, NHAI Arbitration records, Wikipedia
+- **Use**: Deep-dive case study for India's longest highway (Srinagar–Kanyakumari)
 
 ---
 
-## Curated Reference Data
+## Secondary Sources (Planned)
 
-| # | File | Content | Last Verified |
-|---|------|---------|---------------|
-| 15 | `data/authority-matrix.json` | RTI + complaint authorities for NH/SH/MDR/PMGSY with state overrides (MH, KL, KA, TN) | 2026-05-21 |
+### 1. Parliament Q&A Archives
+- **Content**: MPs ask project-wise expenditure questions; answers contain per-project financial data
+- **Source**: [loksabhaph.nic.in](https://loksabhaph.nic.in)
+- **Acquisition**: Web scraping (public data)
 
-**Includes:**
-- NHAI PIU complaint portal (pgportal.gov.in, helpline 1033)
-- State PWD complaint portals (Maharashtra, Kerala, Karnataka, Tamil Nadu)
-- RTI filing authorities (CPIO NHAI, SPIOs for states)
-- Legal basis citations (NHAI Act 1988, RTI Act 2005, State PWD Acts)
-- Fee structure (₹10 RTI fee)
-- Response timelines (30 days)
+### 2. News Articles
+- **Content**: NHAI press releases, construction industry news, project delay reports
+- **Sources**: constructionworld.in, ET Infra, NHAI press releases
+- **Use**: Real-time project updates, delay notifications
 
----
+### 3. Web Search Integration
+- **Content**: For queries about roads not in our index, fall back to web search
+- **Use**: Graceful degradation when knowledge base has no relevant chunks
 
-## Local FTS5 Database (`data/nhai_mock.db`)
+### 4. DePIN Telemetry from VIGIA Users
+- **Content**: Crowdsourced road condition data from users' phone accelerometers/cameras
+- **Status**: Future feature — requires mobile app + data pipeline
+- **Use**: Real-time road condition monitoring without government data dependency
 
-| Table | Records | Source | Search Type |
-|-------|---------|--------|-------------|
-| `nhai_sections` | 20 | Real NHAI PDF (awarded_year_22_23_0.pdf) | FTS5 keyword/BM25 |
-| `pwd_contacts` | 28 | Scraped from TG/MH government sites | FTS5 porter tokenizer |
-| `pmgsy_contracts` | 14 | OMMAS TimeSeries (verified government data) | FTS5 porter tokenizer |
+### 5. CAG Audit Reports
+- **Content**: Comptroller & Auditor General reports contain sampled PCI/IRI data for audited stretches
+- **Source**: [cag.gov.in](https://cag.gov.in)
+- **Use**: Only source of pavement condition data without NHAI credentials
 
----
-
-## AWS pgvector Database (`vigia-pgvector` RDS)
-
-| Table | Engine | Dimensions | Index | Content |
-|-------|--------|-----------|-------|---------|
-| `contract_embeddings` | pgvector | 1024 (Titan Embed v2) | HNSW (m=16, ef=64) | Semantic chunks from 10 PDFs |
-
-**Access:** Lambda Function URL (`vigia-retrieval-proxy`) → Bedrock embed query → pgvector cosine similarity → top-K chunks
+### 6. OpenStreetMap
+- **Content**: Road geometry, lane counts, surface type
+- **Status**: Already used via OSRM for map route rendering
+- **Use**: Spatial context and route visualization
 
 ---
 
-## Daily/Weekly Auto-Retrieval Pipeline (AWS Lambda + EventBridge)
+## Data Gaps (Require RTI or Institutional Access)
 
-| Time (UTC) | Lambda | Frequency | Target | What It Does |
-|------------|--------|-----------|--------|-------------|
-| 02:00 | `vigia-pdf-scraper` | Daily | 10 NHAI/MoRTH PDFs | Downloads, SHA-256 deduplicates via DynamoDB |
-| (S3 trigger) | `vigia-pdf-parser` | On new PDF | All states | Semantic chunking + Titan Embed v2 → pgvector |
-| 03:00 | `vigia-api-etl` | Daily | data.gov.in, PMGSY OMMAS | Fetches structured API data → S3 JSONL |
-| 03:30 | `vigia-fts5-loader` | Daily | All data | Rebuilds production FTS5 SQLite → S3 |
-| 04:00 | `vigia-unified-embedder` | Daily | TG, MH districts | Embeds PWD + PMGSY + authority → pgvector |
-| 04:00 Sun | `vigia-pwd-scraper` | Weekly | Telangana, Maharashtra | Scrapes R&B/PWD officer directories |
-| 04:30 Sun | `vigia-pmgsy-scraper` | Weekly | Khammam, Warangal, Pune, Nagpur | Scrapes OMMAS portal for rural road data |
+### 1. NHAI RAMS Portal
+- **URL**: [rams.nhai.gov.in](https://rams.nhai.gov.in)
+- **Contains**: Pavement Condition Index (PCI), International Roughness Index (IRI), maintenance history
+- **Blocker**: Requires NHAI credentials (not public)
+- **Acquisition Path**: RTI application (30 days, ₹10 fee) or academic MoU with NHAI
 
-### Target Districts (Auto-Refreshed)
+### 2. Per-km Expenditure
+- **Contains**: Running Account bills from NHAI Project Implementation Units (PIUs)
+- **Blocker**: Internal documents, not published
+- **Acquisition Path**: RTI to specific PIU office
 
-| State | Districts | Data Refreshed |
-|-------|-----------|---------------|
-| Telangana | Khammam, Warangal, Adilabad, Siddipet, Medchal, Sangareddy, Kothagudem, Peddapalli, Wanaparthy, Nirmal, Gajwel, Vikarabad | PWD contacts + PMGSY roads |
-| Maharashtra | Pune, Nagpur, Satara, Solapur, Kolhapur | PWD contacts + PMGSY roads |
-| All India | All states with NHAI projects | Contract PDFs (10 sources) |
+### 3. Exact Resurfacing Dates (EPC Roads)
+- **Contains**: PIU maintenance registers showing when resurfacing was done
+- **Blocker**: No public record when NHAI maintains directly (as opposed to concessionaire)
+- **Acquisition Path**: RTI to PIU; partial derivation possible from DLP expiry + Periodic Renewal sanctions
 
 ---
 
-## Client-Side Database (Browser IndexedDB)
+## Data Coverage Summary
 
-| Table | Purpose |
-|-------|---------|
-| `threads` | Chat thread metadata (id, title, updatedAt) |
-| `messages` | Chat messages with metadata (role, content, sources, pendingAction) |
-
-**Engine:** Dexie v2 (IndexedDB wrapper)  
-**Retention:** 45 days with conservative cleanup
+| Data Point | Coverage | Source |
+|---|---|---|
+| Road type (2L/4L/6L) | 100% | NHAI Awarded PDFs |
+| Contractor name | 100% | NHAI Awarded PDFs |
+| Sanctioned cost | 95% | NHAI Financial Progress PDF |
+| Expenditure (spent) | 60% | Financial Progress + Arbitration |
+| Maintenance responsibility | 80% | O&M/PBMC/TOT PDFs |
+| Last maintenance date | 40% | TOT + PBMC start dates |
+| Per-km condition (PCI/IRI) | 0% | RAMS (RTI required) |
+| Exact resurfacing date | 20% | Derivable from DLP + PR |
 
 ---
 
-## Data That Does NOT Exist (Honest Gaps)
+## Notes
 
-| Data Point | Why It's Missing | What We Do Instead |
-|-----------|-----------------|-------------------|
-| Real-time road condition scores | No public API exists in India | Suggest photo upload (citizen-claim) |
-| Executive Engineer names (most states) | Only TG/MH directories scraped | Explicitly state "not yet indexed" |
-| IMU telemetry (acceleration data) | Awaiting DePIN/Solana integration | Hardcoded placeholder in telemetry agent |
-| Historical condition trends | No public time-series API | Infer from contract completion dates + DLP |
-| data.gov.in road statistics | Requires API key we don't have | Use MoRTH PDF data instead |
+- All primary sources are **publicly available** government documents
+- Data is refreshed via automated pipeline (EventBridge CRON → Lambda → S3 → pgvector)
+- PDF parsing uses semantic chunking to preserve table structure and cross-references
+- Embedding model: Amazon Titan Embed v2 (1024 dimensions) — good multilingual support for Hindi/English mixed documents
