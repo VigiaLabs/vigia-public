@@ -17,8 +17,12 @@ import { SourcesPanel } from '@/components/chat/sources-panel';
 import { MessageActionBar } from '@/components/chat/message-action-bar';
 import { PendingActionCard } from '@/components/chat/pending-action-card';
 import { LivePipeline } from '@/components/chat/live-pipeline';
+import dynamic from 'next/dynamic';
+const MapDashboard = dynamic(() => import('@/components/chat/map-dashboard').then(m => ({ default: m.MapDashboard })), { ssr: false });
 import { SourcesStrip } from '@/components/chat/sources-strip';
 import { useEvidence } from '@/components/chat/evidence-context';
+import { useHeaderTab } from '@/components/chat/header';
+import { useMap } from '@/lib/context/map-context';
 
 /** Generate follow-up questions based on the assistant's response */
 function getFollowUps(msg: UIMessage): string[] {
@@ -389,6 +393,53 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     setSourcesOpen(true);
   }, [evidenceCtx]);
 
+  const { active: activeHeaderTab } = useHeaderTab();
+  const { addMarkers, clearMarkers } = useMap();
+
+  // Clear map markers when thread changes
+  useEffect(() => {
+    clearMarkers();
+    processedMsgIds.current.clear();
+  }, [initialThreadId, clearMarkers]);
+  const isMapTab = activeHeaderTab === 'map';
+
+  // Extract all links from messages for the Links tab
+  const allLinks = useMemo(() => {
+    const links: Array<{ url: string; label: string; messageId: string }> = [];
+    for (const msg of messages) {
+      if (msg.role !== 'assistant') continue;
+      const meta = (msg as any).metadata;
+      if (meta?.sources) {
+        for (const src of meta.sources) {
+          if (src.url) links.push({ url: src.url, label: src.label, messageId: msg.id });
+        }
+      }
+      const text = msg.parts?.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map(p => p.text).join(' ') ?? '';
+      const urlMatches = text.match(/https?:\/\/[^\s)]+/g);
+      if (urlMatches) {
+        for (const url of urlMatches) {
+          if (!links.some(l => l.url === url)) {
+            links.push({ url, label: url.replace(/https?:\/\/(www\.)?/, '').split('/')[0], messageId: msg.id });
+          }
+        }
+      }
+    }
+    return links;
+  }, [messages]);
+
+  // Push spatial markers from evidence to map context (only new messages)
+  const processedMsgIds = useRef(new Set<string>());
+  useEffect(() => {
+    for (const msg of messages) {
+      if (processedMsgIds.current.has(msg.id)) continue;
+      const meta = (msg as any).metadata;
+      if (meta?.type === 'vigia-evidence' && meta.spatialMarkers?.length) {
+        addMarkers(meta.spatialMarkers);
+        processedMsgIds.current.add(msg.id);
+      }
+    }
+  }, [messages, addMarkers]);
+
   if (!messagesLoaded) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-3 bg-transparent">
@@ -403,9 +454,69 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   }
 
   return (
-    <div className="relative flex h-screen flex-col bg-transparent overflow-hidden">
-      <div className="flex-1 overflow-y-auto pb-[calc(env(safe-area-inset-bottom,0px)+11.5rem)] pt-3 md:pb-48 md:pt-8">
-        {messages.length > 0 && (
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent">
+      <div className={isMapTab ? 'relative flex-1 min-h-0 overflow-hidden z-0' : 'flex-1 overflow-y-auto pb-[calc(env(safe-area-inset-bottom,0px)+11.5rem)] pt-3 md:pb-48 md:pt-8'}>
+
+        {/* Map Tab */}
+        {isMapTab && (
+          <div className="absolute inset-0 z-0">
+            <MapDashboard />
+          </div>
+        )}
+
+        {/* Links Tab */}
+        {activeHeaderTab === 'links' && (
+          <motion.div
+            className="mx-auto w-full max-w-[900px] px-4 md:px-6"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <motion.h2
+              className="mb-4 text-lg font-semibold text-text-primary"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.25, delay: 0.04 }}
+            >
+              Links
+            </motion.h2>
+            {allLinks.length === 0 ? (
+              <motion.p
+                className="text-sm text-text-muted"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.2, delay: 0.08 }}
+              >
+                No links in this conversation yet.
+              </motion.p>
+            ) : (
+              <div className="space-y-2">
+                {allLinks.map((link, i) => (
+                  <motion.a
+                    key={i}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 rounded-lg border border-border/60 bg-white px-4 py-3 transition-colors hover:bg-[#fafafa]"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.22, delay: 0.05 + i * 0.035 }}
+                  >
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium text-text-primary">{link.label}</div>
+                      <div className="truncate text-xs text-text-muted">{link.url}</div>
+                    </div>
+                  </motion.a>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* Answer Tab (default chat) */}
+        {activeHeaderTab === 'answer' && messages.length > 0 && (
           <div className="mx-auto w-full min-w-0 max-w-[900px] px-4 md:px-6">
             <div className="space-y-8">
                 {messages.map((msg) => {
@@ -526,25 +637,25 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
       )}
 
       <motion.div
-        className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+4.25rem)] left-0 right-0 z-20 transition-[left] duration-300 md:bottom-0 md:left-[var(--sidebar-width,0px)]"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+4.25rem)] left-0 right-0 z-50 transition-[left] duration-300 md:bottom-0 md:left-[var(--sidebar-width,0px)]"
         initial={false}
         animate={{ y: messages.length === 0 ? '-28vh' : 0 }}
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
       >
         <motion.div
           className="pointer-events-none absolute inset-0"
-          animate={messages.length === 0 ? { height: 0 } : { height: 140 }}
+          animate={isMapTab || messages.length === 0 ? { height: 0 } : { height: 140 }}
           transition={{ duration: 0.5 }}
           style={{
             background:
-              messages.length === 0
+              isMapTab || messages.length === 0
                 ? 'transparent'
                 : 'linear-gradient(to bottom, transparent, rgb(255, 255, 255) 70%)',
           }}
         />
         <div className="relative w-full px-4 pb-6 pt-3 md:px-6 md:pb-8">
           <div className="mx-auto w-full max-w-[900px]">
-            {messages.length === 0 && (
+            {activeHeaderTab === 'answer' && messages.length === 0 && (
               <motion.div
                 className="mb-8 text-center"
                 initial={{ opacity: 0, y: 10 }}
@@ -560,35 +671,39 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
               </motion.div>
             )}
 
-            {voiceSessionPhase && (
-              <VoiceSessionBar
-                phase={voiceSessionPhase}
-                onStopSpeaking={
-                  voiceSessionPhase === 'speaking' ? interruptSpeaking : undefined
-                }
-              />
+            {activeHeaderTab === 'answer' && (
+              <>
+                {voiceSessionPhase && (
+                  <VoiceSessionBar
+                    phase={voiceSessionPhase}
+                    onStopSpeaking={
+                      voiceSessionPhase === 'speaking' ? interruptSpeaking : undefined
+                    }
+                  />
+                )}
+                <InputBar
+                  value={value}
+                  onChange={handleInputChange}
+                  onSubmit={() => void handleSubmit()}
+                  isSending={isSending}
+                  onVoiceCapture={onVoiceCapture}
+                  isProcessingVoice={isProcessingVoice}
+                  isSpeaking={isTTSActive}
+                  isVoiceRecording={isVoiceRecording}
+                  onVoiceRecordingChange={setIsVoiceRecording}
+                  stopTTS={stopTTS}
+                  hasMessages={messages.length > 0}
+                  imageDataUrl={imageDataUrl}
+                  onImageSelect={setImageDataUrl}
+                  onImageClear={() => setImageDataUrl(null)}
+                  sendLocation={sendLocation}
+                  onToggleLocation={() => setSendLocation((v) => !v)}
+                  onPaste={handlePaste}
+                />
+              </>
             )}
-            <InputBar
-              value={value}
-              onChange={handleInputChange}
-              onSubmit={() => void handleSubmit()}
-              isSending={isSending}
-              onVoiceCapture={onVoiceCapture}
-              isProcessingVoice={isProcessingVoice}
-              isSpeaking={isTTSActive}
-              isVoiceRecording={isVoiceRecording}
-              onVoiceRecordingChange={setIsVoiceRecording}
-              stopTTS={stopTTS}
-              hasMessages={messages.length > 0}
-              imageDataUrl={imageDataUrl}
-              onImageSelect={setImageDataUrl}
-              onImageClear={() => setImageDataUrl(null)}
-              sendLocation={sendLocation}
-              onToggleLocation={() => setSendLocation((v) => !v)}
-              onPaste={handlePaste}
-            />
 
-            {messages.length === 0 && (
+            {activeHeaderTab === 'answer' && messages.length === 0 && (
               <motion.div
                 className="mt-5 flex flex-wrap justify-center gap-2"
                 initial={{ opacity: 0, y: 8 }}

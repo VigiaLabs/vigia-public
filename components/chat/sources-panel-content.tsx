@@ -65,7 +65,7 @@ export function SourcesPanelContent({
                 key={`${marker.lat}-${marker.lng}-${i}`}
                 lat={marker.lat}
                 lng={marker.lng}
-                label={marker.label}
+                label={marker.title}
                 severity={marker.severity}
               />
             ))}

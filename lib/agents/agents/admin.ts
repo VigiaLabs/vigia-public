@@ -63,24 +63,10 @@ export async function runAdminAgent(
     return { agentId: 'admin', status: 'skipped', confidence: 0, findings: [], citations: [], latencyMs: Date.now() - start };
   }
 
-  // ─── P0: GPS Gate for Personnel Intent ──────────────────────────
-  if (intent === 'personnel' && !payload.gps) {
-    const hasLocationInText = /\b(telangana|maharashtra|kerala|tamil nadu|karnataka|andhra pradesh|rajasthan|gujarat|madhya pradesh|uttar pradesh|bihar|odisha|punjab|haryana|west bengal|assam|jharkhand|chhattisgarh|goa|himachal|uttarakhand|delhi|mumbai|chennai|kolkata|bengaluru|hyderabad)\b/i.test(text);
-    if (!hasLocationInText) {
-      return {
-        agentId: 'admin',
-        status: 'completed',
-        confidence: 0.0,
-        findings: [
-          'Please provide your location (GPS) or specify a geographic area (state/district) to look up personnel directories.',
-          'Example: "Who is the executive engineer for NH-44 in Telangana?"',
-        ],
-        citations: [],
-        metadata: { reason: 'personnel-requires-location' },
-        latencyMs: Date.now() - start,
-      };
-    }
-  }
+  // ─── P0: Personnel queries proceed directly to search ────────────
+  // Geographic context is handled by the retrieval layer (pgvector similarity)
+  // and by the LLM which can see the user's location from GPS or text.
+  // No hard gate needed — low-relevance results will naturally score low confidence.
 
   try {
     const { roadNumber, state } = await extractRoadContext(text);

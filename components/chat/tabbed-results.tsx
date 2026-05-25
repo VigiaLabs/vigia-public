@@ -15,7 +15,7 @@ export interface TabbedResultsProps {
   contradictionVerified: boolean;
   evidenceImages?: Array<{ url: string; severity: string; label: string }>;
   budgetData?: { allocated: number; disbursed: number; currency: string; percentDisbursed: number };
-  spatialMarkers?: Array<{ lat: number; lng: number; label: string; severity: string }>;
+  spatialMarkers?: Array<{ id: string; title: string; lat: number; lng: number; type: string; severity: string; summary: string; citations: string[]; roadNumber?: string; route?: { start: { lat: number; lng: number }; end: { lat: number; lng: number } } }>;
   sources?: Array<{ id: string; label: string; trustLevel: string; url?: string }>;
   totalLatencyMs: number;
   nodeCount: number;
@@ -114,7 +114,7 @@ export function TabbedResults({
       {activeTab === 'maps' && (
         <div className="space-y-3">
           {spatialMarkers?.map((marker, i) => (
-            <MapOverlay key={i} lat={marker.lat} lng={marker.lng} label={marker.label} severity={marker.severity} />
+            <MapOverlay key={i} lat={marker.lat} lng={marker.lng} label={marker.title} severity={marker.severity} />
           ))}
           {!hasMaps && (
             <div className="py-4 text-sm text-text-muted">No location data available. Toggle location to include GPS.</div>

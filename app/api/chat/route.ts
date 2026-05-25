@@ -207,6 +207,10 @@ export async function POST(req: Request) {
           // Build context from evidence
           if (state.evidence.length > 0) {
             pipelineContext = '\n\n## VIGIA Pipeline Evidence (use this to answer):\n';
+
+            // Detect if this is a personnel/contact query
+            const isPersonnelQuery = state.intent === 'personnel' || /\b(engineer|officer|contact|phone|who is|name|complaint)\b/i.test(queryText);
+
             for (const ev of state.evidence) {
               if (ev.status === 'completed' && ev.findings.length > 0) {
                 pipelineContext += `\n### ${ev.agentId} agent (confidence: ${ev.confidence}):\n`;
@@ -218,7 +222,22 @@ export async function POST(req: Request) {
                 pipelineContext += '\n';
               }
             }
-            pipelineContext += '\n\nIMPORTANT: Answer using ONLY the evidence above. Cite sources with [Source: Document Name]. If the evidence contains project metadata (budget, mode, timeline, km stretch), include it in a **Project Overview** section even if the user did not ask for it.\n\nSTRICT ANTI-HALLUCINATION RULES:\n- NEVER invent names, phone numbers, email addresses, or costs. If a phone number or name is not LITERALLY written in the evidence above, do NOT include one.\n- If the evidence does not contain the answer, say "This specific data is not available in the VIGIA index" — do NOT fill in the gap with made-up data.\n- Every name, number, email, and cost you output MUST appear verbatim in the evidence chunks above. If you cannot point to the exact line, do not include it.';
+
+            // For personnel queries, extract and present contact details in a copy-paste format
+            if (isPersonnelQuery) {
+              const allText = state.evidence.flatMap(e => e.findings).join('\n');
+              const phoneMatches = allText.match(/Phone:\s*([0-9\-+() ]+)/g);
+              const emailMatches = allText.match(/Email:\s*([^\s.]+@[^\s.]+\.[^\s.]+)/g);
+              const nameMatches = allText.match(/^([A-Z][a-z]+\.?\s+[A-Z][\w\s.]+),\s*(Executive|Superintending|Chief)\s*Engineer/gm)
+                || allText.match(/((?:Shri|Smt|Dr|Sri)\.?\s+[A-Z][\w\s.]+),\s*(?:Executive|Superintending|Chief)/gm);
+
+              pipelineContext += '\n\n═══ VERIFIED CONTACT DETAILS (COPY EXACTLY) ═══\n';
+              if (nameMatches) pipelineContext += 'VERIFIED NAME: ' + nameMatches[0] + '\n';
+              if (phoneMatches) pipelineContext += 'VERIFIED PHONE: ' + phoneMatches[0].replace('Phone: ', '') + '\n';
+              if (emailMatches) pipelineContext += 'VERIFIED EMAIL: ' + emailMatches[0].replace('Email: ', '') + '\n';
+              pipelineContext += '═══ USE ONLY THESE DETAILS. DO NOT SUBSTITUTE. ═══\n';
+            }
+            pipelineContext += '\n\nIMPORTANT: Answer using ONLY the evidence above. Cite sources with [Source: Document Name]. If the evidence contains project metadata (budget, mode, timeline, km stretch), include it in a **Project Overview** section even if the user did not ask for it.\n\nSTRICT ANTI-HALLUCINATION RULES:\n- NEVER invent names, phone numbers, email addresses, or costs. If a phone number or name is not LITERALLY written in the evidence above, do NOT include one.\n- If the evidence does not contain the answer, say "This specific data is not available in the VIGIA index" — do NOT fill in the gap with made-up data.\n- Every name, number, email, and cost you output MUST appear verbatim in the evidence chunks above. If you cannot point to the exact line, do not include it.\n\nCRITICAL CONTACT INFORMATION RULE:\n- For personnel queries: ONLY use names, phone numbers, and emails that appear EXACTLY in the evidence bullets above.\n- The ONLY valid contact details are those preceded by "Phone:", "Email:", or that appear as part of a person\'s title line in the evidence.\n- If you output a phone number like 98XXXXXXXX that is NOT in the evidence, you are hallucinating. Use ONLY landline numbers (like 020-XXXXXXXX) or mobile numbers that appear verbatim above.\n- COPY-PASTE the name and number from the evidence. Do not paraphrase or substitute.';
           }
 
           evidenceAnnotation = {
@@ -244,10 +263,20 @@ export async function POST(req: Request) {
         const allModelMessages = await convertToModelMessages(messages);
         // Keep only last 6 messages for context, prioritize current turn
         const recentMessages = allModelMessages.slice(-6);
-        const modelMessages = augmentModelMessagesForLanguage(recentMessages, responseLanguage);
+        // Bedrock requires: starts with user message, no empty content
+        const cleanMessages = recentMessages.filter(m => 
+          m.content && (typeof m.content === 'string' ? m.content.length > 0 : Array.isArray(m.content) && m.content.length > 0)
+        );
+        const firstUserIdx = cleanMessages.findIndex(m => m.role === 'user');
+        const validMessages = firstUserIdx > 0 ? cleanMessages.slice(firstUserIdx) : cleanMessages;
+        const modelMessages = augmentModelMessagesForLanguage(validMessages, responseLanguage);
+
+        // Use Nova Pro for personnel queries to reduce hallucination of contact details
+        const isPersonnelIntent = /\b(engineer|officer|contact|phone|who is|name|complaint)\b/i.test(queryText);
+        const chatModel = isPersonnelIntent ? bedrock('amazon.nova-pro-v1:0') : bedrock('amazon.nova-lite-v1:0');
 
         const result = streamText({
-          model: bedrock('amazon.nova-lite-v1:0'),
+          model: chatModel,
           system: system + '\n\nCHAT HISTORY RULE: Your previous responses in this conversation may contain outdated or incorrect information. ALWAYS prioritize the fresh VIGIA Pipeline Evidence above over anything you said in earlier turns. If the evidence contradicts your prior response, the evidence is correct.',
           messages: modelMessages,
         });

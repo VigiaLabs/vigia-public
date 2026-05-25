@@ -88,10 +88,46 @@ export const PDF_SOURCES = [
     frequency: 'monthly',
   },
   {
+    id: 'morth-annual-report-24-25',
+    label: 'MoRTH Annual Report 2024-25 (Expenditure + Maintenance Data)',
+    url: 'https://morth.nic.in/sites/default/files/Annual_Report_2024_25_English.pdf',
+    frequency: 'monthly',
+    fields: ['scheme_allocation', 'expenditure', 'km_constructed', 'maintenance_spend'],
+  },
+  {
     id: 'morth-road-statistics',
     label: 'MoRTH Basic Road Statistics of India',
     url: 'https://morth.nic.in/sites/default/files/Basic_Road_Statistics_of_India.pdf',
     frequency: 'monthly',
+  },
+  // ─── NHAI Financial Progress & O&M PDFs ───────────────────────────
+  {
+    id: 'nhai-financial-progress',
+    label: 'NHAI Project-wise Financial Progress Report',
+    url: 'https://nhai.gov.in/nhai/sites/default/files/mix_file/Project_Financial_Progress.pdf',
+    frequency: 'weekly',
+    fields: ['sanctioned_cost', 'expenditure', 'physical_progress_pct', 'financial_progress_pct'],
+  },
+  {
+    id: 'nhai-om-contracts',
+    label: 'NHAI O&M / PBMC Awarded Contracts',
+    url: 'https://nhai.gov.in/nhai/sites/default/files/mix_file/OM_Awarded_Contracts.pdf',
+    frequency: 'weekly',
+    fields: ['road_number', 'section', 'concessionaire', 'maintenance_start_date', 'contract_period_years', 'mode'],
+  },
+  {
+    id: 'nhai-periodic-renewal',
+    label: 'NHAI Periodic Renewal / IRQP Sanctions',
+    url: 'https://nhai.gov.in/nhai/sites/default/files/mix_file/Periodic_Renewal_Sanctions.pdf',
+    frequency: 'monthly',
+    fields: ['road_number', 'section', 'sanction_date', 'relaying_length_km', 'cost_crore'],
+  },
+  {
+    id: 'nhai-tot-status',
+    label: 'NHAI TOT Bundle Status (O&M Concessions)',
+    url: 'https://nhai.gov.in/nhai/sites/default/files/mix_file/TOT_Bundle_Status.pdf',
+    frequency: 'monthly',
+    fields: ['bundle_number', 'road_number', 'section', 'concessionaire', 'award_date', 'concession_period', 'maintenance_responsibility'],
   },
 ] as const;
 

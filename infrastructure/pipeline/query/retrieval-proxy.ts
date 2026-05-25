@@ -81,6 +81,8 @@ export async function handler(event: { body?: string }): Promise<{ statusCode: n
         `SELECT road_number, concessionaire, chunk_text, source_pdf_hash,
                 COALESCE(source_type, 'nhai_contract') as source_type,
                 state, district, metadata,
+                road_type_classification, sanctioned_amount_crore,
+                expenditure_amount_crore, last_maintenance_date, condition_status,
                 1 - (embedding <=> $1::vector) AS similarity
          FROM contract_embeddings
          ORDER BY embedding <=> $1::vector
@@ -91,13 +93,20 @@ export async function handler(event: { body?: string }): Promise<{ statusCode: n
       const chunks: ChunkResult[] = result.rows.map(r => ({
         roadNumber: r.road_number,
         concessionaire: r.concessionaire,
-        chunkText: r.chunk_text?.slice(0, 500),
+        chunkText: r.chunk_text?.slice(0, 2000),
         similarity: parseFloat(r.similarity),
         sourcePdfHash: r.source_pdf_hash,
         sourceType: r.source_type ?? 'nhai_contract',
         state: r.state ?? null,
         district: r.district ?? null,
-        metadata: r.metadata ?? null,
+        metadata: {
+          ...(r.metadata ?? {}),
+          road_type: r.road_type_classification ?? null,
+          sanctioned_cost_crore: r.sanctioned_amount_crore ? parseFloat(r.sanctioned_amount_crore) : null,
+          expenditure_cost_crore: r.expenditure_amount_crore ? parseFloat(r.expenditure_amount_crore) : null,
+          last_maintenance_date: r.last_maintenance_date ?? null,
+          condition_status: r.condition_status ?? null,
+        },
       }));
 
       return { statusCode: 200, body: JSON.stringify({ chunks, count: chunks.length }) };
@@ -120,6 +129,11 @@ async function handleInitUnified(): Promise<{ statusCode: number; body: string }
     await client.query(`ALTER TABLE contract_embeddings ADD COLUMN IF NOT EXISTS state VARCHAR(50)`);
     await client.query(`ALTER TABLE contract_embeddings ADD COLUMN IF NOT EXISTS district VARCHAR(50)`);
     await client.query(`ALTER TABLE contract_embeddings ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`);
+    await client.query(`ALTER TABLE contract_embeddings ADD COLUMN IF NOT EXISTS road_type_classification VARCHAR(10)`);
+    await client.query(`ALTER TABLE contract_embeddings ADD COLUMN IF NOT EXISTS sanctioned_amount_crore DECIMAL`);
+    await client.query(`ALTER TABLE contract_embeddings ADD COLUMN IF NOT EXISTS expenditure_amount_crore DECIMAL`);
+    await client.query(`ALTER TABLE contract_embeddings ADD COLUMN IF NOT EXISTS last_maintenance_date DATE`);
+    await client.query(`ALTER TABLE contract_embeddings ADD COLUMN IF NOT EXISTS condition_status VARCHAR(50)`);
     await client.query(`DELETE FROM contract_embeddings WHERE source_type != 'nhai_contract'`);
     return { statusCode: 200, body: JSON.stringify({ message: 'Schema initialized, non-NHAI entries cleared' }) };
   } finally {

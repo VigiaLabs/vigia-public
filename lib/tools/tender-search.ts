@@ -28,7 +28,13 @@ const SOURCE_PDF_URLS: Record<string, string> = {
   'nhai-awarded-22-23': 'https://nhai.gov.in/nhai/sites/default/files/mix_file/awarded_year_22_23_0.pdf',
   'nhai-bids': 'https://nhai.gov.in/nhai/sites/default/files/mix_file/Status_of_Projects_where_Bids.pdf',
   'nhai-awarded-23-24': 'https://nhai.gov.in/nhai/sites/default/files/mix_file/awarded_year_23_24.pdf',
+  'nhai-awarded-24-25': 'https://nhai.gov.in/nhai/sites/default/files/mix_file/awarded_year_24_25.pdf',
+  'nhai-financial-progress': 'https://nhai.gov.in/nhai/sites/default/files/mix_file/Project_Financial_Progress.pdf',
+  'nhai-om-contracts': 'https://nhai.gov.in/nhai/sites/default/files/mix_file/OM_Awarded_Contracts.pdf',
+  'nhai-periodic-renewal': 'https://nhai.gov.in/nhai/sites/default/files/mix_file/Periodic_Renewal_Sanctions.pdf',
+  'nhai-tot-status': 'https://nhai.gov.in/nhai/sites/default/files/mix_file/TOT_Bundle_Status.pdf',
   'morth-annual-report': 'https://morth.nic.in/sites/default/files/Annual_Report_2023_24_English.pdf',
+  'morth-annual-report-24-25': 'https://morth.nic.in/sites/default/files/Annual_Report_2024_25_English.pdf',
   'morth-road-statistics': 'https://morth.nic.in/sites/default/files/Basic_Road_Statistics_of_India.pdf',
 };
 
@@ -43,6 +49,10 @@ function resolveSourceLabel(pdfHash: string | null): string {
   const prefix = pdfHash.split('/')[0];
   if (prefix.startsWith('nhai-awarded')) return 'NHAI Awarded Projects PDF';
   if (prefix.startsWith('nhai-bids')) return 'NHAI Projects Under Bidding PDF';
+  if (prefix.startsWith('nhai-financial')) return 'NHAI Financial Progress Report';
+  if (prefix.startsWith('nhai-om')) return 'NHAI O&M Contracts PDF';
+  if (prefix.startsWith('nhai-periodic')) return 'NHAI Periodic Renewal Sanctions';
+  if (prefix.startsWith('nhai-tot')) return 'NHAI TOT Bundle Status';
   if (prefix.startsWith('morth')) return 'MoRTH Annual Report PDF';
   return 'NHAI Public Records';
 }

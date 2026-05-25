@@ -1,0 +1,61 @@
+{
+  "NH-44": {
+    "center": { "lat": 20.5, "lng": 78.9 },
+    "label": "NH-44 (Srinagar–Kanyakumari)",
+    "type": "route"
+  },
+  "NH-44:Delhi-Panipat": {
+    "start": { "lat": 28.61, "lng": 77.23 },
+    "end": { "lat": 29.39, "lng": 76.97 },
+    "center": { "lat": 29.0, "lng": 77.1 },
+    "label": "NH-44 Delhi–Panipat Expressway",
+    "type": "route"
+  },
+  "NH-44:Panipat-Jalandhar": {
+    "start": { "lat": 29.39, "lng": 76.97 },
+    "end": { "lat": 31.33, "lng": 75.57 },
+    "center": { "lat": 30.35, "lng": 76.38 },
+    "label": "NH-44 Panipat–Jalandhar",
+    "type": "route"
+  },
+  "NH-44:Hyderabad-Nagpur": {
+    "start": { "lat": 17.385, "lng": 78.486 },
+    "end": { "lat": 21.146, "lng": 79.088 },
+    "center": { "lat": 18.95, "lng": 78.5 },
+    "label": "NH-44 Hyderabad–Nagpur",
+    "type": "route"
+  },
+  "NH-44:Jammu-Srinagar": {
+    "start": { "lat": 32.73, "lng": 74.87 },
+    "end": { "lat": 34.08, "lng": 74.79 },
+    "center": { "lat": 33.5, "lng": 74.8 },
+    "label": "NH-44 Jammu–Srinagar",
+    "type": "route"
+  },
+  "NH-44:Nagpur-Hyderabad": {
+    "start": { "lat": 21.146, "lng": 79.088 },
+    "end": { "lat": 17.385, "lng": 78.486 },
+    "center": { "lat": 19.2, "lng": 78.8 },
+    "label": "NH-44 Nagpur–Hyderabad",
+    "type": "route"
+  },
+  "NH-44:Bowenpally-Kallakal": {
+    "start": { "lat": 17.48, "lng": 78.45 },
+    "end": { "lat": 17.32, "lng": 78.42 },
+    "center": { "lat": 17.4, "lng": 78.43 },
+    "label": "NH-44 Bowenpally–Kallakal (Telangana)",
+    "type": "route"
+  },
+  "NH-44:Salem-Thoppur": {
+    "start": { "lat": 11.65, "lng": 78.16 },
+    "end": { "lat": 11.82, "lng": 78.13 },
+    "center": { "lat": 11.73, "lng": 78.14 },
+    "label": "NH-44 Salem–Thoppur",
+    "type": "route"
+  },
+  "NH-48": {
+    "center": { "lat": 26.5, "lng": 74.5 },
+    "label": "NH-48 (Delhi–Mumbai)",
+    "type": "route"
+  }
+}

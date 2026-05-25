@@ -49,6 +49,11 @@ interface ChunkWithEmbedding {
     contractMode: string | null;
     state: string | null;
     sourceKey: string;
+    roadType: string | null;
+    sanctionedAmount: number | null;
+    expenditure: number | null;
+    maintenanceDate: string | null;
+    conditionStatus: string | null;
   };
 }
 
@@ -195,6 +200,11 @@ async function generateEmbeddings(
             contractMode: chunk.contractMode,
             state: chunk.state,
             sourceKey,
+            roadType: extractRoadType(chunk.content),
+            sanctionedAmount: extractExpenditure(chunk.content), // reuses pattern for sanctioned
+            expenditure: extractExpenditure(chunk.content),
+            maintenanceDate: extractMaintenanceDate(chunk.content),
+            conditionStatus: chunk.contractMode === 'PBMC' || chunk.contractMode === 'TOT' || chunk.contractMode === 'O&M' ? 'Under Maintenance Contract' : null,
           },
         };
       })
@@ -254,8 +264,10 @@ async function storeInPgvector(chunks: ChunkWithEmbedding[]): Promise<void> {
     for (const chunk of chunks) {
       await client.query(
         `INSERT INTO contract_embeddings
-         (road_number, concessionaire, chunk_text, embedding, source_pdf_hash, created_at)
-         VALUES ($1, $2, $3, $4::vector, $5, NOW())
+         (road_number, concessionaire, chunk_text, embedding, source_pdf_hash,
+          road_type_classification, sanctioned_amount_crore, expenditure_amount_crore,
+          last_maintenance_date, condition_status, created_at)
+         VALUES ($1, $2, $3, $4::vector, $5, $6, $7, $8, $9, $10, NOW())
          ON CONFLICT DO NOTHING`,
         [
           chunk.metadata.roadNumber,
@@ -263,6 +275,11 @@ async function storeInPgvector(chunks: ChunkWithEmbedding[]): Promise<void> {
           chunk.text,
           `[${chunk.embedding.join(',')}]`,
           chunk.metadata.sourceKey,
+          chunk.metadata.roadType ?? null,
+          chunk.metadata.sanctionedAmount ?? null,
+          chunk.metadata.expenditure ?? null,
+          chunk.metadata.maintenanceDate ?? null,
+          chunk.metadata.conditionStatus ?? null,
         ]
       );
     }
@@ -285,6 +302,9 @@ function extractConcessionaire(text: string): string | null {
 }
 
 function extractContractMode(text: string): string | null {
+  if (/\bPBMC\b/.test(text)) return 'PBMC';
+  if (/\bTOT\b/.test(text)) return 'TOT';
+  if (/\bO\s*&\s*M\b/i.test(text)) return 'O&M';
   if (/\bHAM\b/.test(text)) return 'HAM';
   if (/\bEPC\b/.test(text)) return 'EPC';
   if (/\bBOT\b/.test(text)) return 'BOT';
@@ -303,6 +323,50 @@ function extractState(text: string): string | null {
   ];
   for (const state of states) {
     if (text.includes(state)) return state;
+  }
+  return null;
+}
+
+/** Extract expenditure amount (₹ Cr) from financial progress tables */
+function extractExpenditure(text: string): number | null {
+  // Pattern: "Expenditure: 1234.56" or "Exp. 1234.56 Cr" or column after sanctioned cost
+  const match = text.match(/(?:expenditure|exp\.?|spent|disbursed)[:\s]*(?:₹|Rs\.?\s*)?(\d+\.?\d*)\s*(?:Cr|crore)?/i);
+  if (match) return parseFloat(match[1]);
+  // Fallback: two consecutive numbers (sanctioned then expenditure) in NHAI table format
+  const tableMatch = text.match(/(\d{2,5}\.\d{1,2})\s+(\d{2,5}\.\d{1,2})\s+\d{2}\/\d{2}\/\d{4}/);
+  if (tableMatch) return parseFloat(tableMatch[2]);
+  return null;
+}
+
+/** Extract physical progress percentage */
+function extractPhysicalProgress(text: string): number | null {
+  const match = text.match(/(?:physical\s*progress|completion)[:\s]*(\d{1,3}(?:\.\d{1,2})?)\s*%/i);
+  return match ? parseFloat(match[1]) : null;
+}
+
+/** Extract maintenance/relaying date from O&M and PBMC contracts */
+function extractMaintenanceDate(text: string): string | null {
+  // Look for maintenance start date, O&M commencement, PBMC start
+  const patterns = [
+    /(?:maintenance|O&M|PBMC)\s*(?:start|commencement|from)[:\s]*(\d{2}\/\d{2}\/\d{4})/i,
+    /(?:concession|contract)\s*(?:period|start)[:\s]*(\d{2}\/\d{2}\/\d{4})/i,
+  ];
+  for (const p of patterns) {
+    const match = text.match(p);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+/** Extract road type classification (2L, 4L, 6L, 8L) */
+function extractRoadType(text: string): string | null {
+  const match = text.match(/\b([2468])\s*[-]?\s*[Ll](?:ane)?/);
+  if (match) return `${match[1]}L`;
+  // Also match "Six Lane", "Four Lane" etc.
+  const wordMatch = text.match(/\b(two|four|six|eight)\s*[-]?\s*lan/i);
+  if (wordMatch) {
+    const map: Record<string, string> = { two: '2L', four: '4L', six: '6L', eight: '8L' };
+    return map[wordMatch[1].toLowerCase()] ?? null;
   }
   return null;
 }

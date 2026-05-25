@@ -171,7 +171,41 @@ async function queryLocalFts5Unified(query: string, limit: number): Promise<Unif
       }
     } catch {}
 
-    // Search nhai_sections
+    // Search nh44_projects structured table (high-quality structured data)
+    try {
+      const exists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='nh44_projects'`).get();
+      if (exists && roadNumberMatch) {
+        const roadNum = roadNumberMatch[1].replace(/\s/g, '-').toUpperCase();
+        const rows = db.prepare(
+          `SELECT section_name, road_number, state, road_type_classification, lanes, concessionaire, contract_mode, sanctioned_cost_crore, expenditure_cost_crore, award_date, completion_date, length_km, status, condition_notes, last_maintenance_date, source, source_url FROM nh44_projects WHERE road_number = ? ORDER BY sanctioned_cost_crore DESC LIMIT ?`
+        ).all(roadNum, limit) as any[];
+        for (const r of rows) {
+          const parts = [
+            `${r.section_name} (${r.road_number}).`,
+            `Road Type: ${r.road_type_classification} (${r.lanes} lanes).`,
+            r.state ? `State: ${r.state}.` : null,
+            r.concessionaire ? `Contractor: ${r.concessionaire}.` : null,
+            r.contract_mode ? `Mode: ${r.contract_mode}.` : null,
+            r.sanctioned_cost_crore ? `Sanctioned Cost: ₹${r.sanctioned_cost_crore} Crore.` : null,
+            r.expenditure_cost_crore ? `Expenditure: ₹${r.expenditure_cost_crore} Crore.` : null,
+            r.last_maintenance_date ? `Last Maintenance/O&M Start: ${r.last_maintenance_date}.` : null,
+            `Status: ${r.status}.`,
+            r.condition_notes ? r.condition_notes : null,
+            r.source ? `Source: ${r.source}.` : null,
+          ].filter(Boolean).join(' ');
+          results.push({
+            chunkText: parts,
+            similarity: 0.92,
+            sourceType: 'nhai_contract',
+            state: r.state, district: null,
+            metadata: { source_url: r.source_url, road_type: r.road_type_classification, sanctioned_cost_crore: r.sanctioned_cost_crore, expenditure_cost_crore: r.expenditure_cost_crore, last_maintenance_date: r.last_maintenance_date },
+            roadNumber: r.road_number, concessionaire: r.concessionaire, sourcePdfHash: r.contract_mode?.includes('TOT') ? 'nhai-tot-status' : 'nhai-awarded-22-23',
+          });
+        }
+      }
+    } catch {}
+
+    // Search nhai_sections FTS5
     try {
       const rows = db.prepare(
         `SELECT content, section_title FROM nhai_sections WHERE nhai_sections MATCH ? ORDER BY rank LIMIT ?`

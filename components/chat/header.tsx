@@ -1,19 +1,30 @@
 'use client';
 
-import { Globe, Image, ScanSearch } from 'lucide-react';
-import { useState } from 'react';
+import { Globe, Map, ScanSearch } from 'lucide-react';
+import { createContext, useContext, useState, type ReactNode } from 'react';
 import { SidebarTrigger } from '@/components/layout/sidebar-trigger';
 import { useSidebar } from '@/lib/context/sidebar-context';
 import { cn } from '@/lib/utils';
 
+export type HeaderTab = 'answer' | 'links' | 'map';
+
 const tabs = [
-  { label: 'Answer', icon: ScanSearch },
-  { label: 'Links', icon: Globe },
-  { label: 'Images', icon: Image },
-] as const;
+  { id: 'answer' as const, label: 'Answer', icon: ScanSearch },
+  { id: 'links' as const, label: 'Links', icon: Globe },
+  { id: 'map' as const, label: 'Map', icon: Map },
+];
+
+const HeaderTabContext = createContext<{ active: HeaderTab; setActive: (t: HeaderTab) => void }>({ active: 'answer', setActive: () => {} });
+
+export function useHeaderTab() { return useContext(HeaderTabContext); }
+
+export function HeaderTabProvider({ children }: { children: ReactNode }) {
+  const [active, setActive] = useState<HeaderTab>('answer');
+  return <HeaderTabContext.Provider value={{ active, setActive }}>{children}</HeaderTabContext.Provider>;
+}
 
 export function ChatHeader() {
-  const [active, setActive] = useState(0);
+  const { active, setActive } = useHeaderTab();
   const { isOpen } = useSidebar();
 
   return (
@@ -41,15 +52,15 @@ export function ChatHeader() {
           )}
         >
           <nav className="flex min-w-0 items-center gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {tabs.map((tab, index) => {
+            {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <button
-                  key={tab.label}
-                  onClick={() => setActive(index)}
+                  key={tab.id}
+                  onClick={() => setActive(tab.id)}
                   className={cn(
                     'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                    active === index
+                    active === tab.id
                       ? 'bg-[#f4f4f5] text-text-primary'
                       : 'text-text-muted hover:text-text-secondary'
                   )}

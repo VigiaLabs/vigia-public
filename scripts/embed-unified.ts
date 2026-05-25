@@ -36,7 +36,7 @@ function loadPwdChunks(): Chunk[] {
 
     return rows.map(r => ({
       text: [
-        `${r.designation}, ${r.division}, ${r.state}.`,
+        r.name ? `${r.name}, ${r.designation}, ${r.division}, ${r.state}.` : `${r.designation}, ${r.division}, ${r.state}.`,
         r.phone ? `Phone: ${r.phone}.` : null,
         r.email ? `Email: ${r.email}.` : null,
         r.office_address ? `Office: ${r.office_address}.` : null,
@@ -75,6 +75,40 @@ function loadPmgsyChunks(): Chunk[] {
         metadata: { cost_lakhs: r.cost_lakhs, length_km: r.length_km, source_url: r.source_url, status: r.status },
       };
     });
+  } catch { return []; }
+}
+
+// ─── Format NH-44 Projects into Natural Language Chunks ──────────────
+
+function loadNh44Chunks(): Chunk[] {
+  try {
+    const data = JSON.parse(readFileSync(join(process.cwd(), 'data', 'nh44-sections.json'), 'utf-8'));
+    return data.map((r: any) => ({
+      text: [
+        `${r.section_name} (${r.road_number}).`,
+        `Road Type: ${r.road_type_classification} (${r.lanes} lanes).`,
+        r.state ? `State: ${r.state}.` : null,
+        r.concessionaire ? `Contractor: ${r.concessionaire}.` : null,
+        r.contract_mode ? `Mode: ${r.contract_mode}.` : null,
+        r.sanctioned_cost_crore ? `Sanctioned Cost: ₹${r.sanctioned_cost_crore} Crore.` : null,
+        r.expenditure_cost_crore ? `Expenditure: ₹${r.expenditure_cost_crore} Crore.` : null,
+        r.last_maintenance_date ? `Last Maintenance/O&M Start: ${r.last_maintenance_date}.` : null,
+        `Status: ${r.status}.`,
+        r.condition_notes ? r.condition_notes : null,
+        r.source ? `Source: ${r.source}.` : null,
+      ].filter(Boolean).join(' '),
+      sourceType: 'nhai_contract',
+      state: r.state?.split('/')[0] ?? null,
+      district: null,
+      metadata: {
+        source_url: r.source_url,
+        road_type: r.road_type_classification,
+        sanctioned_cost_crore: r.sanctioned_cost_crore,
+        expenditure_cost_crore: r.expenditure_cost_crore,
+        last_maintenance_date: r.last_maintenance_date,
+        road_number: r.road_number,
+      },
+    }));
   } catch { return []; }
 }
 
@@ -225,7 +259,10 @@ async function main() {
   const authorityChunks = loadAuthorityChunks();
   console.log(`Authority matrix: ${authorityChunks.length} chunks`);
 
-  const allChunks = [...pwdChunks, ...pmgsyChunks, ...authorityChunks];
+  const nh44Chunks = loadNh44Chunks();
+  console.log(`NH-44 projects: ${nh44Chunks.length} chunks`);
+
+  const allChunks = [...pwdChunks, ...pmgsyChunks, ...authorityChunks, ...nh44Chunks];
   console.log(`\nTotal: ${allChunks.length} chunks to embed`);
 
   if (allChunks.length === 0) {
