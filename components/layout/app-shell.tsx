@@ -8,6 +8,7 @@ import { MobileBottomNav } from '@/components/layout/mobile-bottom-nav';
 import { SidebarSettingsPanel } from '@/components/layout/sidebar-settings';
 import { PWAInstallBadge } from '@/components/ui/pwa-install-badge';
 import { SidebarProvider } from '@/lib/context/sidebar-context';
+import { SettingsProvider } from '@/lib/context/settings-context';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -33,15 +34,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   return (
-    <SidebarProvider>
-      <PWAInstallBadge />
-      <Sidebar />
-      <MobileSidebar />
-      <MobileBottomNav />
-      <SidebarSettingsPanel />
-      <main className="flex-1 bg-white transition-[margin-left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:ml-[var(--sidebar-width,56px)]">
-        {children}
-      </main>
-    </SidebarProvider>
+    <SettingsProvider>
+      <SidebarProvider>
+        <PWAInstallBadge />
+        <Sidebar />
+        <MobileSidebar />
+        <MobileBottomNav />
+        <SidebarSettingsPanel />
+        <main className="flex-1 bg-white transition-[margin-left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:ml-[var(--sidebar-width,56px)]">
+          {children}
+        </main>
+      </SidebarProvider>
+    </SettingsProvider>
   );
 }

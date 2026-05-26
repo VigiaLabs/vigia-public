@@ -16,6 +16,8 @@ import {
   resolveChatResponseLanguage,
 } from '@/lib/voice/locale';
 import { VIGIA_BASE_SYSTEM_PROMPT } from '@/lib/voice/chat-prompt';
+import { buildResponseStylePrompt } from '@/lib/settings/prompt';
+import type { ResponseStyle } from '@/lib/settings/types';
 import { routerNode, ingestNode, guardrailNode, uiHookNode } from '@/lib/agents/graph';
 import { extractUIPayload } from '@/lib/agents/ui-hook';
 import { scoreFaithfulness } from '@/lib/agents/faithfulness';
@@ -41,6 +43,13 @@ function parseRequestLanguage(parsed: {
   return null;
 }
 
+function parseResponseStyle(value: unknown): ResponseStyle | null {
+  if (value === 'concise' || value === 'detailed' || value === 'citizen-friendly') {
+    return value;
+  }
+  return null;
+}
+
 export async function POST(req: Request) {
   const ip = getClientIp(req);
   const rate = checkRateLimit(`chat:${ip}`, RATE_LIMIT);
@@ -58,6 +67,7 @@ export async function POST(req: Request) {
       messages?: UIMessage[];
       responseLanguage?: unknown;
       voiceLocale?: unknown;
+      responseStyle?: unknown;
     };
     const { messages } = parsed;
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -66,7 +76,9 @@ export async function POST(req: Request) {
 
     const requestLanguage = parseRequestLanguage(parsed);
     const responseLanguage = resolveChatResponseLanguage(requestLanguage, messages);
-    const baseSystem = buildMultilingualSystemPrompt(VIGIA_BASE_SYSTEM_PROMPT, responseLanguage);
+    const responseStyle = parseResponseStyle(parsed.responseStyle);
+    const stylePrompt = responseStyle ? buildResponseStylePrompt(responseStyle) : '';
+    const baseSystem = buildMultilingualSystemPrompt(VIGIA_BASE_SYSTEM_PROMPT, responseLanguage) + stylePrompt;
 
     // Extract user query text
     const lastUserMsg = messages.findLast((m) => m.role === 'user');

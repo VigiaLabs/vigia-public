@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>VIGIA Architecture</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #eceef2;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 32px 24px;
+      font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    }
+
+    .slide {
+      width: 1280px;
+      background: #ffffff;
+      border-radius: 14px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 40px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .slide { box-shadow: none; border-radius: 0; width: 100%; }
+      svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      @page { size: 11in 8.5in landscape; margin: 0.35in; }
+    }
+  </style>
+</head>
+<body>
+  <div class="slide">
+    <svg viewBox="0 0 1280 500" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="VIGIA architecture diagram">
+      <defs>
+        <filter id="shadow" x="-8%" y="-8%" width="116%" height="120%">
+          <feDropShadow dx="0" dy="1" stdDeviation="1.5" flood-color="#0f172a" flood-opacity="0.07"/>
+        </filter>
+
+        <marker id="arrow-main" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M 0 0 L 8 4 L 0 8 Z" fill="#64748b"/>
+        </marker>
+        <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M 0 0 L 8 4 L 0 8 Z" fill="#059669"/>
+        </marker>
+        <marker id="arrow-purple" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M 0 0 L 8 4 L 0 8 Z" fill="#7c3aed"/>
+        </marker>
+        <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <path d="M 0 0 L 8 4 L 0 8 Z" fill="#ea580c"/>
+        </marker>
+
+        <linearGradient id="techGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#eef2ff"/>
+          <stop offset="50%" stop-color="#f0fdf4"/>
+          <stop offset="100%" stop-color="#fff7ed"/>
+        </linearGradient>
+
+        <clipPath id="clip-router"><rect x="98" y="148" width="136" height="100" rx="10"/></clipPath>
+        <clipPath id="clip-vision"><rect x="248" y="104" width="158" height="54" rx="9"/></clipPath>
+        <clipPath id="clip-admin"><rect x="248" y="164" width="158" height="54" rx="9"/></clipPath>
+        <clipPath id="clip-telemetry"><rect x="248" y="224" width="158" height="54" rx="9"/></clipPath>
+        <clipPath id="clip-guardrail"><rect x="694" y="114" width="172" height="168" rx="10"/></clipPath>
+        <clipPath id="clip-synth"><rect x="874" y="158" width="144" height="78" rx="10"/></clipPath>
+        <clipPath id="clip-faith"><rect x="1030" y="168" width="144" height="66" rx="10"/></clipPath>
+      </defs>
+
+      <!-- Header -->
+      <line x1="40" y1="46" x2="1240" y2="46" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="40" y="30" font-family="DM Sans, system-ui, sans-serif" font-size="14" font-weight="600" fill="#0f172a">VIGIA architecture</text>
+      <text x="1240" y="30" font-family="DM Sans, system-ui, sans-serif" font-size="11" fill="#94a3b8" text-anchor="end">Audit pipeline · left-to-right flow</text>
+
+      <!-- Phase bands -->
+      <rect x="36" y="58" width="1188" height="296" rx="12" fill="#f8fafc" stroke="#eef2f7" stroke-width="1"/>
+      <rect x="232" y="66" width="192" height="280" rx="10" fill="#f0fdf9" fill-opacity="0.55"/>
+      <rect x="688" y="66" width="320" height="280" rx="10" fill="#fffbeb" fill-opacity="0.35"/>
+
+      <!-- Bypass & feedback paths -->
+      <path d="M 166 148 C 166 68, 1254 68, 1254 182"
+            fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6 5" stroke-linecap="round"/>
+      <rect x="688" y="54" width="34" height="16" rx="4" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="705" y="65" font-family="DM Sans, system-ui, sans-serif" font-size="9" font-weight="700" fill="#64748b" text-anchor="middle">conv</text>
+
+      <path d="M 1102 228 C 1102 332, 1254 332, 1254 214"
+            fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6 5" stroke-linecap="round"/>
+      <rect x="1168" y="320" width="30" height="16" rx="4" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="1183" y="331" font-family="DM Sans, system-ui, sans-serif" font-size="9" font-weight="700" fill="#64748b" text-anchor="middle">auth</text>
+
+      <path d="M 1102 228 C 1102 350, 776 350, 776 282"
+            fill="none" stroke="#fb923c" stroke-width="1.5" stroke-dasharray="5 4" stroke-linecap="round" marker-end="url(#arrow-orange)"/>
+      <circle cx="938" cy="350" r="11" fill="#fff7ed" stroke="#fdba74" stroke-width="1"/>
+      <path d="M 933 350 a 4 4 0 1 1 5 0" fill="none" stroke="#ea580c" stroke-width="1.2" stroke-linecap="round"/>
+      <polygon points="937,347 941,350 936,353" fill="#ea580c"/>
+
+      <!-- Connectors -->
+      <line x1="96" y1="200" x2="98" y2="200" stroke="#64748b" stroke-width="1.75" stroke-linecap="round" marker-end="url(#arrow-main)"/>
+      <line x1="234" y1="200" x2="236" y2="200" stroke="#64748b" stroke-width="1.75" stroke-linecap="round" marker-end="url(#arrow-main)"/>
+
+      <path d="M 236 200 H 248" stroke="#059669" stroke-width="1.25" stroke-linecap="round" marker-end="url(#arrow-green)"/>
+      <path d="M 236 200 V 131 H 248" stroke="#059669" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" fill="none" marker-end="url(#arrow-green)"/>
+      <path d="M 236 200 V 251 H 248" stroke="#059669" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" fill="none" marker-end="url(#arrow-green)"/>
+      <circle cx="236" cy="200" r="3" fill="#ffffff" stroke="#059669" stroke-width="1.25"/>
+
+      <line x1="406" y1="131" x2="418" y2="131" stroke="#059669" stroke-width="1.25" stroke-linecap="round"/>
+      <line x1="406" y1="200" x2="418" y2="200" stroke="#059669" stroke-width="1.25" stroke-linecap="round"/>
+      <line x1="406" y1="251" x2="418" y2="251" stroke="#059669" stroke-width="1.25" stroke-linecap="round"/>
+      <line x1="418" y1="131" x2="418" y2="251" stroke="#059669" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="418" cy="200" r="3" fill="#ffffff" stroke="#059669" stroke-width="1.25"/>
+      <line x1="418" y1="200" x2="434" y2="200" stroke="#059669" stroke-width="1.75" stroke-linecap="round" marker-end="url(#arrow-green)"/>
+
+      <path d="M 552 200 L 570 200" stroke="#7c3aed" stroke-width="1.75" stroke-linecap="round" marker-end="url(#arrow-purple)"/>
+      <path d="M 680 200 L 694 200" stroke="#7c3aed" stroke-width="1.75" stroke-linecap="round" marker-end="url(#arrow-purple)"/>
+      <path d="M 866 200 L 874 200" stroke="#64748b" stroke-width="1.75" stroke-linecap="round" marker-end="url(#arrow-main)"/>
+      <path d="M 1018 200 L 1030 200" stroke="#64748b" stroke-width="1.75" stroke-linecap="round" marker-end="url(#arrow-main)"/>
+      <path d="M 1174 200 L 1224 200" stroke="#64748b" stroke-width="1.75" stroke-linecap="round" marker-end="url(#arrow-main)"/>
+
+      <!-- Ingest label -->
+      <rect x="278" y="74" width="196" height="18" rx="5" fill="#ffffff" stroke="#d1fae5" stroke-width="1"/>
+      <text x="376" y="86" font-family="JetBrains Mono, monospace" font-size="7.5" font-weight="500" fill="#64748b" text-anchor="middle">Ingest — Promise.allSettled · 6s timeout</text>
+
+      <!-- START -->
+      <g filter="url(#shadow)">
+        <rect x="36" y="184" width="60" height="32" rx="16" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+        <text x="66" y="204" font-family="DM Sans, system-ui, sans-serif" font-size="10" font-weight="700" fill="#64748b" text-anchor="middle" letter-spacing="0.06em">START</text>
+      </g>
+
+      <!-- ROUTER -->
+      <g filter="url(#shadow)">
+        <rect x="98" y="148" width="136" height="100" rx="10" fill="#ede9fe" stroke="#c4b5fd" stroke-width="1.5"/>
+        <g clip-path="url(#clip-router)">
+          <text x="108" y="164" font-family="DM Sans, system-ui, sans-serif" font-size="10" font-weight="700" fill="#5b21b6">
+            <tspan x="108" dy="0">Router</tspan>
+            <tspan x="108" dy="12">intent classification</tspan>
+          </text>
+          <text x="108" y="192" font-family="JetBrains Mono, monospace" font-size="7" fill="#6d28d9">
+            <tspan x="108" dy="0">Nova Lite · generateObject</tspan>
+            <tspan x="108" dy="10">Zod schema</tspan>
+          </text>
+          <g font-family="DM Sans, system-ui, sans-serif" font-size="6.5" font-weight="600">
+            <rect x="108" y="206" width="24" height="13" rx="3" fill="#ddd6fe"/><text x="120" y="215" fill="#5b21b6" text-anchor="middle">conv</text>
+            <rect x="135" y="206" width="42" height="13" rx="3" fill="#ddd6fe"/><text x="156" y="215" fill="#5b21b6" text-anchor="middle">complaint</text>
+            <rect x="180" y="206" width="18" height="13" rx="3" fill="#ddd6fe"/><text x="189" y="215" fill="#5b21b6" text-anchor="middle">rti</text>
+            <rect x="108" y="222" width="38" height="13" rx="3" fill="#ddd6fe"/><text x="127" y="231" fill="#5b21b6" text-anchor="middle">condition</text>
+            <rect x="149" y="222" width="42" height="13" rx="3" fill="#ddd6fe"/><text x="170" y="231" fill="#5b21b6" text-anchor="middle">personnel</text>
+            <rect x="194" y="222" width="30" height="13" rx="3" fill="#ddd6fe"/><text x="209" y="231" fill="#5b21b6" text-anchor="middle">tender</text>
+          </g>
+        </g>
+      </g>
+
+      <!-- INGEST cluster -->
+      <rect x="236" y="96" width="182" height="212" rx="11" fill="none" stroke="#6ee7b7" stroke-width="1.5" stroke-dasharray="5 4"/>
+
+      <!-- VISION -->
+      <g filter="url(#shadow)">
+        <rect x="248" y="104" width="158" height="54" rx="9" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.5"/>
+        <g clip-path="url(#clip-vision)">
+          <text x="258" y="120" font-family="DM Sans, system-ui, sans-serif" font-size="10.5" font-weight="700" fill="#047857">Vision</text>
+          <text x="258" y="134" font-family="JetBrains Mono, monospace" font-size="7" fill="#059669">
+            <tspan x="258" dy="0">Nova Lite VLM · iRAP</tspan>
+            <tspan x="258" dy="10">rating · if image present</tspan>
+          </text>
+        </g>
+      </g>
+
+      <!-- ADMIN -->
+      <g filter="url(#shadow)">
+        <rect x="248" y="164" width="158" height="54" rx="9" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.5"/>
+        <g clip-path="url(#clip-admin)">
+          <text x="258" y="180" font-family="DM Sans, system-ui, sans-serif" font-size="10.5" font-weight="700" fill="#047857">Admin</text>
+          <text x="258" y="194" font-family="JetBrains Mono, monospace" font-size="7" fill="#059669">
+            <tspan x="258" dy="0">ReWOO · pgvector+FTS5</tspan>
+            <tspan x="258" dy="10">RRF k=60</tspan>
+          </text>
+        </g>
+      </g>
+
+      <!-- TELEMETRY -->
+      <g filter="url(#shadow)">
+        <rect x="248" y="224" width="158" height="54" rx="9" fill="#ecfdf5" stroke="#6ee7b7" stroke-width="1.5"/>
+        <g clip-path="url(#clip-telemetry)">
+          <text x="258" y="240" font-family="DM Sans, system-ui, sans-serif" font-size="10.5" font-weight="700" fill="#047857">Telemetry</text>
+          <text x="258" y="254" font-family="JetBrains Mono, monospace" font-size="7" fill="#059669">
+            <tspan x="258" dy="0">GPS → Nominatim</tspan>
+            <tspan x="258" dy="10">road name · if GPS present</tspan>
+          </text>
+        </g>
+      </g>
+
+      <!-- PLANNER -->
+      <g filter="url(#shadow)">
+        <rect x="434" y="170" width="118" height="60" rx="10" fill="#ede9fe" stroke="#c4b5fd" stroke-width="1.5"/>
+        <text x="444" y="188" font-family="DM Sans, system-ui, sans-serif" font-size="10.5" font-weight="700" fill="#5b21b6">Planner</text>
+        <text x="444" y="202" font-family="JetBrains Mono, monospace" font-size="7" fill="#6d28d9">
+          <tspan x="444" dy="0">DAG 1–4 steps</tspan>
+          <tspan x="444" dy="10">dependsOn</tspan>
+        </text>
+        <text x="444" y="222" font-family="JetBrains Mono, monospace" font-size="7" fill="#94a3b8">NHAI · PWD · PMGSY</text>
+      </g>
+
+      <!-- EXECUTOR -->
+      <g filter="url(#shadow)">
+        <rect x="570" y="178" width="110" height="44" rx="10" fill="#ede9fe" stroke="#c4b5fd" stroke-width="1.5"/>
+        <text x="580" y="196" font-family="DM Sans, system-ui, sans-serif" font-size="10.5" font-weight="700" fill="#5b21b6">Executor</text>
+        <text x="580" y="210" font-family="JetBrains Mono, monospace" font-size="7" fill="#6d28d9">
+          <tspan x="580" dy="0">topo-sort</tspan>
+          <tspan x="580" dy="10">parallel phases</tspan>
+        </text>
+      </g>
+
+      <!-- GUARDRAIL -->
+      <g filter="url(#shadow)">
+        <rect x="694" y="114" width="172" height="168" rx="10" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+        <g clip-path="url(#clip-guardrail)">
+          <text x="706" y="132" font-family="DM Sans, system-ui, sans-serif" font-size="10" font-weight="700" fill="#c2410c">
+            <tspan x="706" dy="0">Guardrail — CRAG</tspan>
+            <tspan x="706" dy="12">quality gate</tspan>
+          </text>
+          <circle cx="712" cy="154" r="2" fill="#ea580c" fill-opacity="0.55"/>
+          <text x="720" y="157" font-family="DM Sans, system-ui, sans-serif" font-size="7.5" fill="#64748b">Citizen claim → pendingAction</text>
+          <circle cx="712" cy="167" r="2" fill="#ea580c" fill-opacity="0.55"/>
+          <text x="720" y="170" font-family="DM Sans, system-ui, sans-serif" font-size="7.5" fill="#64748b">Data void → rewrite + retry</text>
+          <circle cx="712" cy="180" r="2" fill="#ea580c" fill-opacity="0.55"/>
+          <text x="720" y="183" font-family="DM Sans, system-ui, sans-serif" font-size="7.5" fill="#64748b">Contradiction → amend rewrite</text>
+          <circle cx="712" cy="193" r="2" fill="#ea580c" fill-opacity="0.55"/>
+          <text x="720" y="196" font-family="DM Sans, system-ui, sans-serif" font-size="7.5" fill="#64748b">Temporal → future date flag</text>
+          <circle cx="712" cy="206" r="2" fill="#ea580c" fill-opacity="0.55"/>
+          <text x="720" y="209" font-family="DM Sans, system-ui, sans-serif" font-size="7.5" fill="#64748b">
+            <tspan x="720" dy="0">Cross-agent admin ↔</tspan>
+            <tspan x="720" dy="10">telemetry road match</tspan>
+          </text>
+          <line x1="706" y1="228" x2="856" y2="228" stroke="#fed7aa" stroke-width="1"/>
+          <text x="706" y="242" font-family="JetBrains Mono, monospace" font-size="6.5" fill="#94a3b8">max 1 retry · Admin only</text>
+          <text x="706" y="254" font-family="JetBrains Mono, monospace" font-size="6.5" fill="#94a3b8">
+            <tspan x="706" dy="0">rewriteQuery /</tspan>
+            <tspan x="706" dy="10">decomposeQuery</tspan>
+          </text>
+        </g>
+      </g>
+
+      <!-- SYNTHESIZER -->
+      <g filter="url(#shadow)">
+        <rect x="874" y="158" width="144" height="78" rx="10" fill="#ede9fe" stroke="#c4b5fd" stroke-width="1.5"/>
+        <g clip-path="url(#clip-synth)">
+          <text x="884" y="176" font-family="DM Sans, system-ui, sans-serif" font-size="10.5" font-weight="700" fill="#5b21b6">Synthesizer</text>
+          <text x="884" y="190" font-family="JetBrains Mono, monospace" font-size="7" fill="#6d28d9">
+            <tspan x="884" dy="0">Nova Lite · formal</tspan>
+            <tspan x="884" dy="10">audit finding</tspan>
+          </text>
+          <text x="884" y="214" font-family="JetBrains Mono, monospace" font-size="7" fill="#6d28d9">
+            <tspan x="884" dy="0">numbered citations ·</tspan>
+            <tspan x="884" dy="10">Project Overview</tspan>
+          </text>
+          <text x="884" y="228" font-family="JetBrains Mono, monospace" font-size="6.5" fill="#94a3b8">fallback: raw evidence bullets</text>
+        </g>
+      </g>
+
+      <!-- FAITHFULNESS -->
+      <g filter="url(#shadow)">
+        <rect x="1030" y="168" width="144" height="66" rx="10" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+        <g clip-path="url(#clip-faith)">
+          <text x="1040" y="184" font-family="DM Sans, system-ui, sans-serif" font-size="10" font-weight="700" fill="#c2410c">
+            <tspan x="1040" dy="0">Faithfulness</tspan>
+            <tspan x="1040" dy="11">scorer</tspan>
+          </text>
+          <text x="1040" y="208" font-family="JetBrains Mono, monospace" font-size="7" fill="#c2410c">
+            <tspan x="1040" dy="0">LLM-as-judge · claim</tspan>
+            <tspan x="1040" dy="10">attribution</tspan>
+          </text>
+          <text x="1040" y="228" font-family="JetBrains Mono, monospace" font-size="6.5" fill="#94a3b8">score &lt;0.7 → strip ungrounded</text>
+        </g>
+      </g>
+
+      <!-- END -->
+      <g filter="url(#shadow)">
+        <rect x="1224" y="184" width="60" height="32" rx="16" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+        <text x="1254" y="204" font-family="DM Sans, system-ui, sans-serif" font-size="10" font-weight="700" fill="#64748b" text-anchor="middle" letter-spacing="0.06em">END</text>
+      </g>
+
+      <!-- Data layer -->
+      <rect x="36" y="366" width="1188" height="48" rx="8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="56" y="382" font-family="DM Sans, system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#94a3b8" letter-spacing="0.08em">DATA SOURCES</text>
+      <text x="56" y="398" font-family="JetBrains Mono, monospace" font-size="7.5" fill="#64748b">
+        <tspan x="56" dy="0">pgvector · FTS5 · Auth Matrix · Gati Shakti · World Bank · OSM</tspan>
+      </text>
+      <line x1="640" y1="376" x2="640" y2="404" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="660" y="382" font-family="DM Sans, system-ui, sans-serif" font-size="7.5" font-weight="700" fill="#94a3b8" letter-spacing="0.08em">SCHEMA</text>
+      <text x="660" y="396" font-family="JetBrains Mono, monospace" font-size="7" fill="#64748b">
+        <tspan x="660" dy="0">NormalizedEvidenceSchema (Zod)</tspan>
+        <tspan x="660" dy="10">dispatchWithFallback</tspan>
+      </text>
+
+      <!-- Tech stack -->
+      <rect x="36" y="422" width="1188" height="40" rx="8" fill="url(#techGrad)" stroke="#e2e8f0" stroke-width="1"/>
+      <text x="630" y="440" font-family="DM Sans, system-ui, sans-serif" font-size="8" font-weight="600" fill="#0f172a" text-anchor="middle">Stack</text>
+      <text x="630" y="454" font-family="JetBrains Mono, monospace" font-size="7.5" fill="#64748b" text-anchor="middle">
+        <tspan x="630" dy="0">LangGraph 1.0 · LangSmith tracing · Offline PWA — Dexie.js · Service Workers · Background sync</tspan>
+      </text>
+    </svg>
+  </div>
+</body>
+</html>

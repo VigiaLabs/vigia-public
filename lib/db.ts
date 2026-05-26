@@ -70,3 +70,30 @@ export async function deleteThread(threadId: string): Promise<void> {
   await db.messages.where('threadId').equals(threadId).delete();
   await db.threads.delete(threadId);
 }
+
+export async function getStorageStats(): Promise<{
+  threadCount: number;
+  messageCount: number;
+}> {
+  const [threadCount, messageCount] = await Promise.all([
+    db.threads.count(),
+    db.messages.count(),
+  ]);
+  return { threadCount, messageCount };
+}
+
+export async function clearAllChatData(): Promise<void> {
+  await db.messages.clear();
+  await db.threads.clear();
+}
+
+export async function pruneOldThreads(retentionDays: number): Promise<number> {
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  const oldThreads = await db.threads.where('updatedAt').below(cutoff).toArray();
+
+  for (const thread of oldThreads) {
+    await deleteThread(thread.id);
+  }
+
+  return oldThreads.length;
+}

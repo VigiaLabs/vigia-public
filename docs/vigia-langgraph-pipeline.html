@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VIGIA — LangGraph Pipeline</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #eceef2;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      padding: 32px 24px;
+      font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    }
+
+    .frame {
+      width: 100%;
+      max-width: 900px;
+      background: #ffffff;
+      border-radius: 10px;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 28px rgba(15, 23, 42, 0.07);
+      overflow: hidden;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    @media print {
+      body { background: white; padding: 0; }
+      .frame { box-shadow: none; border-radius: 0; max-width: 100%; }
+      svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <svg viewBox="0 0 920 228" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="VIGIA LangGraph pipeline: User Query through Router, Ingest, Guardrail, UI Hook, to Bedrock LLM with CRAG retry loop">
+      <defs>
+        <filter id="nodeShadow" x="-8%" y="-12%" width="116%" height="140%">
+          <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.07"/>
+        </filter>
+
+        <marker id="arrowMain" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+          <path d="M 0 1 L 7 4 L 0 7 Z" fill="#64748b" stroke="none"/>
+        </marker>
+        <marker id="arrowLoop" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+          <path d="M 0 1 L 7 4 L 0 7 Z" fill="#ea580c" stroke="none"/>
+        </marker>
+
+        <linearGradient id="ingestFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#eff6ff"/>
+          <stop offset="100%" stop-color="#ffffff"/>
+        </linearGradient>
+
+        <linearGradient id="flowLine" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#cbd5e1"/>
+          <stop offset="100%" stop-color="#94a3b8"/>
+        </linearGradient>
+      </defs>
+
+      <!-- Diagram canvas -->
+      <rect x="10" y="10" width="900" height="208" rx="12" fill="#fafbfc" stroke="#e5e7eb" stroke-width="1"/>
+
+      <!-- Phase labels -->
+      <text x="300" y="34" font-family="DM Sans, system-ui, sans-serif" font-size="8.5" font-weight="700" fill="#94a3b8" text-anchor="middle" letter-spacing="0.1em">LANGGRAPH STATEGRAPH</text>
+      <text x="762" y="34" font-family="DM Sans, system-ui, sans-serif" font-size="8.5" font-weight="700" fill="#94a3b8" text-anchor="middle" letter-spacing="0.1em">API ROUTE SYNTHESIS</text>
+      <line x1="692" y1="40" x2="692" y2="128" stroke="#d1d5db" stroke-width="1" stroke-dasharray="4 4" stroke-linecap="round"/>
+
+      <!-- Main flow connectors -->
+      <g fill="none" stroke="url(#flowLine)" stroke-width="2" stroke-linecap="round" marker-end="url(#arrowMain)">
+        <line x1="118" y1="88" x2="134" y2="88"/>
+        <line x1="258" y1="88" x2="274" y2="88"/>
+        <line x1="398" y1="88" x2="414" y2="88"/>
+        <line x1="538" y1="88" x2="554" y2="88"/>
+        <line x1="678" y1="88" x2="694" y2="88"/>
+      </g>
+
+      <!-- User Query -->
+      <g filter="url(#nodeShadow)">
+        <rect x="22" y="62" width="96" height="52" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.25"/>
+        <text x="70" y="92" font-family="DM Sans, system-ui, sans-serif" font-size="12" font-weight="600" fill="#374151" text-anchor="middle">User Query</text>
+      </g>
+
+      <!-- Router -->
+      <g filter="url(#nodeShadow)">
+        <rect x="134" y="56" width="124" height="64" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.25"/>
+        <text x="196" y="82" font-family="DM Sans, system-ui, sans-serif" font-size="13" font-weight="700" fill="#111827" text-anchor="middle">Router</text>
+        <text x="196" y="100" font-family="DM Sans, system-ui, sans-serif" font-size="10.5" fill="#6b7280" text-anchor="middle">Intent classification</text>
+      </g>
+
+      <!-- Ingest (accent) -->
+      <g filter="url(#nodeShadow)">
+        <rect x="274" y="56" width="124" height="64" rx="8" fill="url(#ingestFill)" stroke="#2563eb" stroke-width="2"/>
+        <text x="336" y="82" font-family="DM Sans, system-ui, sans-serif" font-size="13" font-weight="700" fill="#2563eb" text-anchor="middle">Ingest</text>
+        <text x="336" y="100" font-family="DM Sans, system-ui, sans-serif" font-size="10.5" font-weight="500" fill="#3b82f6" text-anchor="middle">Parallel agents</text>
+      </g>
+
+      <!-- Guardrail -->
+      <g filter="url(#nodeShadow)">
+        <rect x="414" y="56" width="124" height="64" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.25"/>
+        <text x="476" y="82" font-family="DM Sans, system-ui, sans-serif" font-size="13" font-weight="700" fill="#111827" text-anchor="middle">Guardrail</text>
+        <text x="476" y="100" font-family="DM Sans, system-ui, sans-serif" font-size="10.5" fill="#6b7280" text-anchor="middle">CRAG quality gate</text>
+      </g>
+
+      <!-- UI Hook -->
+      <g filter="url(#nodeShadow)">
+        <rect x="554" y="56" width="124" height="64" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.25"/>
+        <text x="616" y="82" font-family="DM Sans, system-ui, sans-serif" font-size="13" font-weight="700" fill="#111827" text-anchor="middle">UI Hook</text>
+        <text x="616" y="100" font-family="DM Sans, system-ui, sans-serif" font-size="10.5" fill="#6b7280" text-anchor="middle">Zero-token transform</text>
+      </g>
+
+      <!-- Bedrock LLM -->
+      <g filter="url(#nodeShadow)">
+        <rect x="694" y="56" width="124" height="64" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.25"/>
+        <text x="756" y="82" font-family="DM Sans, system-ui, sans-serif" font-size="13" font-weight="700" fill="#111827" text-anchor="middle">Bedrock LLM</text>
+        <text x="756" y="100" font-family="DM Sans, system-ui, sans-serif" font-size="10.5" fill="#6b7280" text-anchor="middle">Nova Lite / Pro</text>
+      </g>
+
+      <!-- CRAG retry loop -->
+      <path d="M 476 120
+               C 476 156, 336 156, 336 120"
+            fill="none"
+            stroke="#fb923c"
+            stroke-width="2"
+            stroke-dasharray="6 5"
+            stroke-linecap="round"
+            marker-end="url(#arrowLoop)"/>
+
+      <!-- Loop caption pill -->
+      <rect x="248" y="168" width="360" height="34" rx="17" fill="#fff7ed" stroke="#fdba74" stroke-width="1.25"/>
+      <text x="428" y="189" font-family="DM Sans, system-ui, sans-serif" font-size="10.5" font-weight="600" fill="#c2410c" text-anchor="middle">
+        ↺ CRAG retry loop: Guardrail → Ingest → Guardrail (max 2 retries)
+      </text>
+    </svg>
+  </div>
+</body>
+</html>

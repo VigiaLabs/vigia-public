@@ -4,6 +4,7 @@ import { useRef, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowUp, ImageIcon, MapPin, X } from 'lucide-react';
 import { useOnlineStatus } from '@/lib/db/use-online-status';
+import { useSettings } from '@/lib/context/settings-context';
 import { VoiceInput } from './voice-input';
 
 export interface InputBarProps {
@@ -46,6 +47,8 @@ export function InputBar({
   onPaste,
 }: InputBarProps) {
   const isOnline = useOnlineStatus();
+  const { preferences } = useSettings();
+  const showOfflineAlert = preferences.offlineAlerts && !isOnline;
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -95,6 +98,17 @@ export function InputBar({
 
   return (
     <div className="relative w-full">
+      {showOfflineAlert && (
+        <div
+          role="status"
+          className="mb-2 flex items-center gap-2 rounded-xl border border-amber-200/80 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+        >
+          <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" aria-hidden />
+          <span className="font-medium">You&apos;re offline</span>
+          <span className="text-amber-800/80">Messages will queue until you reconnect.</span>
+        </div>
+      )}
+
       {/* Image attachment preview */}
       <AnimatePresence>
         {imageDataUrl && onImageClear && (
