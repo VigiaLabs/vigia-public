@@ -728,9 +728,8 @@ Pre-commit hook at `.githooks/pre-commit` runs on commit.
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `AWS_REGION` | Yes | Bedrock + Lambda region |
-| `AWS_ACCESS_KEY_ID` | Yes* | AWS credentials (*or IAM role) |
-| `AWS_SECRET_ACCESS_KEY` | Yes* | AWS credentials |
+| `APP_AWS_REGION` | Yes | Bedrock + Lambda region. Prefer this name in Amplify because `AWS_*` user env vars are reserved. |
+| AWS credentials | Yes* | Use the default AWS credential chain, an IAM role, or local AWS CLI profile. Do not set `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` in Amplify env vars. |
 | `DEEPGRAM_API_KEY` | For voice | Deepgram STT |
 | `AZURE_SPEECH_KEY` | For voice | Azure STT/TTS |
 | `AZURE_SPEECH_REGION` | For voice | Azure region (e.g., `centralindia`) |
