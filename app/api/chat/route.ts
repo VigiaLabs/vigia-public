@@ -111,7 +111,7 @@ export async function POST(req: Request) {
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
         const emitStep = (step: string) => {
-          writer.write({ type: 'data-vigia-step' as any, data: [{ vigia_step: step, ts: Date.now() }] } as any);
+          writer.write({ type: 'data-vigia-step', id: crypto.randomUUID(), data: [{ vigia_step: step, ts: Date.now() }], transient: true } as any);
         };
 
         // ─── Inline Pipeline Execution with Progress ──────────────
