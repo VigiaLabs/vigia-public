@@ -5,8 +5,13 @@ const withPWA = require('next-pwa');
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 
-const sharedConfig = {
+const sharedConfig: NextConfig = {
   outputFileTracingRoot: path.join(__dirname),
+  serverExternalPackages: ['better-sqlite3'],
+  outputFileTracingIncludes: {
+    '/api/*': ['./data/**/*'],
+    '/*': ['./data/**/*'],
+  },
 };
 
 const devConfig: NextConfig = {
