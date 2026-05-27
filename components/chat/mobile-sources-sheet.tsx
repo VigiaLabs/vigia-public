@@ -1,5 +1,6 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import { FileText } from 'lucide-react';
 import { BottomSheet, BottomSheetContent, BottomSheetTrigger } from '@/components/ui/bottom-sheet';
 import { ActionBlock } from '@/components/chat/action-block';
@@ -18,21 +19,25 @@ export function MobileSourcesSheet({ variant = 'chip' }: { variant?: Variant }) 
     <BottomSheet>
       <BottomSheetTrigger asChild>
         {isNav ? (
-          <button
+          <motion.button
             type="button"
             className="flex flex-col items-center gap-1 text-[11px] font-semibold text-text-muted"
+            whileTap={{ scale: 0.94 }}
+            whileHover={{ y: -1 }}
           >
             <FileText className="h-5 w-5" />
             Sources
-          </button>
+          </motion.button>
         ) : (
-          <button
+          <motion.button
             type="button"
             className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-medium text-text-secondary"
+            whileTap={{ scale: 0.96 }}
+            whileHover={{ y: -1 }}
           >
             <FileText className="h-3.5 w-3.5" />
             {count > 0 ? `${count} sources` : 'Sources'}
-          </button>
+          </motion.button>
         )}
       </BottomSheetTrigger>
       <BottomSheetContent className="max-h-[85vh] bg-white px-0 pb-8 pt-0">
