@@ -125,8 +125,10 @@ export interface WorldBankResult {
  */
 export async function queryWorldBank(countryCode: string): Promise<WorldBankResult[]> {
   try {
+    // NOTE: the correct sector filter is `mjsector_exact` (major sector). `sector_exact`
+    // returns zero rows — it does not match the World Bank taxonomy.
     const res = await fetch(
-      `https://search.worldbank.org/api/v2/projects?format=json&countrycode_exact=${countryCode}&sector_exact=Transportation&rows=10&os=0`,
+      `https://search.worldbank.org/api/v2/projects?format=json&countrycode_exact=${countryCode}&mjsector_exact=Transportation&rows=10&os=0`,
       {
         headers: { 'User-Agent': 'VIGIA/1.0' },
         signal: AbortSignal.timeout(10000),
@@ -143,7 +145,8 @@ export async function queryWorldBank(countryCode: string): Promise<WorldBankResu
       projectName: p.project_name ?? '',
       countryName: p.countryshortname ?? '',
       sector: Array.isArray(p.sector) ? p.sector.join(', ') : (p.sector1?.Name ?? 'Transportation'),
-      totalAmount: p.totalamt ?? 0,
+      // totalamt arrives as a comma-formatted string (e.g. "750,000,000").
+      totalAmount: Number(String(p.totalamt ?? '0').replace(/,/g, '')) || 0,
       currency: 'USD',
       approvalDate: p.boardapprovaldate ?? null,
       closingDate: p.closingdate ?? null,
