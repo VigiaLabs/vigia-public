@@ -6,6 +6,7 @@ import { getRoadInfoByCoordinates } from '../../tools/gati-shakti';
 import { getRTIAuthority } from '../../tools/rti-lookup';
 import { getComplaintAuthority } from '../../tools/complaint-routing';
 import { resolveCountry, queryInternational } from '../../tools/global-engine';
+import { detectForeignCountry } from '../../tools/geo-resolve';
 
 const DEFAULT_SOURCE_URLS: Record<string, string> = {
   nhai_contract: 'https://nhai.gov.in/nhai/sites/default/files/mix_file/awarded_year_22_23_0.pdf',
@@ -51,6 +52,70 @@ async function extractRoadContext(text: string): Promise<{ roadNumber: string | 
   }
 }
 
+/**
+ * Builds evidence for a non-India query via the international engine (World Bank + OCDS).
+ * Shared by the GPS-based path and the text-based (typed country) path so both behave
+ * identically. Personnel queries hard-abort with a jurisdiction notice.
+ */
+async function buildInternationalEvidence(
+  countryCode: string,
+  countryName: string,
+  text: string,
+  intent: VigiaState['intent'] | undefined,
+  start: number,
+): Promise<NormalizedEvidence> {
+  if (intent === 'personnel') {
+    return {
+      agentId: 'admin',
+      status: 'completed',
+      confidence: 0.95,
+      findings: [
+        `Location resolves to ${countryName} (${countryCode}), outside Indian jurisdiction.`,
+        `VIGIA personnel directories are restricted to Indian infrastructure authorities (NHAI, State PWD, PMGSY).`,
+        `For ${countryName} road authority contacts, consult your national transport ministry.`,
+      ],
+      citations: [],
+      metadata: { countryCode, reason: 'out-of-jurisdiction' },
+      latencyMs: Date.now() - start,
+    };
+  }
+
+  const intlData = await queryInternational(countryCode, countryName, text);
+  const findings: string[] = [`Country: ${countryName} (${countryCode})`];
+
+  for (const wb of intlData.worldBankResults.slice(0, 3)) {
+    findings.push(`Project: ${wb.projectName} (${wb.status})`);
+    findings.push(`  Agency: ${wb.implementingAgency}, Amount: USD ${(wb.totalAmount / 1e6).toFixed(1)}M`);
+  }
+  for (const ocds of intlData.ocdsResults.slice(0, 3)) {
+    findings.push(`Contract: ${ocds.title}`);
+    findings.push(`  Entity: ${ocds.procuringEntity}${ocds.valueAmount ? `, Value: ${ocds.valueCurrency} ${ocds.valueAmount.toLocaleString()}` : ''}`);
+  }
+
+  if (findings.length === 1) {
+    findings.push(`No infrastructure project data found for ${countryName} in the OCDS or World Bank sources. OpenStreetMap road geometry is still available for this region.`);
+  }
+
+  const citations = [
+    ...intlData.worldBankResults.slice(0, 3).map(wb => ({
+      sourceId: `worldbank-${wb.projectId}`, label: 'World Bank Projects', url: wb.sourceUrl, trustLevel: 'official-portal' as const,
+    })),
+    ...intlData.ocdsResults.slice(0, 3).map(ocds => ({
+      sourceId: `ocds-${ocds.ocid}`, label: 'OCDS', url: ocds.sourceUrl, trustLevel: 'official-portal' as const,
+    })),
+  ];
+
+  return {
+    agentId: 'admin',
+    status: 'completed',
+    confidence: intlData.dataQualityTier === 'tier2-good' ? 0.8 : intlData.dataQualityTier === 'tier3-basic' ? 0.6 : 0.4,
+    findings,
+    citations,
+    metadata: { countryCode, dataQualityTier: intlData.dataQualityTier, source: 'global-engine' },
+    latencyMs: Date.now() - start,
+  };
+}
+
 export async function runAdminAgent(
   payload: Payload,
   retryQuery?: string,
@@ -83,60 +148,19 @@ export async function runAdminAgent(
     }
 
     // ─── Country Detection & International Routing ────────────────
+    // (a) GPS-based: authoritative when the device shares coordinates.
     if (payload.gps) {
       const country = await resolveCountry(payload.gps.lat, payload.gps.lng);
       if (!country.isIndia) {
-        // P0: Strict abort for personnel — no international personnel data
-        if (intent === 'personnel') {
-          return {
-            agentId: 'admin',
-            status: 'completed',
-            confidence: 0.95,
-            findings: [
-              `Current GPS location is in ${country.countryName} (${country.countryCode}), outside Indian jurisdiction.`,
-              `VIGIA personnel directories are restricted to Indian infrastructure authorities (NHAI, State PWD, PMGSY).`,
-              `For ${country.countryName} road authority contacts, consult your national transport ministry.`,
-            ],
-            citations: [],
-            metadata: { countryCode: country.countryCode, reason: 'out-of-jurisdiction' },
-            latencyMs: Date.now() - start,
-          };
-        }
-        // International path — bypass India-specific tools
-        const intlData = await queryInternational(country.countryCode, country.countryName, text);
-        const findings: string[] = [`Country: ${country.countryName} (${country.countryCode})`];
-
-        for (const wb of intlData.worldBankResults.slice(0, 3)) {
-          findings.push(`Project: ${wb.projectName} (${wb.status})`);
-          findings.push(`  Agency: ${wb.implementingAgency}, Amount: USD ${(wb.totalAmount / 1e6).toFixed(1)}M`);
-        }
-        for (const ocds of intlData.ocdsResults.slice(0, 3)) {
-          findings.push(`Contract: ${ocds.title}`);
-          findings.push(`  Entity: ${ocds.procuringEntity}${ocds.valueAmount ? `, Value: ${ocds.valueCurrency} ${ocds.valueAmount.toLocaleString()}` : ''}`);
-        }
-
-        if (findings.length === 1) {
-          findings.push('No infrastructure project data found for this location. OpenStreetMap road data is still available.');
-        }
-
-        const citations = [
-          ...intlData.worldBankResults.slice(0, 3).map(wb => ({
-            sourceId: `worldbank-${wb.projectId}`, label: 'World Bank Projects', url: wb.sourceUrl, trustLevel: 'official-portal' as const,
-          })),
-          ...intlData.ocdsResults.slice(0, 3).map(ocds => ({
-            sourceId: `ocds-${ocds.ocid}`, label: 'OCDS', url: ocds.sourceUrl, trustLevel: 'official-portal' as const,
-          })),
-        ];
-
-        return {
-          agentId: 'admin',
-          status: 'completed',
-          confidence: intlData.dataQualityTier === 'tier2-good' ? 0.8 : intlData.dataQualityTier === 'tier3-basic' ? 0.6 : 0.4,
-          findings,
-          citations,
-          metadata: { countryCode: country.countryCode, dataQualityTier: intlData.dataQualityTier, source: 'global-engine' },
-          latencyMs: Date.now() - start,
-        };
+        return buildInternationalEvidence(country.countryCode, country.countryName, text, intent, start);
+      }
+    } else {
+      // (b) Text-based: no GPS, but the user named a foreign country/city in the query
+      // (e.g. "road projects near Nairobi, Kenya"). Route to the international engine so
+      // global applicability is demonstrable from the text box, not only via GPS.
+      const foreign = detectForeignCountry(text);
+      if (foreign) {
+        return buildInternationalEvidence(foreign.code, foreign.name, text, intent, start);
       }
     }
 
@@ -214,6 +238,23 @@ export async function runAdminAgent(
             seen.add(key);
             return true;
           });
+
+          // Personnel guard: if the user asked for an engineer/officer but the
+          // jurisdiction-constrained PWD search returned no matching officer, do NOT
+          // present road/contract chunks as if they answered the question. Emit a data
+          // void so the guardrail routes to the Authority Matrix fallback (correct portal
+          // and helpline) instead of a wrong-jurisdiction or unrelated officer.
+          if (intent === 'personnel' && !deduped.some(r => r.sourceType === 'pwd_contact')) {
+            return {
+              agentId: 'admin',
+              status: 'completed',
+              confidence: 0.1,
+              findings: ['No relevant data found for a specific engineer in this jurisdiction within the VIGIA index.'],
+              citations: [],
+              metadata: { planSteps: plan.steps.length, personnelAnchorMissing: true },
+              latencyMs: Date.now() - start,
+            };
+          }
 
           const topSimilarity = Math.max(...deduped.map(r => r.similarity));
 

@@ -5,6 +5,7 @@ import type { Plan, PlanStep } from './planner';
 import type { UnifiedResult } from '../tools/search-unified';
 import type { Payload } from './state';
 import { searchNHAI, searchPWD, searchPMGSY, searchAll } from '../tools/search-federated';
+import type { IndiaGeo } from '../tools/geo-resolve';
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -41,10 +42,10 @@ function topologicalSort(steps: PlanStep[]): PlanStep[][] {
 
 // ─── Tool Dispatch ──────────────────────────────────────────────────
 
-function executeTool(tool: string, query: string): Promise<UnifiedResult[]> {
+function executeTool(tool: string, query: string, geo?: IndiaGeo): Promise<UnifiedResult[]> {
   switch (tool) {
     case 'searchNHAI': return searchNHAI(query);
-    case 'searchPWD': return searchPWD(query);
+    case 'searchPWD': return searchPWD(query, 8, geo);
     case 'searchPMGSY': return searchPMGSY(query);
     default: return searchAll(query);
   }
@@ -124,19 +125,26 @@ export async function executePlan(plan: Plan, payload: Payload): Promise<StepRes
   for (const phase of phases) {
     const phaseResults = await Promise.all(
       phase.map(async (step): Promise<StepResult> => {
-        // Build query with injected entities from dependencies
+        // Build query with injected entities from dependencies, and capture the
+        // resolved geographic anchor so personnel retrieval can be constrained to the
+        // correct jurisdiction (rather than relying on loose text similarity).
         let query = step.query;
+        const geo: IndiaGeo = {};
         if (step.injectFrom) {
           for (const [, ref] of Object.entries(step.injectFrom)) {
             const [depId, field] = ref.split('.');
             const depResult = results.get(depId);
             const value = depResult?.extracted?.[field];
-            if (value) query = `${query} ${value}`;
+            if (value) {
+              query = `${query} ${value}`;
+              if (field === 'district') geo.district = value;
+              if (field === 'state') geo.state = value;
+            }
           }
         }
 
         // Execute tool
-        const chunks = await executeTool(step.tool, query);
+        const chunks = await executeTool(step.tool, query, geo);
 
         // Extract entities if requested
         const extracted = step.extract
