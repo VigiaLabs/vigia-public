@@ -5,14 +5,18 @@
  * alongside existing NHAI contract chunks. Uses Bedrock Titan Embed v2.
  *
  * Run: npx tsx scripts/embed-unified.ts
- * Requires: AWS credentials + PG_HOST configured in .env.local
+ * Requires: AWS credentials from the default provider chain or profile + PG_HOST configured in .env.local
  */
 
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
-const bedrock = new BedrockRuntimeClient({ region: process.env.AWS_REGION ?? 'us-east-1' });
+function getAwsRegion() {
+  return process.env.APP_AWS_REGION ?? process.env.REGION ?? process.env.AWS_REGION ?? 'us-east-1';
+}
+
+const bedrock = new BedrockRuntimeClient({ region: getAwsRegion() });
 
 interface Chunk {
   text: string;
@@ -190,7 +194,7 @@ async function embedText(text: string): Promise<number[]> {
 async function storeInPgvector(chunks: Array<Chunk & { embedding: number[] }>): Promise<void> {
   // Use the retrieval proxy Lambda to write (it has VPC access to pgvector)
   const { LambdaClient, InvokeCommand } = await import('@aws-sdk/client-lambda');
-  const lambda = new LambdaClient({ region: process.env.AWS_REGION ?? 'us-east-1' });
+  const lambda = new LambdaClient({ region: getAwsRegion() });
 
   // First, ensure schema is updated (add columns if missing)
   const initPayload = {

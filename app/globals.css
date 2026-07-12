@@ -536,3 +536,21 @@
     animation: none !important;
   }
 }
+
+[data-reduce-motion='true'] *,
+[data-reduce-motion='true'] *::before,
+[data-reduce-motion='true'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+[data-text-size='compact'] .shell-bubble-assistant {
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+[data-text-size='compact'] .shell-bubble-user {
+  font-size: 14px;
+}

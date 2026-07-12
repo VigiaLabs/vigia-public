@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VIGIA — Hackathon Technical Submission</title>
+<style>
+  /* ── Reset & base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 14px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: #fff;
+    color: #111;
+    line-height: 1.6;
+    padding: 0;
+  }
+
+  /* ── Page wrapper ── */
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 56px 64px;
+  }
+
+  /* ── Typography ── */
+  h1 { font-size: 32px; font-weight: 700; line-height: 1.2; margin-bottom: 8px; }
+  h2 { font-size: 20px; font-weight: 700; margin-bottom: 12px; margin-top: 0; }
+  h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; margin-top: 0; }
+  p  { font-size: 13px; color: #333; line-height: 1.7; margin-bottom: 10px; }
+  p:last-child { margin-bottom: 0; }
+
+  .label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #2563eb;
+    margin-bottom: 6px;
+  }
+  .tagline {
+    font-size: 18px;
+    color: #555;
+    font-weight: 400;
+    margin-bottom: 20px;
+  }
+  .abstract {
+    font-size: 13px;
+    color: #444;
+    line-height: 1.75;
+    max-width: 700px;
+    margin-bottom: 28px;
+  }
+
+  /* ── Section spacing ── */
+  .section { margin-bottom: 48px; }
+  .section-divider {
+    border: none;
+    border-top: 1px solid #e5e7eb;
+    margin: 40px 0;
+  }
+  .cover-divider {
+    border: none;
+    border-top: 2px solid #111;
+    margin-bottom: 40px;
+    padding-bottom: 0;
+  }
+
+  /* ── Grid ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+
+  /* ── Stat blocks ── */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 4px; }
+  .stat {
+    padding: 14px 16px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+  }
+  .stat-value { font-size: 22px; font-weight: 700; color: #111; }
+  .stat-label { font-size: 11px; color: #888; margin-top: 2px; }
+
+  /* ── Cards ── */
+  .card {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 10px 14px;
+    background: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+  }
+  .card-body { padding: 14px; }
+  .card-body p { font-size: 12px; }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  th {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    color: #374151;
+  }
+  td {
+    border: 1px solid #e5e7eb;
+    padding: 7px 12px;
+    color: #374151;
+    vertical-align: top;
+  }
+  tr:hover td { background: #fafafa; }
+
+  /* ── Pipeline diagram ── */
+  .pipeline-diagram {
+    margin: 20px 0 24px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+  }
+  .pipeline-diagram svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  /* ── Numbered steps ── */
+  .steps { display: flex; flex-direction: column; gap: 10px; }
+  .step { display: flex; gap: 12px; align-items: flex-start; }
+  .step-num {
+    width: 24px; height: 24px; border-radius: 4px;
+    background: #f3f4f6; border: 1px solid #e5e7eb;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; color: #6b7280;
+    flex-shrink: 0; margin-top: 1px;
+  }
+  .step-title { font-size: 13px; font-weight: 600; color: #111; margin-bottom: 2px; }
+  .step-body { font-size: 12px; color: #555; line-height: 1.6; }
+
+  /* ── Agent cards ── */
+  .agent-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 16px;
+  }
+  .agent-name { font-size: 14px; font-weight: 700; color: #111; }
+  .agent-meta { font-size: 11px; color: #2563eb; margin-top: 2px; margin-bottom: 10px; }
+  .agent-points { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .agent-points li { display: flex; gap: 8px; font-size: 12px; color: #555; line-height: 1.6; }
+  .agent-points li::before {
+    content: '';
+    width: 3px; height: 3px; border-radius: 50%;
+    background: #9ca3af; flex-shrink: 0; margin-top: 8px;
+  }
+
+  /* ── Retrieval stack ── */
+  .retrieval-layer {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    margin-bottom: 8px;
+  }
+  .retrieval-layer.primary { border-color: #2563eb; background: #eff6ff; }
+  .layer-left { flex: 1; }
+  .layer-name { font-size: 12px; font-weight: 600; color: #111; }
+  .layer-tech { font-size: 11px; color: #6b7280; }
+  .layer-detail { font-size: 11px; color: #555; text-align: right; }
+
+  /* ── Callout ── */
+  .callout {
+    border: 1px solid #fbbf24;
+    background: #fffbeb;
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: #92400e;
+    line-height: 1.6;
+  }
+
+  /* ── Anti-hallucination grid ── */
+  .ah-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+  }
+  .ah-num {
+    width: 26px; height: 26px; border-radius: 4px;
+    background: #f3f4f6; border: 1px solid #e5e7eb;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700; color: #6b7280;
+    flex-shrink: 0;
+  }
+  .ah-title { font-size: 13px; font-weight: 600; color: #111; margin-bottom: 3px; }
+  .ah-body { font-size: 12px; color: #555; line-height: 1.6; }
+
+  /* ── DePIN pipeline steps ── */
+  .depin-step { display: flex; gap: 10px; margin-bottom: 8px; align-items: flex-start; }
+  .depin-label { font-size: 11px; font-weight: 600; color: #2563eb; width: 130px; flex-shrink: 0; padding-top: 1px; }
+  .depin-desc { font-size: 12px; color: #555; line-height: 1.6; }
+
+  /* ── Roadmap ── */
+  .roadmap-phase { font-size: 11px; color: #2563eb; font-weight: 600; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .roadmap-title { font-size: 14px; font-weight: 700; color: #111; margin-bottom: 10px; }
+  .roadmap-items { list-style: none; display: flex; flex-direction: column; gap: 5px; }
+  .roadmap-items li { display: flex; gap: 8px; font-size: 12px; color: #555; }
+  .roadmap-items li::before {
+    content: ''; width: 3px; height: 3px; border-radius: 50%;
+    background: #9ca3af; flex-shrink: 0; margin-top: 8px;
+  }
+
+  /* ── Image placeholder ── */
+  .img-placeholder {
+    border: 1.5px dashed #d1d5db;
+    border-radius: 6px;
+    background: #f9fafb;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #9ca3af;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin: 4px 0;
+  }
+  .img-placeholder svg { opacity: 0.4; }
+
+  /* ── Footer ── */
+  .footer {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 24px;
+    margin-top: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .footer-left .brand { font-size: 14px; font-weight: 700; }
+  .footer-left .sub { font-size: 11px; color: #9ca3af; margin-top: 3px; }
+  .footer-right { text-align: right; font-size: 11px; color: #9ca3af; line-height: 1.7; }
+
+  /* ── Row helper ── */
+  .row { display: flex; gap: 16px; }
+  .row > * { flex: 1; }
+
+  .text-sm { font-size: 12px; color: #555; line-height: 1.7; }
+  .text-xs { font-size: 11px; color: #9ca3af; }
+  .stack { display: flex; flex-direction: column; gap: 8px; }
+
+  /* ── Print tweaks ── */
+  @media print {
+    body { background: #fff; }
+    .page { padding: 36px 48px; }
+    .section { page-break-inside: avoid; }
+    table { page-break-inside: avoid; }
+    h2 { page-break-after: avoid; }
+    .section-divider { margin: 28px 0; }
+    @page { margin: 0; size: A4; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ══ COVER ══════════════════════════════════════════════════════════════ -->
+  <div style="padding-bottom: 32px; margin-bottom: 0;">
+    <div class="label">Hackathon Technical Submission</div>
+    <h1>VIGIA</h1>
+    <div class="tagline">Government Infrastructure Intelligence — AI-Powered Citizen Audit Platform</div>
+    <p class="abstract">
+      VIGIA enables any citizen to interrogate the accountability of Indian road infrastructure.
+      Ask who is responsible for a pothole on NH-44, trace where ₹6,661 crore in public funds went,
+      file an RTI in under 60 seconds, or upload a road photo and receive an iRAP-standard damage
+      assessment — all from a single conversational interface powered by a stateful LangGraph
+      orchestration pipeline on Amazon Bedrock.
+    </p>
+    <div class="stats">
+      <div class="stat"><div class="stat-value">4-node</div><div class="stat-label">LangGraph graph</div></div>
+      <div class="stat"><div class="stat-value">3</div><div class="stat-label">Specialist agents</div></div>
+      <div class="stat"><div class="stat-value">13</div><div class="stat-label">Indian language locales</div></div>
+      <div class="stat"><div class="stat-value">30 req/min</div><div class="stat-label">Rate limit per IP</div></div>
+    </div>
+  </div>
+  <hr class="cover-divider" style="margin-top: 32px;">
+
+  <!-- ══ 01 PROBLEM ═════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">01 — Problem Statement</div>
+    <h2>The infrastructure accountability gap</h2>
+    <div class="grid-2">
+      <div class="stack">
+        <p>India's road network spans national highways managed by NHAI, state highways under state PWDs, and rural roads tracked by NRRDA through the PMGSY programme. Despite the scale of annual public expenditure, citizens have no reliable way to verify whether that money reached the road outside their town.</p>
+        <p>The data exists — NHAI publishes awarded contracts, MoRTH produces annual reports, PMGSY tracks rural roads via the OMMAS portal — but it is scattered across dozens of government portals, locked in unindexed PDFs, and requires domain expertise to interpret.</p>
+        <p>When a road fails, a citizen must navigate multiple government systems to identify who is responsible, how to file a complaint, and how to submit an RTI. VIGIA collapses this into a single conversational interface.</p>
+      </div>
+      <div class="card">
+        <div class="card-header">The data access problem</div>
+        <div class="card-body">
+          <table>
+            <tr><th>Source</th><th>Barrier</th></tr>
+            <tr><td>NHAI contract PDFs</td><td>Not indexed or searchable</td></tr>
+            <tr><td>PWD officer directories</td><td>Scattered across state websites</td></tr>
+            <tr><td>PMGSY OMMAS</td><td>Portal-only, no public API</td></tr>
+            <tr><td>Maintenance records</td><td>RTI required for most data</td></tr>
+            <tr><td>Condition (PCI/IRI)</td><td>Restricted NHAI RAMS portal</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ══ 02 ARCHITECTURE ════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">02 — System Architecture</div>
+    <h2>End-to-end architecture</h2>
+    <p>VIGIA is a Next.js 16 Progressive Web App backed by a stateful LangGraph RAG pipeline running in a Node.js API route. All AI inference runs on Amazon Bedrock. The retrieval layer uses pgvector on RDS as the primary store, with a local SQLite FTS5 database as offline fallback. A dual-track AWS Lambda pipeline ingests government documents daily.</p>
+
+    <div class="img-placeholder" style="height: 240px; margin: 16px 0;">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect x="2" y="2" width="36" height="36" rx="6" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 3"/><circle cx="13" cy="15" r="4" stroke="#9ca3af" stroke-width="1.5"/><path d="M5 31 L12 21 L18 27 L25 18 L35 31" stroke="#9ca3af" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      INSERT DIAGRAM: System Architecture — Client → LangGraph → Retrieval → AWS Ingestion
+    </div>
+
+    <div class="grid-3" style="margin-top: 16px;">
+      <div class="card">
+        <div class="card-header">Frontend</div>
+        <div class="card-body stack">
+          <p>Next.js 16 App Router</p>
+          <p>React 19, Tailwind CSS 4</p>
+          <p>Framer Motion animations</p>
+          <p>Leaflet + OSRM routing maps</p>
+          <p>IndexedDB via Dexie (offline persistence)</p>
+          <p>Workbox PWA service worker</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">AI & Backend</div>
+        <div class="card-body stack">
+          <p>LangGraph stateful orchestration</p>
+          <p>Amazon Bedrock — Nova Lite & Nova Pro</p>
+          <p>Titan Embed Text v2 (1024 dims)</p>
+          <p>Vercel AI SDK streaming</p>
+          <p>Cohere cross-encoder reranking</p>
+          <p>Upstash Redis semantic cache</p>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">Infrastructure</div>
+        <div class="card-body stack">
+          <p>AWS CDK (TypeScript)</p>
+          <p>RDS PostgreSQL 16 + pgvector</p>
+          <p>S3 document storage</p>
+          <p>Lambda serverless compute</p>
+          <p>DynamoDB SHA-256 deduplication</p>
+          <p>EventBridge daily CRON</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ══ 03 LANGGRAPH PIPELINE ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">03 — The LangGraph Pipeline</div>
+    <h2>Stateful CRAG orchestration with four graph nodes</h2>
+    <p>The core of VIGIA is a LangGraph <code>StateGraph</code> with four registered nodes (Router, Ingest, Guardrail, UI Hook). After the graph completes, the API route runs LLM synthesis directly on Bedrock with the extracted evidence context. Unlike a simple chain, the graph can loop back on itself — a corrective retrieval (CRAG) mechanism that catches low-confidence retrievals before they reach the user. Each node emits real-time progress steps streamed to the client.</p>
+
+    <div class="pipeline-diagram">
+      <svg viewBox="0 0 900 196" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="VIGIA LangGraph pipeline">
+        <defs>
+          <filter id="nodeShadow" x="-6%" y="-10%" width="112%" height="130%">
+            <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-color="#0f172a" flood-opacity="0.06"/>
+          </filter>
+          <marker id="pipeArrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M 0 0 L 7 3.5 L 0 7 Z" fill="#94a3b8"/>
+          </marker>
+          <marker id="pipeArrowLoop" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+            <path d="M 0 0 L 7 3.5 L 0 7 Z" fill="#f97316"/>
+          </marker>
+          <linearGradient id="ingestFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#eff6ff"/>
+            <stop offset="100%" stop-color="#ffffff"/>
+          </linearGradient>
+        </defs>
+        <g stroke="#cbd5e1" stroke-width="1.5" fill="none" marker-end="url(#pipeArrow)">
+          <line x1="112" y1="78" x2="128" y2="78"/>
+          <line x1="252" y1="78" x2="268" y2="78"/>
+          <line x1="392" y1="78" x2="408" y2="78"/>
+          <line x1="532" y1="78" x2="548" y2="78"/>
+          <line x1="672" y1="78" x2="688" y2="78"/>
+        </g>
+        <g filter="url(#nodeShadow)">
+          <rect x="16" y="52" width="96" height="52" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.25"/>
+          <text x="64" y="82" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#374151" text-anchor="middle">User Query</text>
+        </g>
+        <g filter="url(#nodeShadow)">
+          <rect x="128" y="46" width="124" height="64" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.25"/>
+          <text x="190" y="72" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827" text-anchor="middle">Router</text>
+          <text x="190" y="90" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b7280" text-anchor="middle">Intent classification</text>
+        </g>
+        <g filter="url(#nodeShadow)">
+          <rect x="268" y="46" width="124" height="64" rx="8" fill="url(#ingestFill)" stroke="#2563eb" stroke-width="2"/>
+          <text x="330" y="72" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#2563eb" text-anchor="middle">Ingest</text>
+          <text x="330" y="90" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" font-weight="500" fill="#3b82f6" text-anchor="middle">Parallel agents</text>
+        </g>
+        <g filter="url(#nodeShadow)">
+          <rect x="408" y="46" width="124" height="64" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.25"/>
+          <text x="470" y="72" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827" text-anchor="middle">Guardrail</text>
+          <text x="470" y="90" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b7280" text-anchor="middle">CRAG quality gate</text>
+        </g>
+        <g filter="url(#nodeShadow)">
+          <rect x="548" y="46" width="124" height="64" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.25"/>
+          <text x="610" y="72" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827" text-anchor="middle">UI Hook</text>
+          <text x="610" y="90" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b7280" text-anchor="middle">Zero-token transform</text>
+        </g>
+        <g filter="url(#nodeShadow)">
+          <rect x="688" y="46" width="124" height="64" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.25"/>
+          <text x="750" y="72" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827" text-anchor="middle">Bedrock LLM</text>
+          <text x="750" y="90" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="10.5" fill="#6b7280" text-anchor="middle">Nova Lite / Pro</text>
+        </g>
+        <path d="M 470 110 C 470 148, 330 148, 330 110" fill="none" stroke="#fdba74" stroke-width="1.5" stroke-dasharray="5 4" stroke-linecap="round" marker-end="url(#pipeArrowLoop)"/>
+        <rect x="362" y="132" width="176" height="22" rx="5" fill="#fff7ed" stroke="#fed7aa" stroke-width="1"/>
+        <text x="450" y="147" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="10" font-weight="500" fill="#c2410c" text-anchor="middle">↺ CRAG retry · Guardrail → Ingest → Guardrail (max 2)</text>
+        <text x="190" y="34" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="8" font-weight="700" fill="#94a3b8" text-anchor="middle" letter-spacing="0.08em">LANGGRAPH STATEGRAPH</text>
+        <text x="750" y="34" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="8" font-weight="700" fill="#94a3b8" text-anchor="middle" letter-spacing="0.08em">API ROUTE SYNTHESIS</text>
+        <line x1="680" y1="38" x2="680" y2="118" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3 3"/>
+      </svg>
+    </div>
+
+    <div class="grid-2" style="margin-top: 16px;">
+      <div class="stack">
+        <h3>Node 1 — Router</h3>
+        <p>Uses Amazon Nova Lite to classify intent into six categories: <strong>condition</strong>, <strong>complaint</strong>, <strong>rti</strong>, <strong>personnel</strong>, <strong>tender_search</strong>, or <strong>conversational</strong>. Conversational queries short-circuit directly to the LLM, bypassing retrieval entirely. All other intents proceed to the Ingest node.</p>
+
+        <h3 style="margin-top: 16px;">Node 3 — Guardrail (CRAG)</h3>
+        <p>The most critical node. Implements Corrective RAG with six layered checks:</p>
+        <div class="steps">
+          <div class="step"><div class="step-num">1</div><div><div class="step-title">Retrieval grading</div><div class="step-body">Confidence must exceed 0.5 (<code>DATA_VOID_CONFIDENCE_THRESHOLD</code> in guardrail.ts) or evidence is declared a data void.</div></div></div>
+          <div class="step"><div class="step-num">2</div><div><div class="step-title">Data void detection</div><div class="step-body">If all evidence falls below threshold, declare a data void rather than hallucinate a response.</div></div></div>
+          <div class="step"><div class="step-num">3</div><div><div class="step-title">Query rewrite</div><div class="step-body">Nova Lite rewrites the query from a different angle to widen the retrieval scope.</div></div></div>
+          <div class="step"><div class="step-num">4</div><div><div class="step-title">Retry loop</div><div class="step-body">Re-runs the Ingest node with the rewritten query (maximum 2 retries).</div></div></div>
+          <div class="step"><div class="step-num">5</div><div><div class="step-title">Authority fallback</div><div class="step-body">On persistent data void, returns exact portal URLs and helpline numbers from the curated Authority Matrix — never invents an answer.</div></div></div>
+          <div class="step"><div class="step-num">6</div><div><div class="step-title">Contradiction detection</div><div class="step-body">Cross-checks official documents vs. citizen photo evidence. Flags when NHAI says "maintained" but a photo shows severe damage.</div></div></div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <h3>Node 2 — Ingest (Parallel Agents)</h3>
+        <p>Dispatches up to three specialist agents concurrently via <code>Promise.allSettled</code>. Each agent has a 6-second timeout (<code>AGENT_TIMEOUT_MS = 6000</code>) and an independent AbortController. On retry runs, only the Admin agent re-executes with the rewritten query to minimise cost.</p>
+
+        <h3 style="margin-top: 16px;">Node 4 — UI Hook</h3>
+        <p>A pure computation node — zero LLM tokens consumed. Extracts structured payloads from the evidence state for the frontend: spatial markers (lat/lng for map rendering), budget figures (sanctioned vs. spent for bar charts), citation references, and pending action cards for complaint filing or RTI templates.</p>
+
+        <h3 style="margin-top: 16px;">Post-graph — LLM Synthesizer</h3>
+        <p>After the graph completes, the API route calls Bedrock directly with the full evidence context injected into the system prompt. Personnel queries automatically upgrade to Nova Pro to reduce contact-detail hallucination. Post-generation, faithfulness scoring runs asynchronously — an LLM-as-judge evaluates whether every factual claim is supported by a retrieved chunk.</p>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ══ 04 AGENTS ══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">04 — Specialist Agent Sub-system</div>
+    <h2>Three agents, one parallel dispatch</h2>
+    <p>The Ingest node dispatches three purpose-built agents, each with a different data modality and reasoning pattern. This lets VIGIA combine documentary evidence, visual ground truth, and physical telemetry into a single corroborated answer.</p>
+
+    <div class="grid-3" style="margin-top: 16px;">
+      <div class="agent-card">
+        <div class="agent-name">Admin Agent</div>
+        <div class="agent-meta">ReWOO Plan-and-Execute · Nova Lite</div>
+        <ul class="agent-points">
+          <li>Generates a typed retrieval plan — a DAG of up to 4 steps specifying which data source to query and what entities to extract.</li>
+          <li>Executes steps in topological order. Steps without dependencies run in parallel.</li>
+          <li>Downstream steps receive injected results from upstream steps (e.g. district extracted from NHAI to narrow PWD contact search).</li>
+          <li>ReWOO eliminates intermediate reasoning steps, cutting latency vs. standard ReAct agents.</li>
+          <li>Handles international queries via World Bank / OCDS APIs for cross-country comparison.</li>
+        </ul>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">Vision Agent</div>
+        <div class="agent-meta">Multimodal VLM · Nova Lite (vision)</div>
+        <ul class="agent-points">
+          <li>Accepts citizen-uploaded road photos via the chat input (imageUrl in the payload).</li>
+          <li>Passes the image to Nova Lite as a vision language model with an iRAP-standard assessment prompt.</li>
+          <li>Returns structured output: severity (critical/severe/moderate/minor/none), iRAP star rating (1–5), and specific observations.</li>
+          <li>Evidence is tagged as "citizen-claim" trust level with a disclosure that it is unverified.</li>
+          <li>Contradiction detection in the Guardrail cross-checks this against official maintenance records.</li>
+        </ul>
+      </div>
+      <div class="agent-card">
+        <div class="agent-name">Telemetry Agent</div>
+        <div class="agent-meta">GPS + IMU processing · Rule-based (no LLM)</div>
+        <ul class="agent-points">
+          <li>Accepts GPS coordinates from the browser geolocation API or extracted from query text via regex.</li>
+          <li>Queries OpenStreetMap (via Overpass / Gati Shakti tool) to identify road type, number, and state at those coordinates.</li>
+          <li>Pipeline integration is complete — accepts IMU anomaly payloads with a 1.5g vertical acceleration threshold.</li>
+          <li>Current build uses prototype anomaly values demonstrating the data model.</li>
+          <li>Foundation for the DePIN telemetry network described in section 07.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="pipeline-diagram" style="margin-top: 16px;">
+      <svg viewBox="0 0 900 456" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="VIGIA specialist agent parallel dispatch">
+        <defs>
+          <filter id="agentDispatchShadow" x="-6%" y="-8%" width="112%" height="124%">
+            <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.07"/>
+          </filter>
+          <marker id="agentDispatchArrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M 0 1 L 7 4 L 0 7 Z" fill="#94a3b8" stroke="none"/>
+          </marker>
+          <marker id="agentDispatchArrowBlue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+            <path d="M 0 1 L 7 4 L 0 7 Z" fill="#2563eb" stroke="none"/>
+          </marker>
+          <linearGradient id="agentDispatchIngestFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#eff6ff"/>
+            <stop offset="100%" stop-color="#ffffff"/>
+          </linearGradient>
+        </defs>
+
+        <text x="450" y="22" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="8.5" font-weight="700" fill="#94a3b8" text-anchor="middle" letter-spacing="0.1em">INGEST NODE · PARALLEL DISPATCH</text>
+
+        <g filter="url(#agentDispatchShadow)">
+          <rect x="190" y="30" width="520" height="72" rx="8" fill="url(#agentDispatchIngestFill)" stroke="#2563eb" stroke-width="2"/>
+          <text x="450" y="54" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#2563eb" text-anchor="middle">Ingest Node</text>
+          <text x="450" y="74" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="10" fill="#3b82f6" text-anchor="middle">Promise.allSettled · 6s timeout · independent AbortController per agent</text>
+        </g>
+
+        <g fill="none" stroke="#cbd5e1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M 450 102 L 450 110"/>
+          <path d="M 150 110 L 750 110"/>
+          <path d="M 150 110 L 150 118" marker-end="url(#agentDispatchArrow)"/>
+          <path d="M 450 110 L 450 118" marker-end="url(#agentDispatchArrow)"/>
+          <path d="M 750 110 L 750 118" marker-end="url(#agentDispatchArrow)"/>
+        </g>
+        <circle cx="450" cy="110" r="3" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+
+        <g filter="url(#agentDispatchShadow)">
+          <rect x="16" y="118" width="268" height="252" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.25"/>
+          <path d="M 16 118 h 268 a 8 8 0 0 1 8 8 v 38 H 16 Z" fill="#f9fafb"/>
+          <line x1="16" y1="164" x2="284" y2="164" stroke="#e5e7eb" stroke-width="1"/>
+          <text x="150" y="142" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827" text-anchor="middle">Admin Agent</text>
+          <text x="150" y="180" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="10" font-weight="600" fill="#2563eb" text-anchor="middle">ReWOO Plan-and-Execute · Nova Lite</text>
+          <rect x="28" y="190" width="244" height="78" rx="6" fill="#fafafa" stroke="#e5e7eb" stroke-width="1"/>
+          <text x="38" y="206" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9.5" font-weight="600" fill="#374151">Retrieval plan (DAG ≤ 4 steps)</text>
+          <text x="38" y="222" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280">Sources + entities · topological execution</text>
+          <text x="38" y="238" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280">Independent steps run in parallel</text>
+          <text x="38" y="254" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280">Upstream results injected downstream</text>
+          <rect x="28" y="276" width="244" height="48" rx="6" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
+          <text x="38" y="292" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" font-weight="600" fill="#1d4ed8">External</text>
+          <text x="38" y="308" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#3b82f6">World Bank / OCDS · pgvector · PWD contacts</text>
+          <rect x="28" y="332" width="244" height="30" rx="6" fill="#fff7ed" stroke="#fed7aa" stroke-width="1"/>
+          <text x="38" y="351" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" font-weight="600" fill="#c2410c">CRAG retry — only Admin re-runs with rewritten query</text>
+        </g>
+
+        <g filter="url(#agentDispatchShadow)">
+          <rect x="316" y="118" width="268" height="252" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.25"/>
+          <path d="M 316 118 h 268 a 8 8 0 0 1 8 8 v 38 H 316 Z" fill="#f9fafb"/>
+          <line x1="316" y1="164" x2="584" y2="164" stroke="#e5e7eb" stroke-width="1"/>
+          <text x="450" y="142" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827" text-anchor="middle">Vision Agent</text>
+          <text x="450" y="180" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="10" font-weight="600" fill="#2563eb" text-anchor="middle">Multimodal VLM · Nova Lite (vision)</text>
+          <rect x="328" y="190" width="244" height="78" rx="6" fill="#fafafa" stroke="#e5e7eb" stroke-width="1"/>
+          <text x="338" y="206" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9.5" font-weight="600" fill="#374151">Input: citizen road photo</text>
+          <text x="338" y="222" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280">imageUrl in chat payload</text>
+          <text x="338" y="238" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280">iRAP-standard assessment prompt</text>
+          <text x="338" y="254" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280">No intermediate ReAct reasoning steps</text>
+          <rect x="328" y="276" width="244" height="62" rx="6" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+          <text x="338" y="292" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" font-weight="600" fill="#166534">Structured output</text>
+          <text x="338" y="308" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#15803d">Severity · iRAP star rating (1–5) · observations</text>
+          <text x="338" y="324" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#15803d">Trust: citizen-claim · unverified disclosure</text>
+          <rect x="328" y="344" width="244" height="22" rx="6" fill="#fef2f2" stroke="#fecaca" stroke-width="1"/>
+          <text x="338" y="358" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="8.5" fill="#b91c1c" dominant-baseline="middle">Guardrail cross-checks vs. maintenance records</text>
+        </g>
+
+        <g filter="url(#agentDispatchShadow)">
+          <rect x="616" y="118" width="268" height="252" rx="8" fill="#ffffff" stroke="#e5e7eb" stroke-width="1.25"/>
+          <path d="M 616 118 h 268 a 8 8 0 0 1 8 8 v 38 H 616 Z" fill="#f9fafb"/>
+          <line x1="616" y1="164" x2="884" y2="164" stroke="#e5e7eb" stroke-width="1"/>
+          <text x="750" y="142" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#111827" text-anchor="middle">Telemetry Agent</text>
+          <text x="750" y="180" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="10" font-weight="600" fill="#2563eb" text-anchor="middle">GPS + IMU processing · Rule-based (no LLM)</text>
+          <rect x="628" y="190" width="244" height="78" rx="6" fill="#fafafa" stroke="#e5e7eb" stroke-width="1"/>
+          <text x="638" y="206" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9.5" font-weight="600" fill="#374151">Location input</text>
+          <text x="638" y="222" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280">Browser geolocation API or regex from query</text>
+          <text x="638" y="238" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280">IMU anomaly payloads · 1.5g vertical threshold</text>
+          <text x="638" y="254" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#6b7280">Prototype values demonstrate data model today</text>
+          <rect x="628" y="276" width="244" height="48" rx="6" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
+          <text x="638" y="292" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" font-weight="600" fill="#1d4ed8">External</text>
+          <text x="638" y="308" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" fill="#3b82f6">OpenStreetMap · Overpass · Gati Shakti tool</text>
+          <rect x="628" y="332" width="244" height="30" rx="6" fill="#faf5ff" stroke="#e9d5ff" stroke-width="1"/>
+          <text x="638" y="351" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="9" font-weight="600" fill="#7e22ce">Road type · number · state at coordinates</text>
+        </g>
+
+        <g fill="none" stroke="#cbd5e1" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M 150 370 L 150 382"/>
+          <path d="M 450 370 L 450 382"/>
+          <path d="M 750 370 L 750 382"/>
+          <path d="M 150 382 L 750 382"/>
+          <path d="M 450 382 L 450 402" marker-end="url(#agentDispatchArrowBlue)"/>
+        </g>
+        <circle cx="450" cy="382" r="3" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+
+        <g filter="url(#agentDispatchShadow)">
+          <rect x="210" y="404" width="480" height="38" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+          <text x="450" y="427" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#111827" text-anchor="middle" dominant-baseline="middle">Merged evidence → Guardrail (CRAG) → corroborated answer</text>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ══ 05 RETRIEVAL ═══════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">05 — Retrieval Architecture</div>
+    <h2>Hybrid vector + keyword search with graceful degradation</h2>
+    <div class="grid-2">
+      <div class="stack">
+        <p>VIGIA uses a four-layer retrieval stack designed for resilience. The primary layer is semantic vector search against pgvector on RDS using Amazon Titan Embed v2 (1024 dimensions). Results are merged with a parallel FTS5 keyword search using Reciprocal Rank Fusion, which provably outperforms either approach alone. An optional Cohere cross-encoder reranks the top results for precision.</p>
+        <p>If the pgvector Lambda proxy is unreachable — due to VPC cold starts or network partitions — the system transparently falls back to a local SQLite FTS5 database. The client never sees an error; it receives slightly lower recall.</p>
+
+        <h3 style="margin-top: 8px;">Semantic chunking strategy</h3>
+        <p>Government PDFs contain mixed content: prose, financial tables, project lists, and annexures. A naive sentence splitter destroys table structure and loses row–column relationships that carry the actual data (e.g. "Road X | Contractor Y | ₹450 Cr"). VIGIA's PDF parser uses semantic chunking that detects table boundaries and preserves row context within each chunk. Each chunk is embedded independently and stored with metadata: road number, state, district, concessionaire, and source PDF hash for deduplication.</p>
+      </div>
+      <div class="stack">
+        <div class="retrieval-layer primary">
+          <div class="layer-left"><div class="layer-name">Semantic search</div><div class="layer-tech">pgvector + Titan Embed v2</div></div>
+          <div class="layer-detail">Top 20 by cosine similarity</div>
+        </div>
+        <div class="retrieval-layer">
+          <div class="layer-left"><div class="layer-name">Keyword search</div><div class="layer-tech">SQLite FTS5 (local fallback)</div></div>
+          <div class="layer-detail">Top 20 by BM25 rank</div>
+        </div>
+        <div class="retrieval-layer">
+          <div class="layer-left"><div class="layer-name">Fusion</div><div class="layer-tech">Reciprocal Rank Fusion (RRF)</div></div>
+          <div class="layer-detail">Merges both → top 10</div>
+        </div>
+        <div class="retrieval-layer">
+          <div class="layer-left"><div class="layer-name">Reranking</div><div class="layer-tech">Cohere cross-encoder (optional)</div></div>
+          <div class="layer-detail">Top-5 precision pass</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ══ 06 ANTI-HALLUCINATION ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">06 — Anti-Hallucination Architecture</div>
+    <h2>Six independent layers against fabrication</h2>
+    <p>Infrastructure data is high-stakes. A wrong phone number, incorrect contract value, or fabricated officer name causes direct harm to citizens filing complaints. VIGIA treats hallucination prevention as a first-class engineering concern.</p>
+
+    <div class="grid-2" style="margin-top: 16px; gap: 12px;">
+      <div class="ah-item"><div class="ah-num">1</div><div><div class="ah-title">CRAG threshold gating</div><div class="ah-body">Evidence below the 0.5 confidence threshold is discarded before reaching the LLM. The model never sees low-confidence chunks to amplify.</div></div></div>
+      <div class="ah-item"><div class="ah-num">2</div><div><div class="ah-title">Authority Matrix fallback</div><div class="ah-body">When no reliable evidence exists, VIGIA returns curated portal URLs and helpline numbers from a manually maintained JSON dataset rather than asking the model to guess.</div></div></div>
+      <div class="ah-item"><div class="ah-num">3</div><div><div class="ah-title">COPY-PASTE system prompt</div><div class="ah-body">The synthesizer system prompt explicitly instructs the model to reproduce contact details verbatim from evidence — copy-paste, not paraphrase. Deviation is prohibited.</div></div></div>
+      <div class="ah-item"><div class="ah-num">4</div><div><div class="ah-title">Nova Pro upgrade on personnel</div><div class="ah-body">Queries involving officer names, phone numbers, and emails are automatically routed to Amazon Nova Pro, which hallucinates contact details at a lower rate.</div></div></div>
+      <div class="ah-item"><div class="ah-num">5</div><div><div class="ah-title">Post-generation faithfulness scoring</div><div class="ah-body">After streaming completes, an async LLM-as-judge evaluates whether each factual claim in the response is grounded in the retrieved chunks. Flagged responses are logged.</div></div></div>
+      <div class="ah-item"><div class="ah-num">6</div><div><div class="ah-title">Temporal coherence check</div><div class="ah-body">The Guardrail node parses dates in retrieved findings and flags temporal impossibilities — e.g. a maintenance completion date in the future marked as "done".</div></div></div>
+    </div>
+
+    <div class="callout" style="margin-top: 16px;">
+      All names, phone numbers, emails, and financial figures in VIGIA responses must appear verbatim in the retrieved evidence. If a piece of information cannot be traced to a source chunk, the system is explicitly instructed to say so rather than fill the gap.
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ══ 07 DEPIN ═══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">07 — DePIN Telemetry Network</div>
+    <h2>Crowdsourced road condition intelligence</h2>
+    <div class="grid-2">
+      <div class="stack">
+        <p>The single biggest data gap in VIGIA today is live road condition. The NHAI RAMS portal (Pavement Condition Index, International Roughness Index) is credential-gated and not public. CAG audit reports provide sampled IRI data for audited stretches, but coverage is sparse and lagged by years.</p>
+        <p>The DePIN (Decentralised Physical Infrastructure Network) architecture addresses this with a crowdsourced telemetry layer. Every user's smartphone becomes a road condition sensor. The VIGIA app records the Z-axis accelerometer while driving. Vertical acceleration spikes above the 1.5g threshold (already implemented in the Telemetry Agent) are classified as anomaly events and geo-tagged to the road segment via OpenStreetMap reverse geocoding.</p>
+        <p>Aggregated across commuters, this produces a real-time road roughness map with coverage that scales with traffic, not government budget.</p>
+        <p>The Telemetry Agent in the current build already implements this data model end-to-end — the DePIN network is the supply-side infrastructure that replaces prototype values with real crowdsourced data.</p>
+      </div>
+      <div class="stack">
+        <div class="card">
+          <div class="card-header">Telemetry data pipeline</div>
+          <div class="card-body">
+            <div class="depin-step"><div class="depin-label">Capture</div><div class="depin-desc">Phone IMU (Z-axis accelerometer) + GPS from browser geolocation API</div></div>
+            <div class="depin-step"><div class="depin-label">Anomaly detection</div><div class="depin-desc">Vertical acceleration spikes above 1.5g threshold classified as road anomaly events</div></div>
+            <div class="depin-step"><div class="depin-label">Geo-coding</div><div class="depin-desc">Map GPS to road segment via OSM Overpass API (Gati Shakti tool)</div></div>
+            <div class="depin-step"><div class="depin-label">Aggregation</div><div class="depin-desc">Cluster anomaly events per 200m road segment</div></div>
+            <div class="depin-step"><div class="depin-label">IRI approximation</div><div class="depin-desc">Anomaly count + max acceleration → roughness index proxy</div></div>
+            <div class="depin-step"><div class="depin-label">Incentive layer</div><div class="depin-desc">Token rewards per verified segment contribution (planned)</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">Why DePIN over government data</div>
+          <div class="card-body stack">
+            <p><strong>NHAI RAMS:</strong> Updated quarterly, credential-gated, sparse on rural roads.</p>
+            <p><strong>DePIN:</strong> Updated continuously, permissionless, coverage scales with traffic density.</p>
+            <p>Every commuter on a road contributes condition data without any dedicated survey vehicle or government access requirement.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="img-placeholder" style="height: 180px; margin-top: 16px;">
+      INSERT DIAGRAM: DePIN telemetry heatmap — anomaly density per road segment overlaid on India road network
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ══ 08 VOICE ═══════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">08 — Multilingual Voice Interface</div>
+    <h2>13 Indian language locales, script-aware detection</h2>
+    <div class="grid-2">
+      <div class="stack">
+        <p>Infrastructure complaints are not an English-speaking problem. A farmer on a PMGSY road in Odisha and a truck driver on NH-44 in Tamil Nadu are equally affected — and equally unable to navigate government portals that assume literacy in a specific language.</p>
+        <p>VIGIA's voice pipeline accepts audio in any supported language, auto-detects the locale, processes the query in that language, and speaks the response back using Azure Neural Voices. The system prompt is adapted to the detected language so the LLM reasons and responds in the user's language throughout.</p>
+        <p>Language detection uses a two-pass approach: Unicode script range matching (Devanagari, Tamil script, Malayalam script, etc.) for text inputs, and Azure Cognitive Services automatic language identification for audio across all 13 locales simultaneously.</p>
+      </div>
+      <div>
+        <table>
+          <tr><th>Locale</th><th>Language</th><th>Azure Neural Voice</th></tr>
+          <tr><td>en-IN</td><td>English</td><td>NeerjaNeural</td></tr>
+          <tr><td>hi-IN</td><td>Hindi</td><td>SwaraNeural</td></tr>
+          <tr><td>ta-IN</td><td>Tamil</td><td>PallaviNeural</td></tr>
+          <tr><td>te-IN</td><td>Telugu</td><td>ShrutiNeural</td></tr>
+          <tr><td>mr-IN</td><td>Marathi</td><td>AarohiNeural</td></tr>
+          <tr><td>bn-IN</td><td>Bengali</td><td>TanishaaNeural</td></tr>
+          <tr><td>kn-IN</td><td>Kannada</td><td>SapnaNeural</td></tr>
+          <tr><td>ml-IN</td><td>Malayalam</td><td>SobhanaNeural</td></tr>
+          <tr><td>pa-IN</td><td>Punjabi</td><td>VaaniNeural</td></tr>
+          <tr><td>gu-IN</td><td>Gujarati</td><td>DhwaniNeural</td></tr>
+          <tr><td>or-IN</td><td>Odia</td><td>SubhasiniNeural</td></tr>
+          <tr><td>ur-IN</td><td>Urdu</td><td>GulNeural</td></tr>
+          <tr><td>as-IN</td><td>Assamese</td><td>STT only — no Azure TTS voice</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ══ 09 OFFLINE ═════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">09 — Offline-First Architecture</div>
+    <h2>Designed for intermittent connectivity</h2>
+    <div class="grid-2">
+      <div class="stack">
+        <p>The citizens VIGIA serves are not always on a reliable connection. Rural roads, remote districts, and poor network areas create connectivity gaps. VIGIA's data layer is built offline-first: every message is persisted locally to IndexedDB before a network call is attempted.</p>
+        <p>The Dexie schema (v2) maintains a full conversation history with sync status per message. When the user goes offline mid-session, their query is queued as "pending" and re-submitted automatically when connectivity returns — without a page reload.</p>
+        <p>For areas with persistent low connectivity, VIGIA syncs geofenced SQLite tiles from a CDN. Each tile covers a ~40 km geohash cell (precision 4, as coded in <code>lib/edge/sync.ts</code>) and contains road segment data, PWD contact records, and emergency helplines. Queries against this data resolve entirely on-device using sql.js WASM.</p>
+      </div>
+      <div class="stack">
+        <div class="card">
+          <div class="card-header">Offline data model (IndexedDB / Dexie v2)</div>
+          <div class="card-body">
+            <table>
+              <tr><th>Store</th><th>Purpose</th></tr>
+              <tr><td>threads</td><td>Conversation-level records</td></tr>
+              <tr><td>messages</td><td>Turn-level with syncStatus (pending/synced)</td></tr>
+              <tr><td>evidence</td><td>Staged sources for offline view</td></tr>
+              <tr><td>settings</td><td>App state and migration flags</td></tr>
+            </table>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">PWA capabilities</div>
+          <div class="card-body stack">
+            <p>Installable — web app manifest with 192px and 512px icons</p>
+            <p>Standalone display mode — full-screen app experience</p>
+            <p>Workbox precaching — all static assets and app shell</p>
+            <p>CacheFirst for fonts and static chunks (30-day TTL)</p>
+            <p>StaleWhileRevalidate for images (24-hour TTL)</p>
+            <p>App shortcuts — New Search, History</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ══ 10 AWS ══════════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">10 — AWS Ingestion Pipeline</div>
+    <h2>Dual-track automated ETL from government sources</h2>
+    <p>Knowledge freshness is not optional for an audit tool. VIGIA runs a daily automated pipeline provisioned entirely with AWS CDK that refreshes the knowledge base without manual intervention.</p>
+
+    <div class="grid-2" style="margin-top: 16px;">
+      <div class="card">
+        <div class="card-header">Track A — PDF Ingestion</div>
+        <div class="card-body">
+          <div class="depin-step"><div class="depin-label" style="width: 160px;">EventBridge CRON</div><div class="depin-desc">Daily trigger</div></div>
+          <div class="depin-step"><div class="depin-label" style="width: 160px;">pdf-scraper Lambda (512MB)</div><div class="depin-desc">Downloads new PDFs from NHAI/MoRTH, deduplicates via DynamoDB SHA-256 hash table</div></div>
+          <div class="depin-step"><div class="depin-label" style="width: 160px;">S3 raw-documents</div><div class="depin-desc">Stores original PDFs with 90-day lifecycle rule</div></div>
+          <div class="depin-step"><div class="depin-label" style="width: 160px;">pdf-parser Lambda (2GB, 10min)</div><div class="depin-desc">Semantic chunking, Titan Embed v2 generation, pgvector upsert</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">Track B — API Ingestion</div>
+        <div class="card-body">
+          <div class="depin-step"><div class="depin-label" style="width: 160px;">EventBridge CRON</div><div class="depin-desc">Daily trigger</div></div>
+          <div class="depin-step"><div class="depin-label" style="width: 160px;">api-etl Lambda (256MB)</div><div class="depin-desc">Fetches structured data from Data.gov.in and PMGSY OMMAS portal</div></div>
+          <div class="depin-step"><div class="depin-label" style="width: 160px;">S3 structured-data</div><div class="depin-desc">Stores JSONL output for audit trail</div></div>
+          <div class="depin-step"><div class="depin-label" style="width: 160px;">Embed + upsert</div><div class="depin-desc">Titan Embed v2 → pgvector, same schema as Track A</div></div>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin-top: 24px;">Cost profile at hackathon scale (~500 queries/day)</h3>
+    <table style="margin-top: 8px;">
+      <tr><th>Service</th><th>Configuration</th><th>Monthly Est.</th></tr>
+      <tr><td>Bedrock Nova Lite</td><td>~30,000 invocations/mo, ~800 input + 400 output tokens avg</td><td>$4.32</td></tr>
+      <tr><td>Bedrock Nova Pro</td><td>~1,500 personnel queries/mo</td><td>$3.60</td></tr>
+      <tr><td>Titan Embed v2</td><td>~17,500 embeddings/mo</td><td>$0.10</td></tr>
+      <tr><td>RDS PostgreSQL + pgvector</td><td>db.t4g.micro, single-AZ, 20GB (CDK: InstanceSize.MICRO)</td><td>~$15–20</td></tr>
+      <tr><td>Lambda (all functions)</td><td>retrieval-proxy + pdf-scraper + pdf-parser + api-etl</td><td>$0.36</td></tr>
+      <tr><td>S3, DynamoDB, EventBridge</td><td>Storage and scheduling</td><td>$0.16</td></tr>
+      <tr><td><strong>Total (without NAT GW)</strong></td><td>Bedrock + Lambda + S3 + DynamoDB + RDS t4g.micro</td><td><strong>~$25–35/mo</strong></td></tr>
+    </table>
+    <p style="margin-top: 8px; font-size: 11px; color: #9ca3af;">Bedrock and Titan Embed figures sourced from docs/aws_costs.md. RDS cost reflects the CDK-provisioned t4g.micro instance.</p>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ══ 11 DATA SOURCES ════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">11 — Data Sources &amp; Coverage</div>
+    <h2>Publicly available government documents, automated ingestion</h2>
+    <p>Every fact VIGIA surfaces is traceable to a public government document. There is no proprietary data, no scraping behind authentication, and no synthetic generation of factual claims.</p>
+
+    <table style="margin-top: 12px;">
+      <tr><th>Source</th><th>Key Fields</th><th>Coverage</th></tr>
+      <tr><td>NHAI Awarded Projects (FY22–25)</td><td>Road, lanes, concessionaire, cost, mode (HAM/EPC/BOT)</td><td>100% on contracts</td></tr>
+      <tr><td>NHAI Financial Progress</td><td>Sanctioned vs. actual expenditure, physical progress %</td><td>95% cost / 60% expenditure</td></tr>
+      <tr><td>NHAI O&amp;M / PBMC Contracts</td><td>Maintenance responsibility, contractor, start date</td><td>80%</td></tr>
+      <tr><td>NHAI Periodic Renewal Sanctions</td><td>Resurfacing sanction dates and costs</td><td>40% last-maintained date</td></tr>
+      <tr><td>NHAI TOT Bundle Status</td><td>20-year O&amp;M obligations, concession value</td><td>Key bundles</td></tr>
+      <tr><td>MoRTH Annual Report 2024-25</td><td>Scheme-wise budget: Bharatmala, NHDP, SARDP-NE</td><td>Macro-level</td></tr>
+      <tr><td>PMGSY OMMAS Portal</td><td>Rural road data — district, contractor, cost, status</td><td>District-level</td></tr>
+      <tr><td>State PWD Directories</td><td>Officer names, phones, emails, divisions</td><td>Maharashtra, Telangana</td></tr>
+      <tr><td>Government Authority Matrix</td><td>Complaint routing, RTI filing per road class (NH/SH/MDR/PMGSY)</td><td>All road classes</td></tr>
+      <tr><td>NH-44 Structured Data</td><td>10 sections — contractor, budget, TOT details, arbitration records</td><td>Full case study</td></tr>
+    </table>
+
+    <div style="margin-top: 16px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
+      <div class="stat"><div class="stat-value">100%</div><div class="stat-label">Road type coverage (NHAI)</div></div>
+      <div class="stat" style="border-color: #fbbf24;"><div class="stat-value" style="color: #b45309;">0%</div><div class="stat-label">PCI / IRI condition data</div></div>
+      <div class="stat"><div class="stat-value">80%</div><div class="stat-label">Maintenance responsibility</div></div>
+    </div>
+    <p style="margin-top: 10px; font-size: 11px; color: #9ca3af;">The 0% PCI/IRI coverage is the most significant gap — NHAI RAMS data requires institutional credentials. The RTI filing path (30 days, ₹10 fee) is the current acquisition route. DePIN telemetry addresses this independently of government access.</p>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ══ 12 INNOVATIONS ═════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">12 — Key Innovations</div>
+    <h2>What makes VIGIA different</h2>
+    <div class="grid-2" style="gap: 12px;">
+      <div class="ah-item" style="align-items: flex-start; flex-direction: column;">
+        <div class="ah-title">CRAG on government PDFs</div>
+        <div class="ah-body">Corrective RAG with a confidence threshold gate is unusual in civic tech. Most RAG systems return whatever they retrieve. VIGIA refuses to answer rather than hallucinate — and has a deterministic fallback (the Authority Matrix) when retrieval fails.</div>
+      </div>
+      <div class="ah-item" style="align-items: flex-start; flex-direction: column;">
+        <div class="ah-title">ReWOO plan-and-execute for multi-hop queries</div>
+        <div class="ah-body">A query like "Who is the executive engineer for the NH-48 stretch in Pune?" requires two retrieval hops: find the district from NHAI data, then look up the PWD officer for that district. ReWOO plans this as a typed DAG before executing, with result injection between steps — no intermediate LLM calls.</div>
+      </div>
+      <div class="ah-item" style="align-items: flex-start; flex-direction: column;">
+        <div class="ah-title">Multi-modal evidence corroboration</div>
+        <div class="ah-body">VIGIA cross-checks evidence from different modalities — documentary (official PDFs), visual (citizen photo, VLM-assessed to iRAP standard), and physical (GPS + IMU telemetry) — and flags contradictions as a first-class finding rather than ignoring them.</div>
+      </div>
+      <div class="ah-item" style="align-items: flex-start; flex-direction: column;">
+        <div class="ah-title">Offline-first civic AI</div>
+        <div class="ah-body">Civic AI tools that assume reliable connectivity exclude the rural populations who need them most. VIGIA's IndexedDB persistence, PWA caching, and geofenced SQLite sync via CDN tiles give degraded but functional access in areas with intermittent or no connectivity.</div>
+      </div>
+      <div class="ah-item" style="align-items: flex-start; flex-direction: column;">
+        <div class="ah-title">DePIN for public infrastructure monitoring</div>
+        <div class="ah-body">Applying decentralised physical infrastructure network principles to government road monitoring is novel. Rather than lobbying for access to NHAI RAMS, VIGIA builds a parallel sensor network from citizen smartphones — with token incentives for data contribution, and a pipeline already built to consume it.</div>
+      </div>
+      <div class="ah-item" style="align-items: flex-start; flex-direction: column;">
+        <div class="ah-title">Streaming pipeline trace in the UI</div>
+        <div class="ah-body">Each graph node emits a real-time progress step streamed to the client: "Classifying intent... Searching 2 sources... Contradiction found — rewriting query... Validating new evidence... Generating response." The user always knows what the system is doing and why it takes time.</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- ══ 13 ROADMAP ═════════════════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label">13 — Roadmap</div>
+    <h2>What comes next</h2>
+    <div class="grid-3">
+      <div>
+        <div class="roadmap-phase">Phase 2</div>
+        <div class="roadmap-title">Automated Complaint Filing</div>
+        <ul class="roadmap-items">
+          <li>Direct PGPortal API integration</li>
+          <li>Evidence packet generation (photo + location + responsible authority)</li>
+          <li>Complaint status tracking</li>
+          <li>Requires government partnership for API access</li>
+        </ul>
+      </div>
+      <div>
+        <div class="roadmap-phase">Phase 3</div>
+        <div class="roadmap-title">DePIN Network Launch</div>
+        <ul class="roadmap-items">
+          <li>Mobile app with background IMU recording</li>
+          <li>Incentive token design and distribution</li>
+          <li>Real-time roughness heatmap overlay</li>
+          <li>Gamified civic engagement</li>
+        </ul>
+      </div>
+      <div>
+        <div class="roadmap-phase">Phase 4</div>
+        <div class="roadmap-title">NHAI RAMS Integration</div>
+        <ul class="roadmap-items">
+          <li>Institutional MoU with NHAI</li>
+          <li>Direct PCI / IRI data access</li>
+          <li>Proactive maintenance alerts</li>
+          <li>Fills the 0% condition data gap</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ FOOTER ══════════════════════════════════════════════════════════════ -->
+  <div class="footer">
+    <div class="footer-left">
+      <div class="brand">VIGIA</div>
+      <div class="sub">Government Infrastructure Intelligence</div>
+    </div>
+    <div class="footer-right">
+      Next.js 16 · Amazon Bedrock · LangGraph · pgvector · AWS CDK<br>
+      May 2026 · Hackathon Technical Submission
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

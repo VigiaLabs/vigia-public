@@ -54,6 +54,7 @@ import { getMessageText } from '@/lib/voice/get-message-text';
 import { speakText, stopSpeaking } from '@/lib/voice/speak-text';
 import { stripMarkdown } from '@/lib/voice/strip-markdown';
 import { resolveVoiceLocale } from '@/lib/voice/locale';
+import { useSettings } from '@/lib/context/settings-context';
 import type { VoiceLocale } from '@/types/voice';
 
 type Props = { threadId?: string };
@@ -75,6 +76,9 @@ function notifyThreadsUpdated() {
 
 export function ChatShell({ threadId: initialThreadId }: Props) {
   const router = useRouter();
+  const { preferences } = useSettings();
+  const defaultLocale =
+    preferences.defaultLanguage === 'auto' ? null : preferences.defaultLanguage;
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(
@@ -173,7 +177,10 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     pipelineSteps,
   } = useVoiceChat({
     id: chatId,
-    speakResponses: false,
+    speakResponses: preferences.speakResponses,
+    defaultLocale,
+    autoDetectLanguage: preferences.autoDetectLanguage,
+    responseStyle: preferences.responseStyle,
     onVoiceError: (err) => setError(err.message),
     onBeforeSend: async ({ text, locale }) => {
       pendingVoiceTtsLocaleRef.current = locale;

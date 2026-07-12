@@ -11,6 +11,7 @@ import {
 import { speakText, stopSpeaking } from '@/lib/voice/speak-text';
 import { stripMarkdown } from '@/lib/voice/strip-markdown';
 import { transcribeVoiceBlob } from '@/lib/voice/transcribe-voice-blob';
+import type { ResponseStyle } from '@/lib/settings/types';
 import type { VoiceLocale } from '@/types/voice';
 
 export type VoiceChatMessage = {
@@ -29,16 +30,25 @@ export type UseVoiceChatOptions = {
   initialMessages?: UIMessage[];
   /** When true, assistant replies are spoken after voice-initiated turns. */
   speakResponses?: boolean;
+  /** Used when auto-detect is off or text detection is inconclusive. */
+  defaultLocale?: VoiceLocale | null;
+  autoDetectLanguage?: boolean;
+  responseStyle?: ResponseStyle;
   onVoiceError?: (error: Error) => void;
   /** Called with transcribed text and detected locale before the message is sent to chat. */
   onBeforeSend?: (turn: VoiceTurnContext) => void | Promise<void>;
   onFinish?: (message: UIMessage) => void | Promise<void>;
 };
 
-function buildLanguageRequestBody(locale: VoiceLocale | null) {
-  return locale
-    ? { responseLanguage: locale, voiceLocale: locale }
-    : { responseLanguage: null, voiceLocale: null };
+function buildChatRequestBody(
+  locale: VoiceLocale | null,
+  responseStyle?: ResponseStyle
+) {
+  return {
+    responseLanguage: locale,
+    voiceLocale: locale,
+    responseStyle,
+  };
 }
 
 /**
@@ -49,6 +59,9 @@ export function useVoiceChat({
   api = '/api/chat',
   initialMessages,
   speakResponses = true,
+  defaultLocale = null,
+  autoDetectLanguage = true,
+  responseStyle,
   onVoiceError,
   onBeforeSend,
   onFinish,
@@ -118,8 +131,11 @@ export function useVoiceChat({
       const text = message.text.trim();
       if (!text) return;
 
-      const locale =
-        resolveTurnLanguage(text, options?.locale)?.code ?? null;
+      const detected =
+        autoDetectLanguage || options?.locale
+          ? resolveTurnLanguage(text, options?.locale)?.code ?? null
+          : null;
+      const locale = detected ?? defaultLocale ?? null;
 
       turnLocaleRef.current = locale;
       flushSync(() => {
@@ -127,9 +143,11 @@ export function useVoiceChat({
         setPipelineSteps([]);
       });
 
-      await chat.sendMessage(message, { body: buildLanguageRequestBody(locale) });
+      await chat.sendMessage(message, {
+        body: buildChatRequestBody(locale, responseStyle),
+      });
     },
-    [chat.sendMessage]
+    [autoDetectLanguage, chat.sendMessage, defaultLocale, responseStyle]
   );
 
   const append = useCallback(
@@ -158,7 +176,7 @@ export function useVoiceChat({
 
         voiceTurnActiveRef.current = true;
         setPipelineSteps([]);
-        await chat.sendMessage({ text }, { body: buildLanguageRequestBody(locale) });
+        await chat.sendMessage({ text }, { body: buildChatRequestBody(locale, responseStyle) });
       } catch (error) {
         voiceTurnActiveRef.current = false;
         turnLocaleRef.current = null;
@@ -170,7 +188,7 @@ export function useVoiceChat({
         setIsProcessingVoice(false);
       }
     },
-    [chat.sendMessage, onBeforeSend, onVoiceError]
+    [chat.sendMessage, onBeforeSend, onVoiceError, responseStyle]
   );
 
   const clearVoiceError = useCallback(() => setVoiceError(null), []);
