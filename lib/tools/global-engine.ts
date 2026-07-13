@@ -35,7 +35,7 @@ export async function resolveCountry(lat: number, lng: number): Promise<CountryI
     );
     if (!res.ok) return { countryCode: 'UNKNOWN', countryName: 'Unknown', isIndia: false, source: 'nominatim' };
 
-    const data = await res.json();
+    const data = await res.json() as any;
     const code = (data.address?.country_code ?? 'unknown').toUpperCase();
     const name = data.address?.country ?? 'Unknown';
 
@@ -80,7 +80,7 @@ export async function queryOCDS(countryCode: string, keywords: string): Promise<
 
     if (!res.ok) return [];
 
-    const data = await res.json();
+    const data = await res.json() as any;
     const releases = data.releases ?? data.results ?? [];
 
     return releases.slice(0, 10).map((r: any) => ({
@@ -135,7 +135,7 @@ export async function queryWorldBank(countryCode: string): Promise<WorldBankResu
 
     if (!res.ok) return [];
 
-    const data = await res.json();
+    const data = await res.json() as any;
     const projects = data.projects ? Object.values(data.projects) as any[] : [];
 
     return projects.slice(0, 10).map((p: any) => ({

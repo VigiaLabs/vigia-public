@@ -36,7 +36,7 @@ export async function rerankChunks(
 
     if (!res.ok) return documents.slice(0, topK).map((_, i) => ({ index: i, relevanceScore: 1 }));
 
-    const data = await res.json();
+    const data = await res.json() as any;
     return (data.results as Array<{ index: number; relevance_score: number }>).map(r => ({
       index: r.index,
       relevanceScore: r.relevance_score,

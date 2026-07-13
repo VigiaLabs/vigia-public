@@ -13,11 +13,47 @@ function isCitizenClaim(evidence: NormalizedEvidence[]): boolean {
   return vision.citations.some((c) => c.trustLevel === 'citizen-claim');
 }
 
-function isDataVoid(evidence: NormalizedEvidence[]): boolean {
+/**
+ * Extract a canonical highway number (e.g. "NH 77" → "77", "SH-15" → "15")
+ * from free text. Returns null when no explicit road number is present.
+ */
+function extractRoadNumber(text: string): string | null {
+  // Match NH/SH/MDR optionally followed by separators, then digits + optional suffix (e.g. 340C, 205A)
+  const m = text.match(/\b(?:NH|SH|MDR)[\s-]*0*(\d+[A-Z]?)\b/i);
+  return m ? m[1].toUpperCase() : null;
+}
+
+/**
+ * Relevance gate: when the user asks about a specific road number, the
+ * retrieved evidence must actually mention that road. pgvector similarity
+ * happily returns "nearby" roads (NH 340C for an NH 77 query), and the
+ * admin agent can over-score them (cross-ref boost → 0.85). Without this
+ * check the synthesizer reports unrelated personnel as the answer.
+ */
+function isRoadMismatch(queryText: string, admin: NormalizedEvidence): boolean {
+  const queried = extractRoadNumber(queryText);
+  if (!queried) return false; // no specific road asked — nothing to verify
+
+  // Does any finding reference the queried road number?
+  const haystack = admin.findings.join(' ');
+  const found = new Set<string>();
+  for (const m of haystack.matchAll(/\b(?:NH|SH|MDR)[\s-]*0*(\d+[A-Z]?)\b/gi)) {
+    found.add(m[1].toUpperCase());
+  }
+
+  // If the evidence mentions road numbers but none match the query → mismatch.
+  // If the evidence mentions NO road numbers at all (e.g. pure authority data),
+  // don't treat it as a mismatch — let other checks decide.
+  if (found.size === 0) return false;
+  return !found.has(queried);
+}
+
+function isDataVoid(evidence: NormalizedEvidence[], queryText: string): boolean {
   const admin = evidence.findLast((e) => e.agentId === 'admin');
   if (!admin || admin.status === 'error' || admin.status === 'skipped') return true;
   if (admin.confidence < DATA_VOID_CONFIDENCE_THRESHOLD) return true;
   if (admin.findings.length === 0) return true;
+  if (isRoadMismatch(queryText, admin)) return true;
   return admin.findings.some((f) =>
     DATA_VOID_MARKERS.some((marker) => f.includes(marker))
   );
@@ -158,7 +194,7 @@ export async function guardrailNode(
   }
 
   // 2. Data Void detection
-  if (isDataVoid(state.evidence)) {
+  if (isDataVoid(state.evidence, state.payload.text ?? '')) {
     if (state.retryCount === 0) {
       const rewritten = await rewriteQuery(
         state.payload.text ?? '',

@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "outDir": "../dist/server",
+    "rootDir": "..",
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "noEmit": false,
+    "paths": {
+      "@/*": ["../*"]
+    }
+  },
+  "include": ["index.ts", "../lib/**/*.ts", "../data/**/*.json", "../types/**/*.ts"],
+  "exclude": [
+    "../node_modules",
+    "../app",
+    "../components",
+    "../scripts",
+    "../infrastructure",
+    "../lib/db/use-online-status.ts",
+    "../lib/edge/sync.ts",
+    "../lib/hooks/useNetworkStatus.ts",
+    "../lib/map/fetch-route-geometry.ts",
+    "../lib/voice/speak-text.ts",
+    "../lib/voice/transcribe-voice-blob.ts",
+    "../lib/db/offline-store.ts",
+    "../lib/db/sync.ts",
+    "../lib/db/types.ts",
+    "../lib/db.ts",
+    "../lib/chat/provider.tsx",
+    "../lib/context",
+    "../lib/transcribe-audio.ts",
+    "../types/chat.ts",
+    "../types/voice.ts"
+  ]
+}
