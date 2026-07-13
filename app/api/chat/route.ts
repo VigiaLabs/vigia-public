@@ -23,6 +23,7 @@ import { extractUIPayload } from '@/lib/agents/ui-hook';
 import { scoreFaithfulness } from '@/lib/agents/faithfulness';
 import type { Payload, VigiaState } from '@/lib/agents/state';
 import { getCachedResponse, setCachedResponse } from '@/lib/cache/semantic-cache';
+import { streamFromEngine } from '@/lib/search-engine/client';
 
 export const runtime = 'nodejs';
 
@@ -118,6 +119,56 @@ export async function POST(req: Request) {
         let pipelineContext = '';
         let evidenceAnnotation: Record<string, unknown> | null = null;
         let retrievedChunks: string[] = [];
+
+        // ─── External Engine Path (Fargate SSE) ──────────────────
+        if (process.env.VIGIA_ENGINE_URL) {
+          try {
+            const history = messages
+              .filter((m) => m.role === 'user' || m.role === 'assistant')
+              .slice(-6)
+              .map((m) => ({
+                role: m.role as string,
+                content: m.parts?.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text).join(' ') ?? '',
+              }));
+
+            // Stream tokens live as they arrive from the engine.
+            // text-start / text-end follow the exact ID pattern the AI SDK client expects.
+            const TEXT_ID = 'text-1';
+            let textStarted = false;
+
+            for await (const event of streamFromEngine({
+              query: queryText,
+              threadId: pipelinePayload.threadId,
+              messageId: pipelinePayload.messageId,
+              history,
+              responseLanguage: responseLanguage != null ? String(responseLanguage) : undefined,
+              responseStyle: responseStyle ?? undefined,
+            })) {
+              if (event.type === 'step') {
+                emitStep(event.step);
+              } else if (event.type === 'text-delta') {
+                if (!textStarted) {
+                  writer.write({ type: 'text-start', id: TEXT_ID } as any);
+                  textStarted = true;
+                }
+                writer.write({ type: 'text-delta', id: TEXT_ID, delta: event.delta } as any);
+              } else if (event.type === 'metadata') {
+                if (textStarted) {
+                  writer.write({ type: 'text-end', id: TEXT_ID } as any);
+                  textStarted = false;
+                }
+                writer.write({ type: 'message-metadata', messageMetadata: event.payload });
+              } else if (event.type === 'error') {
+                throw new Error(event.message);
+              }
+            }
+
+            if (textStarted) writer.write({ type: 'text-end', id: TEXT_ID } as any);
+            return;
+          } catch (err) {
+            console.error('Engine proxy failed, falling back to in-process pipeline:', err);
+          }
+        }
 
         try {
           // Node 1: Router
