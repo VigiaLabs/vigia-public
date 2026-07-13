@@ -1,6 +1,7 @@
 import type { NormalizedEvidence, DebugTraceEntry, VigiaState } from './state';
 import { rewriteQuery } from './rewriter';
 import authorityMatrix from '../../data/authority-matrix.json';
+import { describeIndexedCoverage, isContactOrRedressQuery } from '../data-coverage';
 
 const DATA_VOID_CONFIDENCE_THRESHOLD = 0.5;
 const DATA_VOID_MARKERS = ['No relevant data found', 'does not currently contain'];
@@ -54,6 +55,11 @@ function isDataVoid(evidence: NormalizedEvidence[], queryText: string): boolean 
   if (admin.confidence < DATA_VOID_CONFIDENCE_THRESHOLD) return true;
   if (admin.findings.length === 0) return true;
   if (isRoadMismatch(queryText, admin)) return true;
+  const asksForSanctionedCost = /\b(sanctioned|approved)\b.*\b(cost|budget|amount)\b|\b(cost|budget|amount)\b.*\b(sanctioned|approved)\b/i.test(queryText);
+  const onlyArbitrationFigures = admin.findings.length > 0 && admin.findings.every((finding) =>
+    /\barbitration\b/i.test(finding) || /not the sanctioned/i.test(finding)
+  );
+  if (asksForSanctionedCost && onlyArbitrationFigures) return true;
   return admin.findings.some((f) =>
     DATA_VOID_MARKERS.some((marker) => f.includes(marker))
   );
@@ -132,9 +138,19 @@ function buildAuthorityFallback(state: VigiaState): Partial<VigiaState> {
   const authorities = matrix?.authorities?.IN?.[roadType];
   const data = authorities?.[intent] ?? authorities?.complaint;
 
-  const findings = data
+  const queryText = state.payload.text ?? '';
+  const coverage = describeIndexedCoverage(queryText);
+  const shouldRouteToAuthority = isContactOrRedressQuery(state.intent, queryText);
+  const findings = !shouldRouteToAuthority
+    ? [
+        'This specific data is not available in the VIGIA index.',
+        coverage,
+        'VIGIA will not substitute an arbitration figure, a neighbouring jurisdiction, or an unrelated project for missing data.',
+      ]
+    : data
     ? [
         `VIGIA could not find specific data for your query in our indexed databases.`,
+        coverage,
         `For ${intent} matters on ${roadType} roads:`,
         `→ Primary Authority: ${data.primary}`,
         `→ Portal: ${data.portal}`,

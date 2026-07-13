@@ -46,6 +46,7 @@ const insertFTS = db.prepare(`
 const now = new Date().toISOString();
 
 const ingest = db.transaction(() => {
+  db.prepare('DELETE FROM nh44_projects').run();
   for (const s of sections) {
     // Insert into structured table
     insertProject.run(

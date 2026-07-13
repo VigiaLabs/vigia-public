@@ -10,7 +10,7 @@ This document maps VIGIASearch to the RoadWatch **Key Aspects** and **Evaluation
 > 2. **Geo-anchor gate** — a personnel query with no district/state anchor no longer surfaces a semi-random officer; it routes to the Authority Matrix fallback. `lib/agents/agents/admin.ts`, `lib/agents/guardrail.ts`.
 > 3. **Text-based global routing** — a foreign country/city named in text (no GPS) now routes to the World Bank / OCDS engine. `lib/tools/geo-resolve.ts`, `lib/agents/agents/admin.ts`.
 >
-> These live on branch `claude/infallible-wilbur-b3c5a9`. They are **not on the live Amplify URL until merged to `main`** and redeployed.
+> The latest retrieval and coverage fixes are in the current working tree. They are **not on the live Amplify URL until committed, pushed to `main`, and redeployed**.
 
 ---
 
@@ -106,7 +106,7 @@ Run these live. Each lists the query, what it exercises, and the expected behavi
 | # | Query | Exercises | Expected |
 |---|---|---|---|
 | A1 | `Who is the contractor for NH-44?` | Basic semantic retrieval + citation | Concessionaire name with an NHAI `legally-binding` citation. |
-| A2 | `Sanctioned cost of the Panipat–Jalandhar section of NH-44` | Structured cost field | ₹ figure + Project Overview, sanctioned (not "spent"). |
+| A2 | `Sanctioned cost of the Panipat–Jalandhar section of NH-44` | Structured cost field + scope guard | Explicit data-void/coverage response. The index contains a minor-bridge asset and arbitration records, but no verified sanctioned cost for the whole section; neither may be substituted. |
 | A3 | `PMGSY rural roads in Khammam district` | PMGSY source + paraphrase robustness | Rural road records via semantic match (no keyword trigger needed). |
 
 ### B. Multi-hop / cross-source (the hardest class)

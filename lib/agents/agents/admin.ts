@@ -167,18 +167,48 @@ export async function runAdminAgent(
     switch (intent) {
       case 'complaint': {
         const result = await getComplaintAuthority(roadType, state);
+        const findings = [
+          `Complaint authority: ${result.name}`,
+          `Jurisdiction: ${result.jurisdiction}`,
+          `Portal: ${result.complaintPortal}`,
+          result.phone ? `Helpline: ${result.phone}` : null,
+          `Escalation: ${result.escalationAuthority}`,
+        ].filter(Boolean) as string[];
+        const citations: NormalizedEvidence['citations'] = [{
+          sourceId: 'complaint-authority',
+          label: result.source,
+          url: result.sourceUrl,
+          trustLevel: 'official-portal',
+        }];
+
+        const asksForProjectData = /\b(sanctioned|approved|budget|cost|spent|expenditure|contractor|concessionaire)\b/i.test(text);
+        if (asksForProjectData) {
+          const { searchUnified, getTrustLevel } = await import('../../tools/search-unified');
+          const seenProjectEvidence = new Set<string>();
+          const projectResults = (await searchUnified(text, 8)).filter((item) => {
+            if (item.sourceType === 'pwd_contact' || item.similarity < 0.4) return false;
+            const key = item.chunkText.slice(0, 120);
+            if (seenProjectEvidence.has(key)) return false;
+            seenProjectEvidence.add(key);
+            return true;
+          });
+          findings.push(...projectResults.map((item) => item.chunkText));
+          citations.push(...projectResults.map((item, index) => ({
+            sourceId: `${item.sourceType}-${index}`,
+            label: buildCitationLabel(item, index),
+            url: typeof item.metadata?.source_url === 'string'
+              ? item.metadata.source_url
+              : getDefaultSourceUrl(item.sourceType),
+            trustLevel: getTrustLevel(item.sourceType),
+          })));
+        }
+
         return {
           agentId: 'admin',
           status: 'completed',
           confidence: 0.95,
-          findings: [
-            `Complaint authority: ${result.name}`,
-            `Jurisdiction: ${result.jurisdiction}`,
-            `Portal: ${result.complaintPortal}`,
-            result.phone ? `Helpline: ${result.phone}` : null,
-            `Escalation: ${result.escalationAuthority}`,
-          ].filter(Boolean) as string[],
-          citations: [{ sourceId: 'complaint-authority', label: result.source, url: result.sourceUrl, trustLevel: 'official-portal' }],
+          findings,
+          citations,
           metadata: { ...result } as unknown as Record<string, unknown>,
           latencyMs: Date.now() - start,
         };

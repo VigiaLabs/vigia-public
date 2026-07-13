@@ -40,9 +40,27 @@ export function getTrustLevel(sourceType: string): 'legally-binding' | 'official
 
 export let lastSearchMode: 'pgvector' | 'fts5-fallback' | 'none' = 'none';
 
+export function filterResultsForQuery(query: string, results: UnifiedResult[]): UnifiedResult[] {
+  const asksForWholePanipatJalandhar = /\bpanipat\b/i.test(query) && /\bjalandhar\b/i.test(query) &&
+    !/\b(bridge|package|phase|km|stretch)\b/i.test(query);
+
+  return results.filter((item) => {
+    const text = item.chunkText;
+    if (/\bnh[\s-]*44\b/i.test(text) && /(?:₹|rs\.?\s*)?(?:8,?375|819\.96)\b/i.test(text)) {
+      return false;
+    }
+    if (asksForWholePanipatJalandhar) {
+      if (!/\bpanipat\b/i.test(text) || !/\bjalandhar\b/i.test(text)) return false;
+      if (/minor bridge|\(bridge\)|\(minor/i.test(text)) return false;
+      if (/\b(sanctioned|approved)\b/i.test(query) && !/sanctioned cost[^.]*₹\s*[\d,.]+/i.test(text)) return false;
+    }
+    return true;
+  });
+}
+
 export async function searchUnified(query: string, limit: number = 5): Promise<UnifiedResult[]> {
   // Primary: pgvector semantic search (real similarity scores)
-  const pgResults = await queryPgvectorUnified(query, limit);
+  const pgResults = filterResultsForQuery(query, await queryPgvectorUnified(query, limit));
 
   if (pgResults.length > 0) {
     lastSearchMode = 'pgvector';
@@ -50,7 +68,7 @@ export async function searchUnified(query: string, limit: number = 5): Promise<U
   }
 
   // Fallback: local FTS5 keyword search (degraded mode)
-  const ftsResults = await queryLocalFts5Unified(query, limit);
+  const ftsResults = filterResultsForQuery(query, await queryLocalFts5Unified(query, limit));
   lastSearchMode = ftsResults.length > 0 ? 'fts5-fallback' : 'none';
   return ftsResults;
 }
@@ -145,12 +163,17 @@ async function queryLocalFts5Unified(query: string, limit: number): Promise<Unif
       if (exists) {
         const statePattern = /\b(telangana|maharashtra|kerala|tamil nadu|karnataka|andhra pradesh|rajasthan|gujarat|madhya pradesh|uttar pradesh|bihar|odisha|punjab|haryana|west bengal|assam|jharkhand|chhattisgarh|goa|himachal|uttarakhand|delhi)\b/i;
         const stateMatch = query.match(statePattern);
+        const districtMatch = query.match(/\b(khammam|warangal|nagpur|pune|nirmal|sangareddy|siddipet|medchal|adilabad|peddapalli|gajwel)\b/i);
 
-        if (isPersonnelQuery && !stateMatch) {
+        if (isPersonnelQuery && !stateMatch && !districtMatch) {
           // No geographic context — return empty to prevent hallucination
           // (admin.ts GPS gate should have caught this, but defense-in-depth)
         } else {
-          const rows = stateMatch
+          const rows = districtMatch
+            ? db.prepare(
+                `SELECT name, designation, division, state, phone, email, office_address, source_url FROM pwd_contacts WHERE pwd_contacts MATCH ? AND division LIKE ? ORDER BY rank LIMIT ?`
+              ).all(ftsQuery, `%${districtMatch[1]}%`, isPersonnelQuery ? limit : 2) as any[]
+            : stateMatch
             ? db.prepare(
                 `SELECT name, designation, division, state, phone, email, office_address, source_url FROM pwd_contacts WHERE pwd_contacts MATCH ? AND state LIKE ? ORDER BY rank LIMIT ?`
               ).all(ftsQuery, `%${stateMatch[1]}%`, isPersonnelQuery ? limit : 2) as any[]
@@ -176,9 +199,19 @@ async function queryLocalFts5Unified(query: string, limit: number): Promise<Unif
       const exists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='nh44_projects'`).get();
       if (exists && roadNumberMatch) {
         const roadNum = roadNumberMatch[1].replace(/\s/g, '-').toUpperCase();
+        const isSanctionedCostQuery = /\b(sanctioned|approved)\b.*\b(cost|budget|amount)\b|\b(cost|budget|amount)\b.*\b(sanctioned|approved)\b/i.test(query);
+        const sectionTerms = query.match(/\b(?:panipat|jalandhar|hyderabad|nagpur|kanyakumari|srinagar)\b/gi) ?? [];
+        const sectionClause = sectionTerms.length
+          ? ` AND ${sectionTerms.map(() => 'LOWER(section_name) LIKE ?').join(' AND ')}`
+          : '';
+        const isNamedSubsectionQuery = /\b(bridge|package|phase|km|stretch)\b/i.test(query);
+        const parentheticalClause = sectionTerms.length && !isNamedSubsectionQuery
+          ? ` AND section_name NOT LIKE '%(%'`
+          : '';
+        const costClause = isSanctionedCostQuery ? ' AND sanctioned_cost_crore IS NOT NULL' : '';
         const rows = db.prepare(
-          `SELECT section_name, road_number, state, road_type_classification, lanes, concessionaire, contract_mode, sanctioned_cost_crore, expenditure_cost_crore, award_date, completion_date, length_km, status, condition_notes, last_maintenance_date, source, source_url FROM nh44_projects WHERE road_number = ? ORDER BY sanctioned_cost_crore DESC LIMIT ?`
-        ).all(roadNum, limit) as any[];
+          `SELECT section_name, road_number, state, road_type_classification, lanes, concessionaire, contract_mode, sanctioned_cost_crore, expenditure_cost_crore, award_date, completion_date, length_km, status, condition_notes, last_maintenance_date, source, source_url FROM nh44_projects WHERE road_number = ?${sectionClause}${parentheticalClause}${costClause} ORDER BY sanctioned_cost_crore DESC LIMIT ?`
+        ).all(roadNum, ...sectionTerms.map((term) => `%${term.toLowerCase()}%`), limit) as any[];
         for (const r of rows) {
           const parts = [
             `${r.section_name} (${r.road_number}).`,

@@ -3,7 +3,7 @@
  * Each tool filters by sourceType at the DB level for targeted retrieval.
  */
 
-import type { UnifiedResult } from './search-unified';
+import { filterResultsForQuery, type UnifiedResult } from './search-unified';
 import { extractIndiaGeo, type IndiaGeo } from './geo-resolve';
 
 async function queryPgvectorFiltered(
@@ -46,7 +46,12 @@ async function queryPgvectorFiltered(
 }
 
 export async function searchNHAI(query: string, limit = 8): Promise<UnifiedResult[]> {
-  return queryPgvectorFiltered(query, limit, 'nhai_contract');
+  const results = filterResultsForQuery(query, await queryPgvectorFiltered(query, limit, 'nhai_contract'));
+  if (results.length > 0) return results;
+  const { searchUnified } = await import('./search-unified');
+  return (await searchUnified(query, limit * 2))
+    .filter((item) => item.sourceType === 'nhai_contract')
+    .slice(0, limit);
 }
 
 /**
@@ -79,7 +84,12 @@ export async function searchPWD(
   if (!anchor.district && !anchor.state) return [];
 
   // Over-fetch so post-filtering has candidates to choose from.
-  const raw = await queryPgvectorFiltered(query, Math.max(limit * 3, 15), 'pwd_contact');
+  let raw = await queryPgvectorFiltered(query, Math.max(limit * 3, 15), 'pwd_contact');
+  if (raw.length === 0) {
+    const { searchUnified } = await import('./search-unified');
+    raw = (await searchUnified(query, Math.max(limit * 3, 15)))
+      .filter((item) => item.sourceType === 'pwd_contact');
+  }
   if (raw.length === 0) return [];
 
   const norm = (s?: string | null) => (s ?? '').toLowerCase().trim();
@@ -107,7 +117,12 @@ export async function searchPWD(
 }
 
 export async function searchPMGSY(query: string, limit = 8): Promise<UnifiedResult[]> {
-  return queryPgvectorFiltered(query, limit, 'pmgsy_road');
+  const results = await queryPgvectorFiltered(query, limit, 'pmgsy_road');
+  if (results.length > 0) return results;
+  const { searchUnified } = await import('./search-unified');
+  return (await searchUnified(query, limit * 2))
+    .filter((item) => item.sourceType === 'pmgsy_road')
+    .slice(0, limit);
 }
 
 export async function searchAll(query: string, limit = 8): Promise<UnifiedResult[]> {

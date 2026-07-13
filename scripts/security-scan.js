@@ -60,7 +60,7 @@ function getTrackedFiles() {
 }
 
 function scanFile(filePath) {
-  if (shouldSkipFile(filePath)) return [];
+  if (shouldSkipFile(filePath) || !fs.existsSync(filePath)) return [];
 
   const raw = fs.readFileSync(filePath);
   const content = raw.toString('utf8');
