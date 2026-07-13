@@ -16,7 +16,7 @@
       "@/*": ["../*"]
     }
   },
-  "include": ["index.ts", "../lib/**/*.ts", "../data/**/*.json", "../types/**/*.ts"],
+  "include": ["index.ts", "../data/**/*.json", "../types/**/*.ts"],
   "exclude": [
     "../node_modules",
     "../app",
