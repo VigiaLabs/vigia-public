@@ -1,5 +1,5 @@
 import { generateObject } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
+import { bedrock } from '@/lib/agents/bedrock-provider';
 import { z } from 'zod';
 import type { NormalizedEvidence, Payload, VigiaState } from '../state';
 import { getRoadInfoByCoordinates } from '../../tools/gati-shakti';

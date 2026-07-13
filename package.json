@@ -9,7 +9,10 @@
     "lint": "eslint",
     "security:scan": "node scripts/security-scan.js",
     "security:audit": "npm audit",
-    "security:hooks": "git config core.hooksPath .githooks"
+    "security:hooks": "git config core.hooksPath .githooks",
+    "server:dev": "ts-node --project server/tsconfig.json -r tsconfig-paths/register server/index.ts",
+    "server:build": "tsc -p server/tsconfig.json && tsc-alias -p server/tsconfig.json",
+    "server:start": "node dist/server/server/index.js"
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^4.0.107",
@@ -30,6 +33,7 @@
     "better-sqlite3": "^11.7.0",
     "clsx": "^2.1.1",
     "dexie": "^4.4.2",
+    "express": "^4.22.2",
     "framer-motion": "^12.39.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.468.0",
@@ -47,13 +51,21 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^7.6.12",
+    "@types/express": "^4.17.25",
     "@types/next-pwa": "^5.6.9",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "aws-cdk": "^2.180.0",
+    "aws-cdk-lib": "^2.180.0",
+    "constructs": "^10.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "source-map-support": "^0.5.21",
     "tailwindcss": "^4",
+    "ts-node": "^10.9.2",
+    "tsc-alias": "^1.8.17",
+    "tsconfig-paths": "^4.2.0",
     "typescript": "^5"
   }
 }

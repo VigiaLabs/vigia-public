@@ -32,7 +32,7 @@ export async function getRoadInfoByCoordinates(
       body: params.toString(),
     });
 
-    const data = await response.json();
+    const data = await response.json() as any;
 
     if (!data.elements || data.elements.length === 0) {
       return {
@@ -130,7 +130,7 @@ export async function getStatesForRoad(roadNumber: string): Promise<string[]> {
       signal: AbortSignal.timeout(10000),
     });
 
-    const data = await response.json();
+    const data = await response.json() as any;
     if (!data.elements?.length) return [];
 
     const states = new Set<string>();
