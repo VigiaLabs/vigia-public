@@ -165,16 +165,28 @@ Run these live. Each lists the query, what it exercises, and the expected behavi
 2. Grant **location** permission.
 3. Open DevTools → **Network** → set throttling to **Offline**.
 4. Ask `Emergency and PWD contacts near me`.
-5. **Expected:** the app detects offline within ≤15s (`useNetworkStatus`), switches to the edge tier, and returns emergency contacts + PWD helpline numbers for your geohash with an "OFFLINE MODE — cached data" banner. A GPS fix is required (the lookup is geohash-based).
+5. **Expected:** the app detects offline within ≤15s (`useNetworkStatus`), shows the versioned pack and last-sync state, and returns national emergency channels plus any matching source-linked authority contacts. National contacts do not require a GPS fix.
 6. Set throttling back to **Online**; the next query uses the full cloud pipeline.
 
-> Note: the full offline tier depends on `data/vigia_edge.db` being present/synced; without it, offline mode reports "sync required." The detection, degraded-mode fallback, and partial-answer persistence work regardless.
+> Note: V2 bundles `public/offline/vigia-edge-national.db.gz`; the first online visit installs it into IndexedDB. The app never claims that a queued report was filed with an authority.
 
 ---
 
 ## 5. Known limitations (stated honestly for judges)
 
 - **Per-km live condition (PCI/IRI)** is ~0% coverage — it lives behind NHAI's credentialed RAMS portal. We infer maintenance timelines from contract DLP clauses instead of claiming live condition data.
-- **Actual expenditure** is frequently unpublished; we surface **sanctioned** cost and say so.
+- **Actual expenditure** is frequently unpublished. VIGIA shows expenditure only when the source explicitly labels an expenditure/payment field; sanctioned cost is displayed separately and is never substituted.
 - **Reranking** (Cohere Rerank v3) and **response caching** (Upstash Redis) are implemented and wired behind `COHERE_API_KEY` / `UPSTASH_REDIS_REST_URL`; they activate when those env vars are set and degrade gracefully otherwise.
 - **Faithfulness scoring** is a post-hoc observability signal attached to metadata, not a pre-delivery filter — the hard guarantees come from retrieval grading and the strict synthesis prompt.
+
+---
+
+## 6. V2 automated release gate
+
+Run `npm run test:v2` before every deployment. It rebuilds the versioned offline SQLite pack and rejects missing source URLs/quotes, semantic field substitutions, missing golden failure classes, mismatched pack versions, and absent evidence-state UI labels.
+
+Run `npm run release:verify:v2` when internet access is available. It repeats the deterministic checks and verifies that every top-level authoritative source is reachable over HTTPS.
+
+Android V2 verification is separate: run `./gradlew :core:network:test :feature:copilot:test :app:assembleDemoDebug` in the Android repository. This validates SSE claim/offline metadata parsing, Copilot state handling, and produces the demo APK.
+
+For offline manual verification, load the site once online, confirm the banner shows pack `2026.07.15`, then switch DevTools to Offline. `What emergency road helplines are cached offline?` must show only source-linked cached records. `Report this pothole` must say it is queued locally and must **not** claim that any authority was notified. Restore connectivity and confirm the queued count returns to zero after analysis synchronizes.

@@ -7,6 +7,7 @@ import { getRTIAuthority } from '../../tools/rti-lookup';
 import { getComplaintAuthority } from '../../tools/complaint-routing';
 import { resolveCountry, queryInternational } from '../../tools/global-engine';
 import { detectForeignCountry } from '../../tools/geo-resolve';
+import { getEmargSnapshotMetadata, parseEmargDate, queryEmargRoads } from '../../tools/emarg';
 
 const DEFAULT_SOURCE_URLS: Record<string, string> = {
   nhai_contract: 'https://nhai.gov.in/nhai/sites/default/files/mix_file/awarded_year_22_23_0.pdf',
@@ -17,6 +18,11 @@ const DEFAULT_SOURCE_URLS: Record<string, string> = {
 
 function getDefaultSourceUrl(sourceType: string): string {
   return DEFAULT_SOURCE_URLS[sourceType] ?? 'https://nhai.gov.in';
+}
+
+function metadataString(metadata: Record<string, unknown> | null | undefined, key: string): string | undefined {
+  const value = metadata?.[key];
+  return typeof value === 'string' ? value : undefined;
 }
 
 function buildCitationLabel(r: { sourceType: string; state?: string | null; district?: string | null; concessionaire?: string | null }, index: number): string {
@@ -82,14 +88,66 @@ async function buildInternationalEvidence(
 
   const intlData = await queryInternational(countryCode, countryName, text);
   const findings: string[] = [`Country: ${countryName} (${countryCode})`];
+  const retrievedAt = new Date().toISOString();
+  const claims: NonNullable<NormalizedEvidence['claims']> = [];
 
   for (const wb of intlData.worldBankResults.slice(0, 3)) {
     findings.push(`Project: ${wb.projectName} (${wb.status})`);
-    findings.push(`  Agency: ${wb.implementingAgency}, Amount: USD ${(wb.totalAmount / 1e6).toFixed(1)}M`);
+    findings.push(`  Implementing agency: ${wb.implementingAgency}, World Bank project financing: USD ${wb.totalAmount.toLocaleString()}`);
+    claims.push({
+      category: 'international-project',
+      status: 'verified',
+      subject: wb.projectId,
+      predicate: 'project-name',
+      value: wb.projectName,
+      sourceId: `worldbank-${wb.projectId}`,
+      sourceQuote: wb.projectName,
+      sourceLocator: 'projects[projectId].project_name',
+      retrievedAt,
+    });
+    claims.push({
+      category: 'financial',
+      status: 'verified',
+      subject: wb.projectId,
+      predicate: 'project-financing',
+      value: wb.totalAmount,
+      unit: wb.currency,
+      financialType: 'project-financing',
+      sourceId: `worldbank-${wb.projectId}`,
+      sourceQuote: wb.totalAmountRaw,
+      sourceLocator: 'projects[projectId].totalamt',
+      retrievedAt,
+    });
   }
   for (const ocds of intlData.ocdsResults.slice(0, 3)) {
     findings.push(`Contract: ${ocds.title}`);
-    findings.push(`  Entity: ${ocds.procuringEntity}${ocds.valueAmount ? `, Value: ${ocds.valueCurrency} ${ocds.valueAmount.toLocaleString()}` : ''}`);
+    findings.push(`  Procuring entity: ${ocds.procuringEntity}${ocds.valueAmount !== null && ocds.valueType ? `, ${ocds.valueType}: ${ocds.valueCurrency ?? ''} ${ocds.valueAmount.toLocaleString()}` : ''}`);
+    claims.push({
+      category: 'international-project',
+      status: 'verified',
+      subject: ocds.ocid,
+      predicate: 'tender-title',
+      value: ocds.title,
+      sourceId: `ocds-${ocds.ocid}`,
+      sourceQuote: ocds.title,
+      sourceLocator: 'tender.title',
+      retrievedAt,
+    });
+    if (ocds.valueAmount !== null && ocds.valueType && ocds.valueSourceField) {
+      claims.push({
+        category: 'financial',
+        status: 'verified',
+        subject: ocds.ocid,
+        predicate: ocds.valueType,
+        value: ocds.valueAmount,
+        unit: ocds.valueCurrency ?? undefined,
+        financialType: ocds.valueType === 'tender-estimate' ? 'estimate' : ocds.valueType,
+        sourceId: `ocds-${ocds.ocid}`,
+        sourceQuote: String(ocds.valueAmount),
+        sourceLocator: ocds.valueSourceField,
+        retrievedAt,
+      });
+    }
   }
 
   if (findings.length === 1) {
@@ -111,7 +169,105 @@ async function buildInternationalEvidence(
     confidence: intlData.dataQualityTier === 'tier2-good' ? 0.8 : intlData.dataQualityTier === 'tier3-basic' ? 0.6 : 0.4,
     findings,
     citations,
+    claims,
     metadata: { countryCode, dataQualityTier: intlData.dataQualityTier, source: 'global-engine' },
+    latencyMs: Date.now() - start,
+  };
+}
+
+async function buildEmargEvidence(text: string, start: number): Promise<NormalizedEvidence | null> {
+  if (!/\b(pmgsy|emarg|rural road|maintenance expenditure|maintenance contractor)\b/i.test(text)) return null;
+  const roads = await queryEmargRoads(text, 5);
+  if (roads.length === 0) return null;
+
+  const snapshotMetadata = getEmargSnapshotMetadata();
+  const claims: NonNullable<NormalizedEvidence['claims']> = [];
+  const findings: string[] = [];
+
+  for (const road of roads) {
+    const sourceId = `emarg-road-${road.roadDetailsId}`;
+    findings.push(`PMGSY road: ${road.roadName}`);
+    findings.push(`  Jurisdiction: ${road.blockName}, ${road.districtName}, ${road.stateName}; package: ${road.packageNumber ?? 'not published'}`);
+    if (road.contractorName) findings.push(`  Maintenance contractor: ${road.contractorName}`);
+    if (road.consolidatedGrossExpenditureInr !== null) {
+      findings.push(`  Maintenance expenditure shown by eMARG: INR ${road.consolidatedGrossExpenditureInr.toLocaleString()}`);
+    }
+    if (road.maintenanceStartDateRaw) {
+      findings.push(`  Maintenance contract start date: ${road.maintenanceStartDateRaw} (not a physical relaying date)`);
+    }
+
+    claims.push({
+      category: 'road-type',
+      status: 'verified',
+      subject: String(road.roadDetailsId),
+      predicate: 'road-type',
+      value: 'rural',
+      sourceId,
+      sourceQuote: road.roadName,
+      sourceLocator: 'road_name',
+      retrievedAt: snapshotMetadata.fetchedAt,
+    });
+    if (road.contractorName) {
+      claims.push({
+        category: 'contract-role',
+        status: 'verified',
+        subject: String(road.roadDetailsId),
+        predicate: 'maintenance-contractor',
+        value: road.contractorName,
+        role: 'maintenance-contractor',
+        sourceId,
+        sourceQuote: road.contractorName,
+        sourceLocator: 'contractorName',
+        retrievedAt: snapshotMetadata.fetchedAt,
+      });
+    }
+    if (road.consolidatedGrossExpenditureInr !== null) {
+      claims.push({
+        category: 'financial',
+        status: 'verified',
+        subject: String(road.roadDetailsId),
+        predicate: 'maintenance-expenditure',
+        value: road.consolidatedGrossExpenditureInr,
+        unit: 'INR',
+        financialType: 'expenditure',
+        sourceId,
+        sourceQuote: String(road.consolidatedGrossExpenditureInr),
+        sourceLocator: 'consolidatedGrossExpenditure',
+        retrievedAt: snapshotMetadata.fetchedAt,
+      });
+    }
+    const maintenanceStart = parseEmargDate(road.maintenanceStartDateRaw);
+    if (maintenanceStart) {
+      claims.push({
+        category: 'maintenance',
+        status: 'verified',
+        subject: String(road.roadDetailsId),
+        predicate: 'maintenance-contract-start',
+        value: road.maintenanceStartDateRaw ?? undefined,
+        maintenanceType: 'om-commencement',
+        dateKind: 'actual',
+        observedAt: maintenanceStart,
+        sourceId,
+        sourceQuote: road.maintenanceStartDateRaw ?? '',
+        sourceLocator: 'strMaintenanceStartDate',
+        retrievedAt: snapshotMetadata.fetchedAt,
+      });
+    }
+  }
+
+  return {
+    agentId: 'admin',
+    status: 'completed',
+    confidence: 0.9,
+    findings,
+    citations: roads.map((road) => ({
+      sourceId: `emarg-road-${road.roadDetailsId}`,
+      label: `eMARG Know Your Road — ${road.connectionCode ?? road.roadDetailsId}`,
+      url: road.sourceUrl,
+      trustLevel: 'official-portal',
+    })),
+    claims,
+    metadata: { ...snapshotMetadata, source: 'emarg-public-road-detail' },
     latencyMs: Date.now() - start,
   };
 }
@@ -162,6 +318,11 @@ export async function runAdminAgent(
       if (foreign) {
         return buildInternationalEvidence(foreign.code, foreign.name, text, intent, start);
       }
+    }
+
+    const emargEvidence = await buildEmargEvidence(text, start);
+    if (emargEvidence && intent !== 'complaint' && intent !== 'rti' && intent !== 'personnel') {
+      return emargEvidence;
     }
 
     switch (intent) {
@@ -304,8 +465,8 @@ export async function runAdminAgent(
             const entityStr = Object.entries(extractedEntities).map(([k, v]) => `${k}="${v}"`).join(', ');
             // Find the top PWD result to highlight the answer explicitly
             const topPwd = deduped.find(r => r.sourceType === 'pwd_contact');
-            const pwdPhone = (topPwd?.metadata as any)?.phone;
-            const pwdName = (topPwd?.metadata as any)?.name ?? topPwd?.chunkText.split('.')[0];
+            const pwdPhone = metadataString(topPwd?.metadata, 'phone');
+            const pwdName = metadataString(topPwd?.metadata, 'name') ?? topPwd?.chunkText.split('.')[0];
             const answerHint = topPwd
               ? ` The answer is: ${pwdName}, Phone: ${pwdPhone}.`
               : '';
@@ -322,7 +483,7 @@ export async function runAdminAgent(
             citations: deduped.map((r, i) => ({
               sourceId: `${r.sourceType}-${i}`,
               label: buildCitationLabel(r, i),
-              url: (r.metadata as any)?.source_url ?? getDefaultSourceUrl(r.sourceType),
+              url: metadataString(r.metadata, 'source_url') ?? getDefaultSourceUrl(r.sourceType),
               trustLevel: getTrustLevel(r.sourceType),
             })),
             metadata: {
@@ -378,7 +539,7 @@ export async function runAdminAgent(
             citations: results.map((r, i) => ({
               sourceId: `${r.sourceType}-${i}`,
               label: buildCitationLabel(r, i),
-              url: (r.metadata as any)?.source_url ?? getDefaultSourceUrl(r.sourceType),
+              url: metadataString(r.metadata, 'source_url') ?? getDefaultSourceUrl(r.sourceType),
               trustLevel: getTrust(r.sourceType),
             })),
             metadata: { resultCount: results.length, topSimilarity, fallback: true },

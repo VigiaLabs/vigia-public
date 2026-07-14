@@ -28,6 +28,58 @@ export const CitationSchema = z.object({
   trustLevel: z.enum(['verified-spatial', 'legally-binding', 'official-portal', 'citizen-claim']),
 });
 
+export const EvidenceClaimSchema = z.object({
+  category: z.enum([
+    'road-type',
+    'contract-role',
+    'financial',
+    'maintenance',
+    'condition',
+    'authority-contact',
+    'international-project',
+  ]),
+  status: z.enum(['verified', 'derived', 'inferred', 'unavailable', 'conflicted']),
+  subject: z.string(),
+  predicate: z.string(),
+  value: z.union([z.string(), z.number(), z.boolean()]).optional(),
+  unit: z.string().optional(),
+  role: z.enum([
+    'construction-contractor',
+    'epc-contractor',
+    'concessionaire',
+    'om-operator',
+    'maintenance-contractor',
+    'consultant',
+    'authority',
+  ]).optional(),
+  financialType: z.enum([
+    'sanction',
+    'estimate',
+    'award-value',
+    'contract-value',
+    'release',
+    'payment',
+    'expenditure',
+    'project-financing',
+  ]).optional(),
+  maintenanceType: z.enum([
+    'physical-relaying',
+    'resurfacing',
+    'overlay',
+    'periodic-renewal',
+    'inspection',
+    'defect-repair',
+    'om-commencement',
+    'contract-award',
+  ]).optional(),
+  dateKind: z.enum(['actual', 'planned', 'published', 'observed']).optional(),
+  observedAt: z.string().datetime().optional(),
+  sourceId: z.string(),
+  sourceQuote: z.string().min(1),
+  sourceLocator: z.string().optional(),
+  retrievedAt: z.string().datetime(),
+});
+
 export const NormalizedEvidenceSchema = z.object({
   agentId: z.enum(['vision', 'admin', 'telemetry']),
   status: z.enum(['completed', 'partial', 'error', 'skipped']),
@@ -37,6 +89,7 @@ export const NormalizedEvidenceSchema = z.object({
     .optional(),
   findings: z.array(z.string()),
   citations: z.array(CitationSchema),
+  claims: z.array(EvidenceClaimSchema).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   errorReason: z.string().optional(),
   latencyMs: z.number(),
@@ -106,6 +159,7 @@ export const VigiaStateSchema = z.object({
 
 export type Payload = z.infer<typeof PayloadSchema>;
 export type NormalizedEvidence = z.infer<typeof NormalizedEvidenceSchema>;
+export type EvidenceClaim = z.infer<typeof EvidenceClaimSchema>;
 export type SynthesizedCitation = z.infer<typeof SynthesizedCitationSchema>;
 export type DebugTraceEntry = z.infer<typeof DebugTraceEntrySchema>;
 export type PipelineStatus = z.infer<typeof PipelineStatusSchema>;

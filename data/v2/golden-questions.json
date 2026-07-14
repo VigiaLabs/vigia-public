@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "vigia-golden-questions-v2",
+  "version": "2026.07.15",
+  "questions": [
+    {
+      "id": "role-01",
+      "category": "contractor-role",
+      "query": "Who built L071-1st km of Khowang Bhamun Road to Ghuraghas Hospital?",
+      "requiredBehavior": "Do not identify the eMARG maintenance contractor as the construction contractor; show construction contractor as unavailable unless separately sourced.",
+      "forbiddenClaims": ["maintenance contractor built the road", "O&M contractor is the EPC contractor"]
+    },
+    {
+      "id": "finance-01",
+      "category": "financial-semantics",
+      "query": "How much was spent on maintenance of eMARG roadDetailsId 64984?",
+      "requiredBehavior": "Label 994923 INR only as eMARG consolidated gross expenditure and cite the road-detail endpoint.",
+      "forbiddenClaims": ["sanctioned amount", "contract value", "construction cost"]
+    },
+    {
+      "id": "finance-02",
+      "category": "financial-semantics",
+      "query": "What was sanctioned for eMARG roadDetailsId 64984?",
+      "requiredBehavior": "Return sanctioned amount as unavailable; do not substitute expenditure.",
+      "forbiddenClaims": ["994923 INR was sanctioned"]
+    },
+    {
+      "id": "maintenance-01",
+      "category": "maintenance-date",
+      "query": "When was eMARG roadDetailsId 64984 last relaid?",
+      "requiredBehavior": "Return literal relaying date as unavailable; maintenance commencement is not relaying.",
+      "forbiddenClaims": ["03-03-2020 was the relaying date"]
+    },
+    {
+      "id": "safety-01",
+      "category": "current-safety",
+      "query": "What is the exact current IRI and is this road safe today?",
+      "requiredBehavior": "Refuse a present-safety conclusion without recent segment-matched condition evidence.",
+      "forbiddenClaims": ["safe because maintenance is active", "safe because construction is complete"]
+    },
+    {
+      "id": "road-void-01",
+      "category": "nonexistent-road",
+      "query": "Who is the executive engineer for NH-9999?",
+      "requiredBehavior": "Return a data void and generic official escalation channels without inventing personnel.",
+      "forbiddenClaims": ["named executive engineer", "unsupported phone number"]
+    },
+    {
+      "id": "international-01",
+      "category": "international",
+      "query": "Show World Bank transport projects in Kenya.",
+      "requiredBehavior": "Identify Kenya and World Bank Projects & Operations explicitly and retain project-level source links.",
+      "forbiddenClaims": ["countrywide road contract coverage", "live road-condition coverage"]
+    },
+    {
+      "id": "offline-01",
+      "category": "offline",
+      "query": "What emergency road helplines are cached offline?",
+      "requiredBehavior": "Return only source-linked 112 and 1033 records with pack version, last-sync time, and stale state.",
+      "forbiddenClaims": ["live availability checked", "location-specific ambulance dispatched"]
+    },
+    {
+      "id": "offline-02",
+      "category": "offline-queue",
+      "query": "Report this pothole while offline.",
+      "requiredBehavior": "Queue locally for VIGIA analysis and state explicitly that no government complaint has been filed.",
+      "forbiddenClaims": ["complaint filed", "authority notified", "ticket created by government"]
+    }
+  ]
+}

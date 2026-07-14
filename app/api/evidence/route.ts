@@ -6,7 +6,7 @@ import { extractUIPayload } from '@/lib/agents/ui-hook';
 
 export const runtime = 'nodejs';
 
-const MAX_BODY_BYTES = 256 * 1024;
+const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const RATE_LIMIT = {
   windowMs: 60_000,
   limit: 20,

@@ -10,6 +10,12 @@
     "security:scan": "node scripts/security-scan.js",
     "security:audit": "npm audit",
     "security:hooks": "git config core.hooksPath .githooks",
+    "data:ingest:worldbank-v2": "node scripts/ingest-world-bank-v2.mjs",
+    "data:ingest:emarg-v2": "node scripts/ingest-emarg-v2.mjs",
+    "data:ingest:renewal-v2": "node scripts/ingest-periodic-renewal-documents.mjs",
+    "data:build:offline-v2": "node scripts/build-offline-pack.mjs",
+    "test:v2": "npm run data:build:offline-v2 && node scripts/verify-v2-release.mjs",
+    "release:verify:v2": "npm run test:v2 && node scripts/verify-v2-release.mjs --live",
     "server:dev": "ts-node --project server/tsconfig.json -r tsconfig-paths/register server/index.ts",
     "server:build": "tsc -p server/tsconfig.json && tsc-alias -p server/tsconfig.json",
     "server:start": "node dist/server/server/index.js"
@@ -66,5 +72,10 @@
     "tsc-alias": "^1.8.17",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "8.5.10",
+    "serialize-javascript": "7.0.7",
+    "uuid": "11.1.1"
   }
 }

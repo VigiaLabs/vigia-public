@@ -5,7 +5,7 @@
  * Geofenced sync from CDN, local IndexedDB storage via sql.js WASM.
  */
 
-import type { EmergencyContact, PwdHelpdesk, RoadSegment, SyncMetadata } from './schema';
+import type { EmergencyContact, PwdHelpdesk, RoadSegment } from './schema';
 import { EDGE_DB_SCHEMA } from './schema';
 
 // Geohash encoding (precision 4 = ~40km tiles)
@@ -90,16 +90,41 @@ async function openEdgeDb() {
 
 const EDGE_CDN_BASE = process.env.NEXT_PUBLIC_EDGE_CDN ?? 'https://edge.vigia.app/db';
 const SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const BUNDLED_PACK_URL = '/offline/vigia-edge-national.db.gz';
+const REQUIRED_PACK_VERSION = '2026.07.15';
+
+async function fetchCompressedPack(url: string): Promise<Uint8Array | null> {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!response.ok) return null;
+    const compressed = await response.arrayBuffer();
+    const stream = new DecompressionStream('gzip');
+    const writer = stream.writable.getWriter();
+    await writer.write(new Uint8Array(compressed));
+    await writer.close();
+    return new Uint8Array(await new Response(stream.readable).arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+function readMetadata(db: { exec: (sql: string) => Array<{ values: unknown[][] }> }, key: string): string | null {
+  const escapedKey = key.replaceAll("'", "''");
+  const result = db.exec(`SELECT value FROM sync_metadata WHERE key = '${escapedKey}'`);
+  const value = result[0]?.values[0]?.[0];
+  return typeof value === 'string' ? value : value == null ? null : String(value);
+}
 
 export async function syncEdgeDatabase(lat: number, lng: number): Promise<boolean> {
   try {
     const db = await openEdgeDb();
+    db.run(EDGE_DB_SCHEMA);
 
     // Check freshness
-    const meta = db.exec("SELECT value FROM sync_metadata WHERE key = 'last_sync_at'");
-    const lastSync = meta.length > 0 ? parseInt(meta[0].values[0][0] as string) : 0;
+    const lastSync = Number(readMetadata(db, 'last_sync_at') ?? 0);
+    const currentVersion = readMetadata(db, 'version');
 
-    if (Date.now() - lastSync < SYNC_INTERVAL_MS) {
+    if (currentVersion === REQUIRED_PACK_VERSION && Date.now() - lastSync < SYNC_INTERVAL_MS) {
       db.close();
       return true; // Still fresh
     }
@@ -108,22 +133,13 @@ export async function syncEdgeDatabase(lat: number, lng: number): Promise<boolea
     const geohash = encodeGeohash(lat, lng, 4);
     const url = `${EDGE_CDN_BASE}/${geohash}.db.gz`;
 
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) {
+    const dbBytes = await fetchCompressedPack(url) ?? await fetchCompressedPack(BUNDLED_PACK_URL);
+    if (!dbBytes) {
       db.close();
       return false;
     }
 
-    // Decompress gzip
-    const compressed = await res.arrayBuffer();
-    const ds = new DecompressionStream('gzip');
-    const writer = ds.writable.getWriter();
-    writer.write(new Uint8Array(compressed));
-    writer.close();
-    const decompressed = await new Response(ds.readable).arrayBuffer();
-
     // Store in IndexedDB
-    const dbBytes = new Uint8Array(decompressed);
     await storeDbBytes(dbBytes);
 
     db.close();
@@ -142,8 +158,10 @@ export async function queryEmergencyContacts(lat: number, lng: number, limit: nu
     const prefix = geohash.slice(0, 3);
 
     const result = db.exec(
-      `SELECT id, name, type, lat, lng, phone, address, open_24h, geohash
-       FROM emergency_contacts WHERE geohash LIKE '${prefix}%' LIMIT ${limit}`
+      `SELECT id, name, type, lat, lng, phone, address, open_24h, geohash, scope, source_url, source_quote, verified_at
+       FROM emergency_contacts
+       WHERE scope IN ('national', 'national-highways') OR geohash LIKE '${prefix}%'
+       LIMIT ${limit}`
     );
     db.close();
 
@@ -151,6 +169,7 @@ export async function queryEmergencyContacts(lat: number, lng: number, limit: nu
     return result[0].values.map((row: any[]) => ({
       id: row[0], name: row[1], type: row[2], lat: row[3], lng: row[4],
       phone: row[5], address: row[6], open24h: !!row[7], geohash: row[8],
+      scope: row[9], sourceUrl: row[10], sourceQuote: row[11], verifiedAt: row[12],
     }));
   } catch { return []; }
 }
@@ -162,16 +181,17 @@ export async function queryPwdHelpdesks(lat: number, lng: number, limit: number 
     const prefix = geohash.slice(0, 3);
 
     const result = db.exec(
-      `SELECT id, state, division, designation, name, phone, office_address, jurisdiction_roads, geohash
-       FROM pwd_helpdesks WHERE geohash LIKE '${prefix}%' LIMIT ${limit}`
+      `SELECT id, state, division, designation, name, phone, email, office_address, jurisdiction_roads, geohash, scope, source_url, source_quote, verified_at
+       FROM pwd_helpdesks WHERE scope = 'national' OR geohash LIKE '${prefix}%' LIMIT ${limit}`
     );
     db.close();
 
     if (!result.length) return [];
     return result[0].values.map((row: any[]) => ({
       id: row[0], state: row[1], division: row[2], designation: row[3],
-      name: row[4], phone: row[5], officeAddress: row[6],
-      jurisdictionRoads: JSON.parse(row[7] ?? '[]'), geohash: row[8],
+      name: row[4], phone: row[5], email: row[6], officeAddress: row[7],
+      jurisdictionRoads: JSON.parse(row[8] ?? '[]'), geohash: row[9],
+      scope: row[10], sourceUrl: row[11], sourceQuote: row[12], verifiedAt: row[13],
     }));
   } catch { return []; }
 }
@@ -204,4 +224,19 @@ export async function getLastSyncTime(): Promise<number> {
     db.close();
     return result.length > 0 ? parseInt(result[0].values[0][0] as string) : 0;
   } catch { return 0; }
+}
+
+export async function getEdgePackMetadata(): Promise<{ lastSyncAt: number; version: string | null; verifiedAt: string | null }> {
+  try {
+    const db = await openEdgeDb();
+    const metadata = {
+      lastSyncAt: Number(readMetadata(db, 'last_sync_at') ?? 0),
+      version: readMetadata(db, 'version'),
+      verifiedAt: readMetadata(db, 'verified_at'),
+    };
+    db.close();
+    return metadata;
+  } catch {
+    return { lastSyncAt: 0, version: null, verifiedAt: null };
+  }
 }

@@ -51,13 +51,17 @@ export async function queryEmergencyContacts(lat: number, lng: number, limit: nu
     const prefix = geohash.slice(0, 3) + '%';
 
     const rows = db.prepare(
-      'SELECT id, name, type, lat, lng, phone, address, open_24h, geohash FROM emergency_contacts WHERE geohash LIKE ? LIMIT ?'
+      `SELECT id, name, type, lat, lng, phone, address, open_24h, geohash, scope, source_url, source_quote, verified_at
+       FROM emergency_contacts
+       WHERE scope IN ('national', 'national-highways') OR geohash LIKE ?
+       LIMIT ?`
     ).all(prefix, limit) as any[];
 
     db.close();
     return rows.map(r => ({
       id: r.id, name: r.name, type: r.type, lat: r.lat, lng: r.lng,
       phone: r.phone, address: r.address, open24h: !!r.open_24h, geohash: r.geohash,
+      scope: r.scope, sourceUrl: r.source_url, sourceQuote: r.source_quote, verifiedAt: r.verified_at,
     }));
   } catch { return []; }
 }
@@ -73,14 +77,17 @@ export async function queryPwdHelpdesks(lat: number, lng: number, limit: number 
     const prefix = geohash.slice(0, 3) + '%';
 
     const rows = db.prepare(
-      'SELECT id, state, division, designation, name, phone, office_address, jurisdiction_roads, geohash FROM pwd_helpdesks WHERE geohash LIKE ? LIMIT ?'
+      `SELECT id, state, division, designation, name, phone, email, office_address,
+              jurisdiction_roads, geohash, scope, source_url, source_quote, verified_at
+       FROM pwd_helpdesks WHERE scope = 'national' OR geohash LIKE ? LIMIT ?`
     ).all(prefix, limit) as any[];
 
     db.close();
     return rows.map(r => ({
       id: r.id, state: r.state, division: r.division, designation: r.designation,
-      name: r.name, phone: r.phone, officeAddress: r.office_address,
+      name: r.name, phone: r.phone, email: r.email, officeAddress: r.office_address,
       jurisdictionRoads: JSON.parse(r.jurisdiction_roads ?? '[]'), geohash: r.geohash,
+      scope: r.scope, sourceUrl: r.source_url, sourceQuote: r.source_quote, verifiedAt: r.verified_at,
     }));
   } catch { return []; }
 }
@@ -120,4 +127,30 @@ export async function getLastSyncTime(): Promise<number> {
     db.close();
     return row ? parseInt(row.value) : 0;
   } catch { return 0; }
+}
+
+export async function getEdgePackMetadata(): Promise<{
+  lastSyncAt: number;
+  version: string | null;
+  verifiedAt: string | null;
+}> {
+  const dbPath = getEdgeDbPath();
+  if (!dbPath) return { lastSyncAt: 0, version: null, verifiedAt: null };
+
+  try {
+    const Database = (await import('better-sqlite3') as any).default ?? (await import('better-sqlite3'));
+    const db = new Database(dbPath, { readonly: true });
+    const rows = db.prepare(
+      "SELECT key, value FROM sync_metadata WHERE key IN ('last_sync_at', 'version', 'verified_at')"
+    ).all() as Array<{ key: string; value: string }>;
+    db.close();
+    const metadata = Object.fromEntries(rows.map((row) => [row.key, row.value]));
+    return {
+      lastSyncAt: Number(metadata.last_sync_at ?? 0),
+      version: metadata.version ?? null,
+      verifiedAt: metadata.verified_at ?? null,
+    };
+  } catch {
+    return { lastSyncAt: 0, version: null, verifiedAt: null };
+  }
 }

@@ -1,4 +1,5 @@
-import type { DebugTraceEntry, PendingAction, VigiaState } from './state';
+import type { DebugTraceEntry, EvidenceClaim, PendingAction, VigiaState } from './state';
+import type { OfflineEvidenceState } from '@/types/evidence';
 import roadCentroids from '@/data/road-centroids.json';
 
 type CentroidEntry = { center?: { lat: number; lng: number }; start?: { lat: number; lng: number }; end?: { lat: number; lng: number }; label?: string; type?: string };
@@ -119,6 +120,8 @@ export interface UIPayload {
     trustLevel: string;
     url?: string;
   }>;
+  claims: EvidenceClaim[];
+  offline?: OfflineEvidenceState;
   budgetData?: {
     allocated: number;
     disbursed: number;
@@ -186,6 +189,22 @@ export function extractUIPayload(state: VigiaState): UIPayload {
       trustLevel: c.trustLevel,
       url: c.url,
     }));
+  const claimKeys = new Set<string>();
+  const claims = state.evidence.flatMap((evidence) => evidence.claims ?? []).filter((claim) => {
+    const key = `${claim.sourceId}|${claim.subject}|${claim.predicate}|${String(claim.value)}`;
+    if (claimKeys.has(key)) return false;
+    claimKeys.add(key);
+    return true;
+  });
+
+  const offlineEvidence = state.evidence.find((evidence) => evidence.metadata?.networkMode === 'offline');
+  const offline = offlineEvidence ? {
+    mode: 'offline' as const,
+    lastSyncAt: typeof offlineEvidence.metadata?.lastSyncAt === 'number' ? offlineEvidence.metadata.lastSyncAt : undefined,
+    cacheAgeHours: typeof offlineEvidence.metadata?.cacheAgeHours === 'number' ? offlineEvidence.metadata.cacheAgeHours : undefined,
+    packVersion: typeof offlineEvidence.metadata?.packVersion === 'string' ? offlineEvidence.metadata.packVersion : undefined,
+    stale: offlineEvidence.metadata?.stale === true,
+  } : undefined;
 
   // Extract budget data from admin metadata if present
   const adminEvidence = state.evidence.find(
@@ -235,6 +254,8 @@ export function extractUIPayload(state: VigiaState): UIPayload {
   return {
     auditFinding: state.auditFinding ?? '',
     sources,
+    claims,
+    offline,
     budgetData,
     spatialMarkers,
     evidenceImages,

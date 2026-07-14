@@ -15,9 +15,22 @@ export interface Message {
   metadata?: Record<string, unknown>;
 }
 
+export interface PendingSubmission {
+  id: string;
+  threadId: string;
+  createdAt: number;
+  text: string;
+  imageUrl?: string;
+  gps?: { lat: number; lng: number };
+  status: 'pending' | 'syncing' | 'failed';
+  retryCount: number;
+  lastError?: string;
+}
+
 class VigiaDB extends Dexie {
   threads!: Table<Thread>;
   messages!: Table<Message>;
+  outbox!: Table<PendingSubmission>;
 
   constructor() {
     super('VigiaDB');
@@ -29,6 +42,11 @@ class VigiaDB extends Dexie {
     this.version(2).stores({
       threads: 'id, updatedAt',
       messages: 'id, threadId, createdAt',
+    });
+    this.version(3).stores({
+      threads: 'id, updatedAt',
+      messages: 'id, threadId, createdAt',
+      outbox: 'id, threadId, createdAt, status',
     });
   }
 }
@@ -96,4 +114,68 @@ export async function pruneOldThreads(retentionDays: number): Promise<number> {
   }
 
   return oldThreads.length;
+}
+
+export async function queueSubmission(
+  submission: Omit<PendingSubmission, 'id' | 'createdAt' | 'status' | 'retryCount'>
+): Promise<string> {
+  const id = crypto.randomUUID();
+  await db.outbox.put({
+    ...submission,
+    id,
+    createdAt: Date.now(),
+    status: 'pending',
+    retryCount: 0,
+  });
+  return id;
+}
+
+export async function getPendingSubmissionCount(): Promise<number> {
+  return db.outbox.where('status').anyOf('pending', 'failed').count();
+}
+
+export async function syncPendingSubmissions(): Promise<{ synced: number; failed: number }> {
+  const submissions = await db.outbox.where('status').anyOf('pending', 'failed').sortBy('createdAt');
+  let synced = 0;
+  let failed = 0;
+
+  for (const submission of submissions) {
+    await db.outbox.update(submission.id, { status: 'syncing' });
+    try {
+      const response = await fetch('/api/evidence', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: submission.text,
+          imageUrl: submission.imageUrl,
+          gps: submission.gps,
+          threadId: submission.threadId,
+          messageId: submission.id,
+        }),
+      });
+      const payload = await response.json() as Record<string, unknown>;
+      if (!response.ok) {
+        throw new Error(typeof payload.error === 'string' ? payload.error : `HTTP ${response.status}`);
+      }
+      const answer = typeof payload.auditFinding === 'string' && payload.auditFinding.trim()
+        ? payload.auditFinding
+        : 'The queued report was analysed. Open its evidence details for the source-linked result.';
+      await saveMessage(submission.threadId, 'assistant', answer, {
+        type: 'vigia-evidence',
+        ...payload,
+      });
+      await db.outbox.delete(submission.id);
+      synced += 1;
+    } catch (error) {
+      await db.outbox.update(submission.id, {
+        status: 'failed',
+        retryCount: submission.retryCount + 1,
+        lastError: error instanceof Error ? error.message : 'Sync failed',
+      });
+      failed += 1;
+    }
+  }
+
+  if (synced > 0) window.dispatchEvent(new Event('vigia:threads-updated'));
+  return { synced, failed };
 }

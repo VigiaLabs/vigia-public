@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "vigia-periodic-renewal-source-manifest-v2",
+  "documents": [
+    {
+      "state": "Arunachal Pradesh",
+      "publisher": "Department of Planning and Investment, Government of Arunachal Pradesh",
+      "sourceUrl": "https://www.arunachalplan.gov.in/wp-content/uploads/2025/03/39.-PWD_compressed-4.pdf",
+      "documentType": "revised-budget-estimate",
+      "expectedPhrase": "Periodical renewal of roads",
+      "claimPolicy": "budget-only"
+    }
+  ]
+}

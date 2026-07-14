@@ -1,0 +1,9 @@
+{
+  "version": "2026.07.15",
+  "verifiedAt": "2026-07-15T00:00:00.000+05:30",
+  "databaseBytes": 36864,
+  "compressedBytes": 1658,
+  "emergencyContactCount": 2,
+  "authorityContactCount": 4,
+  "sourceRegistry": "/data/v2/offline-pack-sources.json"
+}

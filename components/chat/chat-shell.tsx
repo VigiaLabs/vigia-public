@@ -10,6 +10,7 @@ import {
   saveMessage,
   getMessagesByThread,
   updateMessageMetadata,
+  queueSubmission,
 } from '@/lib/db';
 import { ChatMessage } from '@/components/chat/chat-message';
 import { PipelineTrace } from '@/components/chat/pipeline-trace';
@@ -20,6 +21,7 @@ import { LivePipeline } from '@/components/chat/live-pipeline';
 import dynamic from 'next/dynamic';
 const MapDashboard = dynamic(() => import('@/components/chat/map-dashboard').then(m => ({ default: m.MapDashboard })), { ssr: false });
 import { SourcesStrip } from '@/components/chat/sources-strip';
+import { EvidenceStatePanel } from '@/components/chat/evidence-state-panel';
 import { useEvidence } from '@/components/chat/evidence-context';
 import { useHeaderTab } from '@/components/chat/header';
 import { useMap } from '@/lib/context/map-context';
@@ -56,6 +58,9 @@ import { stripMarkdown } from '@/lib/voice/strip-markdown';
 import { resolveVoiceLocale } from '@/lib/voice/locale';
 import { useSettings } from '@/lib/context/settings-context';
 import type { VoiceLocale } from '@/types/voice';
+import { isVigiaEvidenceMetadata } from '@/types/evidence';
+import { useOfflineRuntime } from '@/lib/edge/offline-context';
+import { buildOfflineAnswer } from '@/lib/edge/offline-answer';
 
 type Props = { threadId?: string };
 
@@ -74,9 +79,19 @@ function notifyThreadsUpdated() {
   window.dispatchEvent(new Event('vigia:threads-updated'));
 }
 
+function getBrowserLocation(enabled: boolean): Promise<{ lat: number; lng: number } | undefined> {
+  if (!enabled || !navigator.geolocation) return Promise.resolve(undefined);
+  return new Promise((resolve) => navigator.geolocation.getCurrentPosition(
+    (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
+    () => resolve(undefined),
+    { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+  ));
+}
+
 export function ChatShell({ threadId: initialThreadId }: Props) {
   const router = useRouter();
   const { preferences } = useSettings();
+  const offlineRuntime = useOfflineRuntime();
   const defaultLocale =
     preferences.defaultLanguage === 'auto' ? null : preferences.defaultLanguage;
   const [value, setValue] = useState('');
@@ -375,10 +390,53 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     clearVoiceError();
 
     const threadId = await ensureThread(text);
-    await saveMessage(threadId, 'user', text);
+    const userMessageId = await saveMessage(threadId, 'user', text);
+    const gps = await getBrowserLocation(sendLocation);
+
+    if (offlineRuntime.mode === 'offline') {
+      const cached = await buildOfflineAnswer(text, gps);
+      const isCitizenReport = imageDataUrl !== null || /\b(report|pothole|damage|broken|hazard|complaint)\b/i.test(text);
+      let assistantText: string;
+      let metadata: Record<string, unknown>;
+
+      if (cached) {
+        assistantText = cached.text;
+        metadata = cached.metadata;
+      } else if (isCitizenReport) {
+        await queueSubmission({ threadId, text, imageUrl: imageDataUrl ?? undefined, gps });
+        await offlineRuntime.refreshPendingCount();
+        assistantText = 'Saved locally and queued for VIGIA analysis after reconnection. This does **not** mean a complaint has been filed with a government authority.';
+        metadata = {
+          type: 'vigia-evidence',
+          sources: [],
+          claims: [{
+            category: 'report-status', status: 'unavailable', subject: 'citizen report',
+            predicate: 'authority-filing-status', value: 'not filed', sourceId: 'local-outbox',
+            sourceQuote: 'Stored only in this browser until reconnection', retrievedAt: new Date().toISOString(),
+          }],
+          offline: { mode: 'offline', lastSyncAt: offlineRuntime.lastSyncAt || undefined, packVersion: offlineRuntime.packVersion ?? undefined, stale: offlineRuntime.stale },
+        };
+      } else {
+        assistantText = 'Cloud road-document search is unavailable offline. Previously saved conversations remain readable; reconnect to run a current source search.';
+        metadata = {
+          type: 'vigia-evidence', sources: [],
+          claims: [{ category: 'coverage', status: 'unavailable', subject: text, predicate: 'cloud-search', sourceId: 'offline-runtime', sourceQuote: 'No live retrieval was performed', retrievedAt: new Date().toISOString() }],
+          offline: { mode: 'offline', lastSyncAt: offlineRuntime.lastSyncAt || undefined, packVersion: offlineRuntime.packVersion ?? undefined, stale: offlineRuntime.stale },
+        };
+      }
+
+      const assistantId = await saveMessage(threadId, 'assistant', assistantText, metadata);
+      setMessages((current) => [...current,
+        { id: userMessageId, role: 'user', parts: [{ type: 'text', text }] },
+        { id: assistantId, role: 'assistant', parts: [{ type: 'text', text: assistantText }], metadata },
+      ]);
+      setImageDataUrl(null);
+      notifyThreadsUpdated();
+      return;
+    }
 
     try {
-      await sendMessage({ text });
+      await sendMessage({ text }, { requestBody: { imageUrl: imageDataUrl ?? undefined, gps } });
       setImageDataUrl(null);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
@@ -538,8 +596,9 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                     isTTSActive && msg.id === (speakingMessageId ?? lastAssistantId);
 
                   // Extract vigia-evidence from message metadata
-                  const evidence = isAssistant && (msg as any).metadata?.type === 'vigia-evidence'
-                    ? (msg as any).metadata
+                  const rawMetadata = (msg as { metadata?: unknown }).metadata;
+                  const evidence = isAssistant && isVigiaEvidenceMetadata(rawMetadata)
+                    ? rawMetadata
                     : null;
 
                   return (
@@ -550,10 +609,10 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                       transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
                       className={isAssistant ? 'ml-0 md:ml-10' : undefined}
                     >
-                      {isAssistant && evidence?.debugTrace?.length > 0 && (
+                      {isAssistant && evidence && Array.isArray(evidence.debugTrace) && evidence.debugTrace.length > 0 && (
                         <div className="mb-1">
                           <PipelineTrace
-                            steps={evidence.debugTrace}
+                            steps={evidence.debugTrace as React.ComponentProps<typeof PipelineTrace>['steps']}
                             totalLatencyMs={evidence.totalLatencyMs}
                           />
                         </div>
@@ -572,6 +631,7 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                       />
                       {isAssistant && evidence && (
                         <div className="shell-answer-footer mt-5 space-y-4">
+                          <EvidenceStatePanel claims={evidence.claims} offline={evidence.offline} />
                           {evidence.sources?.length > 0 && (
                             <SourcesStrip
                               sources={evidence.sources}
@@ -583,8 +643,8 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                             text={getMessageText(msg)}
                             onRegenerate={undefined}
                           />
-                          {evidence.pendingAction && (
-                            <PendingActionCard action={evidence.pendingAction} />
+                          {!!evidence.pendingAction && (
+                            <PendingActionCard action={evidence.pendingAction as React.ComponentProps<typeof PendingActionCard>['action']} />
                           )}
                           {getFollowUps(msg).length > 0 && (
                             <div className="border-t border-border/40 pt-4">

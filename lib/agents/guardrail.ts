@@ -1,10 +1,28 @@
-import type { NormalizedEvidence, DebugTraceEntry, VigiaState } from './state';
+import type { NormalizedEvidence, VigiaState } from './state';
 import { rewriteQuery } from './rewriter';
 import authorityMatrix from '../../data/authority-matrix.json';
 import { describeIndexedCoverage, isContactOrRedressQuery } from '../data-coverage';
+import { assessCriticalClaimSupport, formatUnsupportedCriticalClaims } from './claim-safety';
 
 const DATA_VOID_CONFIDENCE_THRESHOLD = 0.5;
 const DATA_VOID_MARKERS = ['No relevant data found', 'does not currently contain'];
+
+interface AuthorityFallbackEntry {
+  primary?: string;
+  officer?: string;
+  designation?: string;
+  portal?: string;
+  filingUrl?: string;
+  phone?: string;
+  escalation?: string;
+  legalBasis: string;
+}
+
+interface AuthorityMatrixShape {
+  authorities: {
+    IN: Record<string, Record<string, AuthorityFallbackEntry | Record<string, AuthorityFallbackEntry>>>;
+  };
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
@@ -60,6 +78,7 @@ function isDataVoid(evidence: NormalizedEvidence[], queryText: string): boolean 
     /\barbitration\b/i.test(finding) || /not the sanctioned/i.test(finding)
   );
   if (asksForSanctionedCost && onlyArbitrationFigures) return true;
+  if (assessCriticalClaimSupport(queryText, evidence).some((assessment) => !assessment.supported)) return true;
   return admin.findings.some((f) =>
     DATA_VOID_MARKERS.some((marker) => f.includes(marker))
   );
@@ -134,28 +153,36 @@ function buildAuthorityFallback(state: VigiaState): Partial<VigiaState> {
   const intent = state.intent === 'rti' ? 'rti' : 'complaint';
   const roadType = extractRoadType(state.evidence);
 
-  const matrix = authorityMatrix as any;
-  const authorities = matrix?.authorities?.IN?.[roadType];
+  const matrix = authorityMatrix as unknown as AuthorityMatrixShape;
+  const roadAuthorities = matrix.authorities.IN[roadType];
+  const authorities = roadAuthorities?.default && !('primary' in roadAuthorities.default)
+    ? roadAuthorities.default as Record<string, AuthorityFallbackEntry>
+    : roadAuthorities as Record<string, AuthorityFallbackEntry> | undefined;
   const data = authorities?.[intent] ?? authorities?.complaint;
 
   const queryText = state.payload.text ?? '';
   const coverage = describeIndexedCoverage(queryText);
   const shouldRouteToAuthority = isContactOrRedressQuery(state.intent, queryText);
+  const criticalClaimFailures = formatUnsupportedCriticalClaims(
+    assessCriticalClaimSupport(queryText, state.evidence),
+  );
   const findings = !shouldRouteToAuthority
     ? [
         'This specific data is not available in the VIGIA index.',
         coverage,
+        ...criticalClaimFailures,
         'VIGIA will not substitute an arbitration figure, a neighbouring jurisdiction, or an unrelated project for missing data.',
       ]
     : data
     ? [
         `VIGIA could not find specific data for your query in our indexed databases.`,
         coverage,
+        ...criticalClaimFailures,
         `For ${intent} matters on ${roadType} roads:`,
-        `→ Primary Authority: ${data.primary}`,
-        `→ Portal: ${data.portal}`,
+        `→ Primary Authority: ${data.primary ?? data.officer}`,
+        `→ Portal: ${data.portal ?? data.filingUrl}`,
         ...(data.phone ? [`→ Helpline: ${data.phone}`] : []),
-        `→ Escalation: ${data.escalation}`,
+        `→ Escalation: ${data.escalation ?? data.designation ?? 'Not published in the authority matrix'}`,
         `→ Legal Basis: ${data.legalBasis}`,
       ]
     : [

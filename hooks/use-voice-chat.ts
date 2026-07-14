@@ -42,9 +42,11 @@ export type UseVoiceChatOptions = {
 
 function buildChatRequestBody(
   locale: VoiceLocale | null,
-  responseStyle?: ResponseStyle
+  responseStyle?: ResponseStyle,
+  requestBody?: Record<string, unknown>
 ) {
   return {
+    ...requestBody,
     responseLanguage: locale,
     voiceLocale: locale,
     responseStyle,
@@ -126,7 +128,7 @@ export function useVoiceChat({
   const sendMessage = useCallback(
     async (
       message: { text: string },
-      options?: { locale?: VoiceLocale | null }
+      options?: { locale?: VoiceLocale | null; requestBody?: Record<string, unknown> }
     ) => {
       const text = message.text.trim();
       if (!text) return;
@@ -144,7 +146,7 @@ export function useVoiceChat({
       });
 
       await chat.sendMessage(message, {
-        body: buildChatRequestBody(locale, responseStyle),
+        body: buildChatRequestBody(locale, responseStyle, options?.requestBody),
       });
     },
     [autoDetectLanguage, chat.sendMessage, defaultLocale, responseStyle]

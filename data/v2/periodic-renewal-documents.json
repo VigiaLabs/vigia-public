@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "vigia-periodic-renewal-documents-v2",
+  "fetchedAt": "2026-07-14T20:11:59.273Z",
+  "recordCount": 1,
+  "warning": "These official documents prove a published plan, tender, or budget entry only. They do not prove that physical relaying occurred.",
+  "records": [
+    {
+      "state": "Arunachal Pradesh",
+      "publisher": "Department of Planning and Investment, Government of Arunachal Pradesh",
+      "sourceUrl": "https://www.arunachalplan.gov.in/wp-content/uploads/2025/03/39.-PWD_compressed-4.pdf",
+      "documentType": "revised-budget-estimate",
+      "expectedPhrase": "Periodical renewal of roads",
+      "claimPolicy": "budget-only",
+      "retrievedAt": "2026-07-14T20:11:59.251Z",
+      "contentType": "application/pdf",
+      "byteLength": 50837148,
+      "sha256": "f2792f7d6069689eb0e0b57b76335e426d38dc4c4d9949904772933b0c2f9a14",
+      "pageCount": 225,
+      "sourceExcerpt": "00 140.00 617 Repair and Maintenance work of various Govt. under PWD Div 100.00 100.00 618 619 damage on Approach to Government College, 80.00 80 00 road to area in 50 00 50.00 620Periodical renewal of roads , bridges and clearance of liabilities of emergent works under Mebo Sub Division (SH: Mebot-Kiyit) 50.00 50.00 621Periodical renewal of roads , bridges and clearance of liabilities of emergent works under Mebo Sub Division (SH: Kiyit - Seram ) 50.00 s0.00 wall for 50.00 50.00 625 PMGSY road to School Play Siga Village",
+      "dateKind": "planned-or-published",
+      "actualCompletionProven": false
+    }
+  ]
+}

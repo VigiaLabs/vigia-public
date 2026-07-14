@@ -21,13 +21,13 @@ import type { ResponseStyle } from '@/lib/settings/types';
 import { routerNode, ingestNode, guardrailNode, uiHookNode } from '@/lib/agents/graph';
 import { extractUIPayload } from '@/lib/agents/ui-hook';
 import { scoreFaithfulness } from '@/lib/agents/faithfulness';
-import type { Payload, VigiaState } from '@/lib/agents/state';
+import { PayloadSchema, type Payload, type VigiaState } from '@/lib/agents/state';
 import { getCachedResponse, setCachedResponse } from '@/lib/cache/semantic-cache';
 import { streamFromEngine } from '@/lib/search-engine/client';
 
 export const runtime = 'nodejs';
 
-const MAX_BODY_BYTES = 256 * 1024;
+const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const RATE_LIMIT = { windowMs: 60_000, limit: 30 };
 
 function getClientIp(req: Request): string {
@@ -69,6 +69,8 @@ export async function POST(req: Request) {
       responseLanguage?: unknown;
       voiceLocale?: unknown;
       responseStyle?: unknown;
+      imageUrl?: unknown;
+      gps?: unknown;
     };
     const { messages } = parsed;
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -103,11 +105,17 @@ export async function POST(req: Request) {
     }
 
     // ─── Pipeline Payload ───────────────────────────────────────────
-    const pipelinePayload: Payload = {
+    const payloadResult = PayloadSchema.safeParse({
       text: queryText,
+      imageUrl: parsed.imageUrl,
+      gps: parsed.gps,
       threadId: crypto.randomUUID(),
       messageId: crypto.randomUUID(),
-    };
+    });
+    if (!payloadResult.success) {
+      return NextResponse.json({ error: payloadResult.error.issues.map((issue) => issue.message).join(', ') }, { status: 400 });
+    }
+    const pipelinePayload: Payload = payloadResult.data;
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
@@ -312,6 +320,8 @@ export async function POST(req: Request) {
           evidenceAnnotation = {
             type: 'vigia-evidence',
             sources: uiPayload.sources,
+            claims: uiPayload.claims,
+            offline: uiPayload.offline,
             debugTrace: uiPayload.debugTrace,
             totalLatencyMs: uiPayload.totalLatencyMs,
             contradictionVerified: uiPayload.contradictionVerified,
