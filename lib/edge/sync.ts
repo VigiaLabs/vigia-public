@@ -74,7 +74,7 @@ let sqlPromise: Promise<any> | null = null;
 async function getSqlJs() {
   if (!sqlPromise) {
     sqlPromise = import('sql.js').then(SQL => SQL.default({
-      locateFile: (file: string) => `https://sql.js.org/dist/${file}`,
+      locateFile: (file: string) => `/vendor/${file}`,
     }));
   }
   return sqlPromise;
@@ -98,11 +98,10 @@ async function fetchCompressedPack(url: string): Promise<Uint8Array | null> {
     const response = await fetch(url, { signal: AbortSignal.timeout(10000) });
     if (!response.ok) return null;
     const compressed = await response.arrayBuffer();
-    const stream = new DecompressionStream('gzip');
-    const writer = stream.writable.getWriter();
-    await writer.write(new Uint8Array(compressed));
-    await writer.close();
-    return new Uint8Array(await new Response(stream.readable).arrayBuffer());
+    const decompressed = new Blob([compressed])
+      .stream()
+      .pipeThrough(new DecompressionStream('gzip'));
+    return new Uint8Array(await new Response(decompressed).arrayBuffer());
   } catch {
     return null;
   }

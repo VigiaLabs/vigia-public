@@ -16,6 +16,7 @@
 # next.js
 /.next/
 /out/
+/public/vendor/sql-wasm-browser.wasm
 
 # production
 /build
