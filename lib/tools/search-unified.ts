@@ -217,7 +217,7 @@ async function queryLocalFts5Unified(query: string, limit: number): Promise<Unif
           : '';
         const costClause = isSanctionedCostQuery ? ' AND sanctioned_cost_crore IS NOT NULL' : '';
         const rows = db.prepare(
-          `SELECT section_name, road_number, state, road_type_classification, lanes, concessionaire, contract_mode, sanctioned_cost_crore, expenditure_cost_crore, award_date, completion_date, length_km, status, condition_notes, last_maintenance_date, source, source_url FROM nh44_projects WHERE road_number = ?${sectionClause}${parentheticalClause}${costClause} ORDER BY sanctioned_cost_crore DESC LIMIT ?`
+          `SELECT section_name, road_number, state, road_type_classification, lanes, concessionaire, contract_mode, sanctioned_cost_crore, tot_concession_award_value_crore, expenditure_cost_crore, award_date, completion_date, length_km, status, condition_notes, last_maintenance_date, source, source_url FROM nh44_projects WHERE road_number = ?${sectionClause}${parentheticalClause}${costClause} ORDER BY sanctioned_cost_crore DESC LIMIT ?`
         ).all(roadNum, ...sectionTerms.map((term) => `%${term.toLowerCase()}%`), limit) as any[];
         for (const r of rows) {
           const parts = [
@@ -227,6 +227,7 @@ async function queryLocalFts5Unified(query: string, limit: number): Promise<Unif
             r.concessionaire ? `Contractor: ${r.concessionaire}.` : null,
             r.contract_mode ? `Mode: ${r.contract_mode}.` : null,
             r.sanctioned_cost_crore ? `Sanctioned Cost: ₹${r.sanctioned_cost_crore} Crore.` : null,
+            r.tot_concession_award_value_crore ? `TOT Concession Award Value: ₹${r.tot_concession_award_value_crore} Crore.` : null,
             r.expenditure_cost_crore ? `Expenditure: ₹${r.expenditure_cost_crore} Crore.` : null,
             r.last_maintenance_date ? `Last Maintenance/O&M Start: ${r.last_maintenance_date}.` : null,
             `Status: ${r.status}.`,
@@ -238,7 +239,7 @@ async function queryLocalFts5Unified(query: string, limit: number): Promise<Unif
             similarity: 0.92,
             sourceType: 'nhai_contract',
             state: r.state, district: null,
-            metadata: { source_url: r.source_url, road_type: r.road_type_classification, sanctioned_cost_crore: r.sanctioned_cost_crore, expenditure_cost_crore: r.expenditure_cost_crore, last_maintenance_date: r.last_maintenance_date },
+            metadata: { source_url: r.source_url, road_type: r.road_type_classification, sanctioned_cost_crore: r.sanctioned_cost_crore, tot_concession_award_value_crore: r.tot_concession_award_value_crore, financial_type: r.tot_concession_award_value_crore ? 'tot-concession-award' : undefined, expenditure_cost_crore: r.expenditure_cost_crore, last_maintenance_date: r.last_maintenance_date },
             roadNumber: r.road_number, concessionaire: r.concessionaire, sourcePdfHash: r.contract_mode?.includes('TOT') ? 'nhai-tot-status' : 'nhai-awarded-22-23',
           });
         }

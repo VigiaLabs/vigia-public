@@ -12,13 +12,14 @@ const assert = (condition, label) => {
 };
 const isHttps = (value) => typeof value === 'string' && value.startsWith('https://');
 
-const [worldBank, emarg, renewal, offline, manifest, golden] = await Promise.all([
+const [worldBank, emarg, renewal, offline, manifest, golden, nh44Sections] = await Promise.all([
   readJson('data/v2/world-bank-ke-transport.json'),
   readJson('data/v2/emarg-road-maintenance.json'),
   readJson('data/v2/periodic-renewal-documents.json'),
   readJson('data/v2/offline-pack-sources.json'),
   readJson('public/offline/manifest.json'),
   readJson('data/v2/golden-questions.json'),
+  readJson('data/nh44-sections.json'),
 ]);
 
 assert(worldBank.sourcePublisher === 'World Bank', 'World Bank publisher is explicit');
@@ -43,6 +44,9 @@ assert(manifest.version === offline.version && manifest.emergencyContactCount ==
 const requiredCategories = ['contractor-role', 'financial-semantics', 'maintenance-date', 'current-safety', 'nonexistent-road', 'international', 'offline', 'offline-queue'];
 assert(requiredCategories.every((category) => golden.questions.some((question) => question.category === category)), 'Golden questions cover every critical V2 failure class');
 assert(golden.questions.every((question) => question.requiredBehavior && question.forbiddenClaims.length > 0), 'Every golden question defines required and forbidden behavior');
+const nh44TotRecords = nh44Sections.filter((record) => record.tot_concession_award_value_crore === 6661);
+assert(nh44TotRecords.length === 2, 'NH-44 TOT records use a dedicated concession-award field');
+assert(nh44TotRecords.every((record) => record.sanctioned_cost_crore == null && record.source_url.startsWith('https://www.pib.gov.in/')), 'NH-44 TOT value is not mislabeled as sanctioned cost and cites PIB');
 
 const database = new Database(resolve('data/vigia_edge.db'), { readonly: true });
 const metadata = Object.fromEntries(database.prepare('SELECT key, value FROM sync_metadata').all().map((row) => [row.key, row.value]));
@@ -74,7 +78,7 @@ assert(sourceCardCode.includes('passage.quote') && sourceCardCode.includes('Open
 assert(plannerCode.includes('official|responsible|authority') && plannerCode.includes("startsWith('NH-')"), 'Road personnel planner recognizes responsibility wording and protects NHAI jurisdiction');
 assert(plannerCode.includes('nhai_exact_road') && plannerCode.includes('Exact national-highway lookup'), 'Explicit national-highway IDs use deterministic retrieval planning');
 assert(federatedSearchCode.includes('prioritizeExactRoadMatches') && federatedSearchCode.includes('return exact;'), 'Federated retrieval requires exact suffixed road identifiers');
-assert(semanticCacheCode.includes('v11-final-demo-evidence'), 'Semantic cache invalidates stale pre-coverage answers');
+assert(semanticCacheCode.includes('v12-official-tot-provenance'), 'Semantic cache invalidates stale pre-coverage answers');
 assert(adminCode.includes('pmgsy|emarg|rural road|gram sadak|roadDetailsId') && !adminCode.includes('rural road|maintenance expenditure|maintenance contractor'), 'eMARG retrieval requires an explicit rural-road anchor');
 assert(chatRouteCode.includes("state.pipelineStatus === 'complete' && state.auditFinding") && chatRouteCode.includes('delta: deterministicText'), 'Terminal data-void responses bypass free-form generation');
 assert(chatRouteCode.includes('personnelAnchorMissing') && chatRouteCode.includes('personnelDisclosure.findings.slice(0, 5)'), 'Missing NHAI officer disclosures bypass free-form jurisdiction substitution');
@@ -84,8 +88,10 @@ assert(adminCode.includes('No exact indexed project record was found') && adminC
 
 const nhaiDatabase = new Database(resolve('data/nhai_mock.db'), { readonly: true });
 const nh163gRows = nhaiDatabase.prepare("SELECT count(*) AS count FROM nhai_sections WHERE upper(content) LIKE '%163G%'").get().count;
+const nh44TotRows = nhaiDatabase.prepare("SELECT count(*) AS count FROM nh44_projects WHERE tot_concession_award_value_crore = 6661 AND sanctioned_cost_crore IS NULL AND source_url LIKE 'https://www.pib.gov.in/%'").get().count;
 nhaiDatabase.close();
 assert(nh163gRows > 0, 'Local NHAI index contains NH-163G project records');
+assert(nh44TotRows === 2, 'Local NH-44 index preserves official TOT concession semantics');
 
 if (process.argv.includes('--live')) {
   const urls = [...new Set([

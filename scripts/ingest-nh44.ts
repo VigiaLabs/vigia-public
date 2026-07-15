@@ -20,6 +20,7 @@ db.exec(`
     concessionaire TEXT,
     contract_mode TEXT,
     sanctioned_cost_crore REAL,
+    tot_concession_award_value_crore REAL,
     expenditure_cost_crore REAL,
     award_date TEXT,
     completion_date TEXT,
@@ -33,9 +34,13 @@ db.exec(`
   )
 `);
 
+try {
+  db.exec('ALTER TABLE nh44_projects ADD COLUMN tot_concession_award_value_crore REAL');
+} catch {}
+
 const insertProject = db.prepare(`
-  INSERT INTO nh44_projects (section_name, road_number, state, road_type_classification, lanes, concessionaire, contract_mode, sanctioned_cost_crore, expenditure_cost_crore, award_date, completion_date, length_km, status, condition_notes, last_maintenance_date, source, source_url, ingested_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO nh44_projects (section_name, road_number, state, road_type_classification, lanes, concessionaire, contract_mode, sanctioned_cost_crore, tot_concession_award_value_crore, expenditure_cost_crore, award_date, completion_date, length_km, status, condition_notes, last_maintenance_date, source, source_url, ingested_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const insertFTS = db.prepare(`
@@ -47,11 +52,12 @@ const now = new Date().toISOString();
 
 const ingest = db.transaction(() => {
   db.prepare('DELETE FROM nh44_projects').run();
+  db.prepare("DELETE FROM nhai_sections WHERE content LIKE 'NH-44 %'").run();
   for (const s of sections) {
     // Insert into structured table
     insertProject.run(
       s.section_name, s.road_number, s.state, s.road_type_classification, s.lanes,
-      s.concessionaire, s.contract_mode, s.sanctioned_cost_crore ?? null, s.expenditure_cost_crore ?? null,
+      s.concessionaire, s.contract_mode, s.sanctioned_cost_crore ?? null, s.tot_concession_award_value_crore ?? null, s.expenditure_cost_crore ?? null,
       s.award_date, s.completion_date, s.length_km, s.status, s.condition_notes,
       s.last_maintenance_date, s.source, s.source_url, now
     );
@@ -61,7 +67,8 @@ const ingest = db.transaction(() => {
       `NH-44 ${s.section_name}`,
       `Road: ${s.road_number}, Classification: ${s.road_type_classification}, Lanes: ${s.lanes}`,
       s.concessionaire ? `Concessionaire: ${s.concessionaire}` : null,
-      s.sanctioned_cost_crore ? `Cost: ₹${s.sanctioned_cost_crore} Cr` : null,
+      s.sanctioned_cost_crore ? `Sanctioned Cost: ₹${s.sanctioned_cost_crore} Cr` : null,
+      s.tot_concession_award_value_crore ? `TOT Concession Award Value: ₹${s.tot_concession_award_value_crore} Cr` : null,
       `Status: ${s.status}`,
       s.state ? `State: ${s.state}` : null,
       s.condition_notes,
