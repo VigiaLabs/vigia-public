@@ -22,7 +22,7 @@ import { routerNode, ingestNode, guardrailNode, uiHookNode } from '@/lib/agents/
 import { extractUIPayload } from '@/lib/agents/ui-hook';
 import { scoreFaithfulness } from '@/lib/agents/faithfulness';
 import { buildEmargRecordDisclosure } from '@/lib/agents/emarg-disclosure';
-import { buildNhaiPersonnelDisclosure } from '@/lib/agents/nhai-personnel-disclosure';
+import { buildNhaiComplaintDisclosure, buildNhaiPersonnelDisclosure } from '@/lib/agents/nhai-personnel-disclosure';
 import { PayloadSchema, type Payload, type VigiaState } from '@/lib/agents/state';
 import { getCachedResponse, setCachedResponse } from '@/lib/cache/semantic-cache';
 import { streamFromEngine } from '@/lib/search-engine/client';
@@ -364,6 +364,7 @@ export async function POST(req: Request) {
           const evidenceText = state.evidence.flatMap((item) => item.findings).join('\n');
           const emargDisclosure = buildEmargRecordDisclosure(retrievalQueryText, state.evidence);
           const nhaiPersonnelDisclosure = buildNhaiPersonnelDisclosure(retrievalQueryText, state.evidence);
+          const nhaiComplaintDisclosure = buildNhaiComplaintDisclosure(retrievalQueryText, state.evidence);
           const visionEvidence = state.evidence.findLast((item) =>
             item.agentId === 'vision' && item.status === 'completed'
           );
@@ -413,6 +414,8 @@ export async function POST(req: Request) {
             ? emargDisclosure
             : nhaiPersonnelDisclosure
             ? nhaiPersonnelDisclosure
+            : nhaiComplaintDisclosure
+            ? nhaiComplaintDisclosure
             : visionDisclosure
             ? visionDisclosure
             : personnelDisclosure

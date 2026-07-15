@@ -85,7 +85,7 @@ assert(sourceCardCode.includes('passage.quote') && sourceCardCode.includes('Open
 assert(plannerCode.includes('official|responsible|authority') && plannerCode.includes("startsWith('NH-')"), 'Road personnel planner recognizes responsibility wording and protects NHAI jurisdiction');
 assert(plannerCode.includes('nhai_exact_road') && plannerCode.includes('Exact national-highway lookup'), 'Explicit national-highway IDs use deterministic retrieval planning');
 assert(federatedSearchCode.includes('prioritizeExactRoadMatches') && federatedSearchCode.includes('return exact;'), 'Federated retrieval requires exact suffixed road identifiers');
-assert(semanticCacheCode.includes('v16-nhai-piu-multihop'), 'Semantic cache invalidates stale national-highway personnel answers');
+assert(semanticCacheCode.includes('v17-deterministic-nh-routing'), 'Semantic cache invalidates stale national-highway routing answers');
 assert(adminCode.includes('pmgsy|emarg|rural road|gram sadak|roadDetailsId') && !adminCode.includes('rural road|maintenance expenditure|maintenance contractor'), 'eMARG retrieval requires an explicit rural-road anchor');
 assert(chatRouteCode.includes("state.pipelineStatus === 'complete' && state.auditFinding") && chatRouteCode.includes('delta: deterministicText'), 'Terminal data-void responses bypass free-form generation');
 assert(chatRouteCode.includes('personnelAnchorMissing') && chatRouteCode.includes('personnelDisclosure.findings.slice(0, 5)'), 'Missing NHAI officer disclosures bypass free-form jurisdiction substitution');

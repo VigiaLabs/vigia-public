@@ -36,3 +36,25 @@ export function buildNhaiPersonnelDisclosure(query: string, evidence: Normalized
     `The source calls this official the **Project Director**, not an Executive Engineer. The contact comes from a ${route.documentDate} NHAI project RFP, so it should be revalidated if a current office-holder is required.`,
   ].join('\n');
 }
+
+export function buildNhaiComplaintDisclosure(query: string, evidence: NormalizedEvidence[]): string | null {
+  if (!/\bNH[-\s]?163G\b/i.test(query) || !/\b(complaint|pothole|report)\b/i.test(query)) return null;
+  const admin = evidence.findLast((item) => item.agentId === 'admin' && item.status === 'completed');
+  if (!admin) return null;
+  const findings = admin.findings.join('\n');
+  const authority = findings.match(/Complaint authority:\s*(.+)/i)?.[1]?.trim();
+  const portal = findings.match(/Portal:\s*(https:\/\/\S+)/i)?.[1]?.replace(/[.,;]+$/, '');
+  const helpline = findings.match(/Helpline:\s*([^\n]+)/i)?.[1]?.replace(/[.,;]+$/, '').trim();
+  const authoritySource = admin.citations.find((citation) => citation.sourceId === 'complaint-authority');
+  const roadSource = admin.citations.find((citation) => citation.sourceId.startsWith('nhai_contract-'));
+  if (!authority || !portal || !helpline || !authoritySource?.url || !roadSource?.url) return null;
+
+  return [
+    '**Verified NH-163G complaint route**',
+    `- VIGIA found exact indexed project records for **NH-163G**. ([NHAI project source](${roadSource.url}))`,
+    `- **Responsible authority:** ${authority}. ([official authority source](${authoritySource.url}))`,
+    `- **Complaint portal:** [${portal}](${portal})`,
+    `- **Official helpline:** **${helpline}**`,
+    '- Project evidence and complaint-routing evidence are kept separate; no State PWD officer is substituted as the NHAI project authority.',
+  ].join('\n');
+}
