@@ -38,6 +38,7 @@ async function getSarvamApiKey(): Promise<string> {
 }
 
 function audioFilename(mimeType: string): string {
+  if (mimeType.includes('aiff') || mimeType.includes('aif')) return 'voice.aiff';
   if (mimeType.includes('wav')) return 'voice.wav';
   if (mimeType.includes('ogg')) return 'voice.ogg';
   if (mimeType.includes('mpeg') || mimeType.includes('mp3')) return 'voice.mp3';
@@ -67,7 +68,13 @@ export async function transcribeWithSarvam(
     body: form,
     signal: AbortSignal.timeout(30_000),
   });
-  const payload = await response.json() as SarvamSttResponse;
+  const responseText = await response.text();
+  let payload: SarvamSttResponse;
+  try {
+    payload = JSON.parse(responseText) as SarvamSttResponse;
+  } catch {
+    throw new Error(`Sarvam STT returned an invalid response (${response.status})`);
+  }
   if (!response.ok) {
     const detail = typeof payload.error === 'string' ? payload.error : payload.error?.message;
     throw new Error(`Sarvam STT failed (${response.status})${detail ? `: ${detail}` : ''}`);
