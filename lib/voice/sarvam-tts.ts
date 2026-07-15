@@ -8,6 +8,11 @@ const SARVAM_TTS_URL =
 const SARVAM_SECRET_ID = process.env.SARVAM_SECRET_ID?.trim() || 'vigia/sarvam-api-key';
 let cachedApiKey: string | null = null;
 
+const SARVAM_TTS_MODELS = [
+  { model: 'bulbul:v3', speaker: 'shubh', maxChars: 2500 },
+  { model: 'bulbul:v2', speaker: 'anushka', maxChars: 1500 },
+] as const;
+
 const SARVAM_SUPPORTED_LOCALES = new Set([
   'bn-IN',
   'en-IN',
@@ -66,7 +71,11 @@ function extractErrorMessage(payload: SarvamTtsResponse): string | undefined {
   return payload.error?.message;
 }
 
-async function requestSarvamTts(text: string, targetLanguageCode: string): Promise<ArrayBuffer> {
+async function requestSarvamTts(
+  text: string,
+  targetLanguageCode: string,
+  modelConfig: (typeof SARVAM_TTS_MODELS)[number]
+): Promise<ArrayBuffer> {
   const directSarvamRequest = SARVAM_TTS_URL.startsWith('https://api.sarvam.ai/');
   const response = await fetch(SARVAM_TTS_URL, {
     method: 'POST',
@@ -75,17 +84,24 @@ async function requestSarvamTts(text: string, targetLanguageCode: string): Promi
       ...(directSarvamRequest ? { 'api-subscription-key': await getSarvamApiKey() } : {}),
     },
     body: JSON.stringify({
-      text,
+      text: text.slice(0, modelConfig.maxChars),
       target_language_code: targetLanguageCode,
-      model: 'bulbul:v3',
-      speaker: 'shubh',
+      model: modelConfig.model,
+      speaker: modelConfig.speaker,
       output_audio_codec: 'mp3',
       speech_sample_rate: '24000',
     }),
     signal: AbortSignal.timeout(30_000),
   });
 
-  const payload = (await response.json()) as SarvamTtsResponse;
+  const responseText = await response.text();
+  let payload: SarvamTtsResponse;
+  try {
+    payload = JSON.parse(responseText) as SarvamTtsResponse;
+  } catch {
+    throw new Error(`Sarvam TTS returned an invalid response (${response.status})`);
+  }
+
   if (!response.ok) {
     const detail = extractErrorMessage(payload);
     throw new Error(`Sarvam TTS failed (${response.status})${detail ? `: ${detail}` : ''}`);
@@ -96,6 +112,24 @@ async function requestSarvamTts(text: string, targetLanguageCode: string): Promi
 
   const buffer = Buffer.from(audioBase64, 'base64');
   return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+}
+
+async function requestSarvamTtsWithFallback(
+  text: string,
+  targetLanguageCode: string
+): Promise<ArrayBuffer> {
+  let lastError: Error | null = null;
+
+  for (const modelConfig of SARVAM_TTS_MODELS) {
+    try {
+      const audio = await requestSarvamTts(text, targetLanguageCode, modelConfig);
+      if (audio.byteLength > 0) return audio;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error('Sarvam TTS failed');
+    }
+  }
+
+  throw lastError ?? new Error('Sarvam TTS returned no audio');
 }
 
 export async function synthesizeSarvamSpeech(
@@ -109,7 +143,7 @@ export async function synthesizeSarvamSpeech(
 
   try {
     for (const candidate of candidates) {
-      const audio = await requestSarvamTts(text, candidate);
+      const audio = await requestSarvamTtsWithFallback(text, candidate);
       if (audio.byteLength > 0) {
         return { ok: true, audio, contentType: 'audio/mpeg' };
       }

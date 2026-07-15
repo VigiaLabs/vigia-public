@@ -57,9 +57,8 @@ import {
 } from '@/components/chat/voice-session-bar';
 import { useVoiceChat, isNetworkError } from '@/hooks/use-voice-chat';
 import { getMessageText } from '@/lib/voice/get-message-text';
-import { speakText, stopSpeaking } from '@/lib/voice/speak-text';
+import { stopSpeaking } from '@/lib/voice/speak-text';
 import { stripMarkdown } from '@/lib/voice/strip-markdown';
-import { resolveVoiceLocale } from '@/lib/voice/locale';
 import { useSettings } from '@/lib/context/settings-context';
 import type { VoiceLocale } from '@/types/voice';
 import { isVigiaEvidenceMetadata } from '@/types/evidence';
@@ -217,24 +216,6 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     cancelPendingVoiceReply();
   }, [stopTTS, cancelPendingVoiceReply]);
 
-  const playTTS = useCallback(
-    async (text: string, messageId: string, locale?: VoiceLocale) => {
-      stopTTS();
-      setIsLoadingSpeech(true);
-      setIsSpeaking(true);
-      setSpeakingMessageId(messageId);
-
-      try {
-        await speakText(text, { locale });
-      } finally {
-        setIsLoadingSpeech(false);
-        setIsSpeaking(false);
-        setSpeakingMessageId(null);
-      }
-    },
-    [stopTTS]
-  );
-
   const {
     messages,
     sendMessage,
@@ -250,7 +231,8 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     pipelineSteps,
   } = useVoiceChat({
     id: chatId,
-    speakResponses: preferences.speakResponses,
+    // TTS is demonstrated on the mobile app; web voice turns are STT + text only.
+    speakResponses: false,
     defaultLocale,
     autoDetectLanguage: preferences.autoDetectLanguage,
     responseStyle: preferences.responseStyle,
@@ -266,12 +248,7 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
       // persist it; the caller will queue one placeholder for a clean replay.
       if (isError || isAbort) return;
 
-      const shouldSpeak = voiceTurnRef.current;
-      const preferredLocale =
-        pendingVoiceTtsLocaleRef.current ??
-        turnLocaleRef.current ??
-        voiceLocale ??
-        undefined;
+      const wasVoiceTurn = voiceTurnRef.current;
 
       const threadId = currentThreadId;
       if (threadId && message.role === 'assistant') {
@@ -281,42 +258,15 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
         notifyThreadsUpdated();
       }
 
-      if (!shouldSpeak || message.role !== 'assistant') {
+      if (!wasVoiceTurn || message.role !== 'assistant') {
         pendingVoiceTtsLocaleRef.current = null;
         return;
       }
 
+      // Web voice demo: STT + multilingual text only. TTS is demonstrated on the app.
       voiceTurnRef.current = false;
       pendingVoiceTtsLocaleRef.current = null;
-
-      let cleanText = stripMarkdown(getMessageText(message));
-      if (!cleanText) {
-        for (let i = messages.length - 1; i >= 0; i -= 1) {
-          if (messages[i].role !== 'assistant') continue;
-          cleanText = stripMarkdown(getMessageText(messages[i]));
-          if (cleanText) break;
-        }
-      }
-
-      if (!cleanText) {
-        setIsVoiceTurn(false);
-        return;
-      }
-
-      const ttsLocale = resolveVoiceLocale({
-        text: cleanText,
-        preferredLocale,
-      });
-
-      try {
-        await playTTS(cleanText, message.id, ttsLocale);
-      } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return;
-        const msg = err instanceof Error ? err.message : 'Speech playback failed';
-        setError(msg);
-      } finally {
-        setIsVoiceTurn(false);
-      }
+      setIsVoiceTurn(false);
     },
   });
 
