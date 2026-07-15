@@ -15,7 +15,7 @@ import { routerNode, ingestNode, guardrailNode, uiHookNode } from '../lib/agents
 import { extractUIPayload } from '../lib/agents/ui-hook';
 import { scoreFaithfulness } from '../lib/agents/faithfulness';
 import { buildEmargRecordDisclosure } from '../lib/agents/emarg-disclosure';
-import { buildNhaiComplaintDisclosure, buildNhaiPersonnelDisclosure } from '../lib/agents/nhai-personnel-disclosure';
+import { buildNh44PersonnelConditionDisclosure, buildNhaiComplaintDisclosure, buildNhaiPersonnelDisclosure } from '../lib/agents/nhai-personnel-disclosure';
 import { VIGIA_BASE_SYSTEM_PROMPT } from '../lib/voice/chat-prompt';
 import type { Payload, VigiaState } from '../lib/agents/state';
 
@@ -245,7 +245,8 @@ app.post('/v1/search', async (req, res) => {
     const emargDisclosure = buildEmargRecordDisclosure(body.query, state.evidence);
     const nhaiPersonnelDisclosure = buildNhaiPersonnelDisclosure(body.query, state.evidence);
     const nhaiComplaintDisclosure = buildNhaiComplaintDisclosure(body.query, state.evidence);
-    const deterministicDisclosure = emargDisclosure ?? nhaiPersonnelDisclosure ?? nhaiComplaintDisclosure;
+    const nh44PersonnelConditionDisclosure = buildNh44PersonnelConditionDisclosure(body.query, state.evidence);
+    const deterministicDisclosure = emargDisclosure ?? nhaiPersonnelDisclosure ?? nhaiComplaintDisclosure ?? nh44PersonnelConditionDisclosure;
     if (deterministicDisclosure) {
       send('text', { delta: deterministicDisclosure });
       send('metadata', {

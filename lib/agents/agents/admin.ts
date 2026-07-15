@@ -630,6 +630,14 @@ export async function runAdminAgent(
             documentDate: metadataString(nhaiPiuContact.metadata, 'document_date'),
             sourceId: `nhai_piu_contact-${deduped.indexOf(nhaiPiuContact)}`,
           } : undefined;
+          const districtPwdContact = deduped.find((result) => result.sourceType === 'pwd_contact');
+          const districtContact = districtPwdContact ? {
+            name: metadataString(districtPwdContact.metadata, 'name'),
+            phone: metadataString(districtPwdContact.metadata, 'phone'),
+            email: metadataString(districtPwdContact.metadata, 'email'),
+            district: districtPwdContact.district,
+            sourceId: `pwd_contact-${deduped.indexOf(districtPwdContact)}`,
+          } : undefined;
 
           return {
             agentId: 'admin',
@@ -651,6 +659,7 @@ export async function runAdminAgent(
               hasExactRoadMatch,
               reasoning: plan.reasoning,
               personnelRoute,
+              districtContact,
               reasoningTrace: [
                 `Planning retrieval strategy (${plan.steps.length} steps)`,
                 ...plan.steps.map(s => s.dependsOn?.length

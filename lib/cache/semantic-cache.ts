@@ -11,7 +11,7 @@ interface CachedResponse {
 
 let redis: any = null;
 let redisChecked = false;
-const CACHE_SCHEMA_VERSION = 'v17-deterministic-nh-routing';
+const CACHE_SCHEMA_VERSION = 'v18-rich-scoped-road-answers';
 
 async function getRedis() {
   if (redisChecked) return redis;

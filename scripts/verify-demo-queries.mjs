@@ -30,9 +30,17 @@ const cases = [
   {
     id: 'nh163g-personnel-multihop',
     query: 'Phone number of the Executive Engineer responsible for NH-163G. Show the road-to-district-to-authority reasoning and cite the official source.',
-    required: [/NH-163G/i, /Khammam/i, /NHAI Project Implementation Unit|PIU/i, /G Durga Prasad/i, /8919631585/i, /Project Director/i, /not an Executive Engineer/i],
-    forbidden: [/9440818085/i, /No project-specific named NHAI officer is present/i],
-    minimumSources: 2,
+    required: [/NH-163G/i, /Khammam/i, /NHAI Project Implementation Unit|PIU/i, /G Durga Prasad/i, /8919631585/i, /Project Director/i, /not an Executive Engineer/i, /9440818085/i, /does not establish.*responsible|district coordination contact/i],
+    forbidden: [/9440818085[^\n]*(?:responsible for NH-163G|NHAI project officer)/i, /No project-specific named NHAI officer is present/i],
+    minimumSources: 3,
+    requireExcerpt: true,
+  },
+  {
+    id: 'nh44-personnel-iri-partial-evidence',
+    query: 'Who is the Executive Engineer for NH-44, and what is its current IRI roughness score? Cite the official record.',
+    required: [/NH-44 exists in the VIGIA index/i, /Hyderabad.?Nagpur 251 km corridor/i, /six-lane|6L/i, /Highway Infrastructure Trust/i, /6,661/i, /Executive Engineer[^\n]*(?:No project-specific|not present)/i, /current IRI roughness score[^\n]*not available/i, /1033/],
+    forbidden: [/current IRI[^\n]*(?:is|=)\s*\d/i, /This specific data is not available in the VIGIA index/i],
+    minimumSources: 3,
     requireExcerpt: true,
   },
   {

@@ -113,7 +113,7 @@ Run these live. Each lists the query, what it exercises, and the expected behavi
 | # | Query | Exercises | Expected |
 |---|---|---|---|
 | B1 | `For NH-163G, what verified project records exist and where should I file a pothole complaint?` | Exact-road retrieval + authority routing | Indexed NH-163G project records plus NHAI PIU, CPGRAMS, and 1033. No State PWD engineer is presented as the NHAI project officer. |
-| B2 | `Phone number of the Executive Engineer responsible for NH-163G. Show the road-to-district-to-authority reasoning and cite the official source.` | Deterministic road → district → NHAI PIU contact hop | Resolves NH-163G → Khammam → NHAI PIU Khammam → Sh. G Durga Prasad, Project Director, +91 8919631585, citing the official NHAI RFP page 43. Explicitly says the source does not title the contact “Executive Engineer” and never substitutes Telangana R&B phone 9440818085. |
+| B2 | `Phone number of the Executive Engineer responsible for NH-163G. Show the road-to-district-to-authority reasoning and cite the official source.` | Deterministic road → district → NHAI PIU contact hop | Resolves NH-163G → Khammam → NHAI PIU Khammam → Sh. G Durga Prasad, Project Director, +91 8919631585, citing the official NHAI RFP page 43. Also shows Telangana R&B Khammam contact 9440818085 as district coordination context, explicitly warning that the R&B/ROW directory does not prove NH-163G responsibility. |
 | B3 | `Who is responsible for NH 44?` | Exact-road personnel disclosure | Confirms indexed NH-44 records, discloses that no project-specific named NHAI officer is indexed, and returns the cited NHAI PIU route. |
 | B4 | `Compare the contractor and budget for NH-44 versus a PMGSY road near Nagpur` | Independent parallel plan steps | Two source silos queried in parallel, results not blended. |
 
@@ -122,6 +122,7 @@ Run these live. Each lists the query, what it exercises, and the expected behavi
 |---|---|---|---|
 | C1 | `Who is the executive engineer for NH-9999?` (nonexistent) | Exact-ID gate → authority disclosure | Explicitly says no exact indexed project record exists, attaches no neighbouring-road chunks, and routes to NHAI PIU, pgportal, and 1033. |
 | C2 | `What is the exact IRI roughness score of NH-66 today?` | "Data we do not have" | Explicit "not available in the VIGIA index," no fabricated number. |
+| C3 | `Who is the Executive Engineer for NH-44, and what is its current IRI roughness score? Cite the official record.` | Partial-evidence preservation | Returns scoped verified NH-44 corridor facts (6L, O&M concessionaire, ₹6,661 crore TOT value, O&M start) while separately marking the named officer and current IRI unavailable. |
 | C3 | `Tell me the engineer for NH-66` (a west-coast road) with evidence only about Telangana | Cross-region hallucination trap | Refuses to associate NH-66 with a Telangana officer. |
 
 ### D. Spatial / jurisdiction (the Dubai bug regression tests)

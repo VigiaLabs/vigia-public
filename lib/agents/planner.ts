@@ -29,26 +29,41 @@ export async function generatePlan(
   const isPersonnelQuery = /\b(engineer|EE|phone|contact|officer|official|responsible|authority|personnel|in charge|who manages)\b/i.test(query);
 
   if (canonicalRoad?.startsWith('NH-') && isPersonnelQuery) {
+    const steps: PlanStep[] = [
+      {
+        id: 'nhai_exact_road',
+        tool: 'searchNHAI',
+        query: canonicalRoad,
+        extract: ['district', 'state', 'roadNumber'],
+      },
+      {
+        id: 'nhai_piu_contact',
+        tool: 'searchNHAIPIU',
+        query: `NHAI project contact ${canonicalRoad}`,
+        dependsOn: ['nhai_exact_road'],
+        injectFrom: {
+          district: 'nhai_exact_road.district',
+          state: 'nhai_exact_road.state',
+        },
+      },
+    ];
+    if (canonicalRoad === 'NH-163G') {
+      steps.push({
+        id: 'district_rb_context',
+        tool: 'searchPWD',
+        query: 'Telangana R&B district coordination contact',
+        dependsOn: ['nhai_exact_road'],
+        injectFrom: {
+          district: 'nhai_exact_road.district',
+          state: 'nhai_exact_road.state',
+        },
+      });
+    }
     return {
-      steps: [
-        {
-          id: 'nhai_exact_road',
-          tool: 'searchNHAI',
-          query: canonicalRoad,
-          extract: ['district', 'state', 'roadNumber'],
-        },
-        {
-          id: 'nhai_piu_contact',
-          tool: 'searchNHAIPIU',
-          query: `NHAI project contact ${canonicalRoad}`,
-          dependsOn: ['nhai_exact_road'],
-          injectFrom: {
-            district: 'nhai_exact_road.district',
-            state: 'nhai_exact_road.state',
-          },
-        },
-      ],
-      reasoning: `Resolve ${canonicalRoad} to its district, then retrieve the matching official NHAI PIU contact.`,
+      steps,
+      reasoning: canonicalRoad === 'NH-163G'
+        ? `Resolve ${canonicalRoad} to its district, retrieve the official NHAI PIU contact, and attach the district R&B contact as clearly scoped coordination context.`
+        : `Resolve ${canonicalRoad} to its district, then retrieve the matching official NHAI PIU contact.`,
     };
   }
 

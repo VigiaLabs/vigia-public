@@ -120,19 +120,33 @@ export async function searchPWD(
     norm(r.district).includes(needle) ||
     norm(r.state).includes(needle) ||
     r.chunkText.toLowerCase().includes(needle);
+  const withOfficialContactExcerpt = (result: UnifiedResult): UnifiedResult => {
+    const name = typeof result.metadata?.name === 'string' ? result.metadata.name : null;
+    const phone = typeof result.metadata?.phone === 'string' ? result.metadata.phone : null;
+    const email = typeof result.metadata?.email === 'string' ? result.metadata.email : null;
+    if (!name || !phone) return result;
+    return {
+      ...result,
+      metadata: {
+        ...result.metadata,
+        excerpt: [name, `Mobile: ${phone}`, email ? `Email: ${email}` : null].filter(Boolean).join(' | '),
+        source_locator: 'Roads & Buildings Department Office — R & B Contacts List',
+      },
+    };
+  };
 
   // District is the strongest constraint. If we have one, keep only officers that match it.
   if (anchor.district) {
     const d = norm(anchor.district);
     const districtMatches = raw.filter((r) => inText(r, d));
-    if (districtMatches.length > 0) return districtMatches.slice(0, limit);
+    if (districtMatches.length > 0) return districtMatches.slice(0, limit).map(withOfficialContactExcerpt);
     // District anchor but no officer in that district → fall through to state, else empty.
   }
 
   if (anchor.state) {
     const s = norm(anchor.state);
     const stateMatches = raw.filter((r) => inText(r, s));
-    if (stateMatches.length > 0) return stateMatches.slice(0, limit);
+    if (stateMatches.length > 0) return stateMatches.slice(0, limit).map(withOfficialContactExcerpt);
   }
 
   // Anchor present but nothing verifiably matches it → refuse rather than guess.
