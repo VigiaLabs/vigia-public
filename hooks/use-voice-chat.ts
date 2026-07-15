@@ -132,7 +132,6 @@ export function useVoiceChat({
       setPipelineSteps((prev) => (prev.includes(step) ? prev : [...prev, step]));
     },
     onFinish: async ({ message, isError, isAbort }) => {
-      setPipelineSteps([]);
       await onFinish?.(message, { isError, isAbort });
 
       if (isError || isAbort || message.role !== 'assistant') {

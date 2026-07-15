@@ -25,7 +25,7 @@ export const CitationSchema = z.object({
   sourceId: z.string(),
   label: z.string(),
   url: z.string().optional(),
-  trustLevel: z.enum(['verified-spatial', 'legally-binding', 'official-portal', 'citizen-claim']),
+  trustLevel: z.enum(['verified-spatial', 'legally-binding', 'official-portal', 'reference-source', 'citizen-claim']),
   documentTitle: z.string().optional(),
   excerpt: z.string().optional(),
   sourceLocator: z.string().optional(),
@@ -134,10 +134,24 @@ export const PipelineStatusSchema = z.enum([
 // ─── Pending Action (Zero-Trust Vision) ─────────────────────────────
 
 export const PendingActionSchema = z.object({
-  type: z.enum(['flag-for-review', 'verify-depin']),
+  type: z.enum(['flag-for-review', 'verify-depin', 'contact-authority']),
   coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
   visionFindings: z.array(z.string()),
   suggestedActions: z.array(z.string()),
+  authority: z.object({
+    name: z.string(),
+    designation: z.string(),
+    officerName: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().email().optional(),
+    portal: z.string().url().optional(),
+    sourceUrl: z.string().url(),
+    jurisdictionNote: z.string(),
+  }).optional(),
+  complaintDraft: z.object({
+    subject: z.string(),
+    body: z.string(),
+  }).optional(),
 });
 
 // ─── Full Graph State Schema ────────────────────────────────────────

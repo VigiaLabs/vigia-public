@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { Plan, PlanStep } from './planner';
 import type { UnifiedResult } from '../tools/search-unified';
 import type { Payload } from './state';
-import { searchNHAI, searchPWD, searchPMGSY, searchAll } from '../tools/search-federated';
+import { searchNHAI, searchPWD, searchPMGSY, searchRoadReferences, searchAll } from '../tools/search-federated';
 import { searchNhaiPiuContacts } from '../tools/nhai-piu-contacts';
 import type { IndiaGeo } from '../tools/geo-resolve';
 
@@ -49,6 +49,7 @@ function executeTool(tool: string, query: string, geo?: IndiaGeo): Promise<Unifi
     case 'searchNHAIPIU': return Promise.resolve(searchNhaiPiuContacts(query, geo));
     case 'searchPWD': return searchPWD(query, 8, geo);
     case 'searchPMGSY': return searchPMGSY(query);
+    case 'searchReference': return searchRoadReferences(query);
     default: return searchAll(query);
   }
 }

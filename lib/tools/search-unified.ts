@@ -22,21 +22,25 @@ const SOURCE_LABELS: Record<string, string> = {
   pmgsy_road: 'PMGSY OMMAS Portal',
   pwd_contact: 'State PWD Official Directory',
   authority: 'Government Authority Matrix',
+  road_reference: 'Road Network Reference',
+  pmgsy_reference: 'PMGSY Official Reference',
 };
 
-const TRUST_LEVELS: Record<string, 'legally-binding' | 'official-portal' | 'verified-spatial'> = {
+const TRUST_LEVELS: Record<string, 'legally-binding' | 'official-portal' | 'verified-spatial' | 'reference-source'> = {
   nhai_contract: 'legally-binding',
   nhai_piu_contact: 'official-portal',
   pmgsy_road: 'official-portal',
   pwd_contact: 'official-portal',
   authority: 'official-portal',
+  road_reference: 'reference-source',
+  pmgsy_reference: 'official-portal',
 };
 
 export function getSourceLabel(sourceType: string): string {
   return SOURCE_LABELS[sourceType] ?? 'VIGIA Index';
 }
 
-export function getTrustLevel(sourceType: string): 'legally-binding' | 'official-portal' | 'verified-spatial' {
+export function getTrustLevel(sourceType: string): 'legally-binding' | 'official-portal' | 'verified-spatial' | 'reference-source' {
   return TRUST_LEVELS[sourceType] ?? 'official-portal';
 }
 

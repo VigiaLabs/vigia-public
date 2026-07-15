@@ -162,6 +162,16 @@ export async function searchPMGSY(query: string, limit = 8): Promise<UnifiedResu
     .slice(0, limit);
 }
 
+export async function searchRoadReferences(query: string, limit = 8): Promise<UnifiedResult[]> {
+  const [roadReferences, pmgsyReferences] = await Promise.all([
+    queryPgvectorFiltered(query, limit, 'road_reference'),
+    queryPgvectorFiltered(query, limit, 'pmgsy_reference'),
+  ]);
+  return [...roadReferences, ...pmgsyReferences]
+    .sort((left, right) => right.similarity - left.similarity)
+    .slice(0, limit);
+}
+
 export async function searchAll(query: string, limit = 8): Promise<UnifiedResult[]> {
   return queryPgvectorFiltered(query, limit, null);
 }

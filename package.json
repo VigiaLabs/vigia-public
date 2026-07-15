@@ -14,6 +14,7 @@
     "data:ingest:worldbank-v2": "node scripts/ingest-world-bank-v2.mjs",
     "data:ingest:emarg-v2": "node scripts/ingest-emarg-v2.mjs",
     "data:ingest:renewal-v2": "node scripts/ingest-periodic-renewal-documents.mjs",
+    "data:ingest:chennai": "npx tsx scripts/ingest-chennai-road-sources.ts",
     "data:build:offline-v2": "node scripts/build-offline-pack.mjs",
     "test:v2": "npm run data:build:offline-v2 && node scripts/verify-v2-release.mjs",
     "test:demo:live": "node scripts/verify-demo-queries.mjs --live",

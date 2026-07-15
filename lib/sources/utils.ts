@@ -36,6 +36,11 @@ export const TRUST_META: Record<
     badgeClass: 'bg-amber-50 text-amber-900 ring-amber-200/80',
     dotClass: 'bg-amber-500',
   },
+  'reference-source': {
+    label: 'Reference source',
+    badgeClass: 'bg-violet-50 text-violet-800 ring-violet-200/80',
+    dotClass: 'bg-violet-500',
+  },
 };
 
 const DEFAULT_TRUST = {

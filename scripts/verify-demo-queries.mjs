@@ -4,6 +4,14 @@ const endpoint = process.env.VIGIA_DEMO_URL || (process.argv.includes('--live') 
 
 const cases = [
   {
+    id: 'chennai-short-pothole-complaint',
+    query: 'Help me, I found a big pothole in Chennai.',
+    required: [/Greater Chennai Corporation/i, /N\. Thirumurugan/i, /9445190735/i, /sebrr@chennaicorporation\.gov\.in/i, /1913/i, /Draft complaint email/i, /has not been sent|not been sent/i],
+    forbidden: [/complaint (?:was|has been) (?:filed|sent)/i, /road ownership is confirmed/i],
+    minimumSources: 2,
+    requireExcerpt: true,
+  },
+  {
     id: 'nh44-responsibility',
     query: 'Who is responsible for NH 44?',
     required: [/indexed project records for NH-44/i, /NHAI Project Implementation Unit|PIU/i, /1033/],

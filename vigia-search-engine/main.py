@@ -118,6 +118,9 @@ SOURCE_TYPE_MAP = {
     "road_chunks":  "nhai_contract",
     "pwd_chunks":   "pwd_contact",
     "pmgsy_chunks": "pmgsy_road",
+    "reference_chunks": "road_reference",
+    "pmgsy_reference_chunks": "pmgsy_reference",
+    "authority_chunks": "authority",
 }
 
 def _pg_connect():
@@ -217,6 +220,9 @@ PLANNER_PROMPT = """You are a retrieval planner for VIGIA. Available tables:
 - road_chunks: NHAI contracts (road numbers, concessionaires, costs, districts, modes EPC/HAM/BOT)
 - pwd_chunks: PWD personnel (engineers, phones, emails, divisions)
 - pmgsy_chunks: Rural roads (PMGSY scheme, contractors, districts)
+- reference_chunks: Clearly labelled road-network reference material
+- pmgsy_reference_chunks: Official PMGSY scheme and impact-assessment material
+- authority_chunks: Official complaint portals and authority channels
 
 Given the query, output a JSON plan (1-4 steps):
 {{"steps":[{{"id":"s1","table":"road_chunks","query":"...","extract":["district"],"depends_on":[]}},{{"id":"s2","table":"pwd_chunks","query":"...","inject_from":{{"district":"s1.district"}},"depends_on":["s1"]}}]}}
@@ -226,6 +232,8 @@ RULES:
 - Use "extract" to pull: district, state, road_number, concessionaire
 - For personnel queries about a road: ALWAYS include both road_chunks step AND pwd_chunks step with inject_from
 - Keep queries short and specific. Include location terms from the user query.
+- For road-network overviews, Chennai infrastructure context, or Wikipedia/reference questions, include reference_chunks.
+- For PMGSY scheme context without a specific indexed road ID, include pmgsy_reference_chunks.
 
 USER QUERY: "{query}"
 INTENT: {intent}"""
@@ -270,7 +278,8 @@ async def _execute_plan(steps: list[dict], base_query: str) -> list[dict]:
                 if val:
                     q = f"{q} {val}"
             table = step.get("table", "road_chunks")
-            tasks.append((step["id"], table, q, step.get("extract", [])))
+            source_type = SOURCE_TYPE_MAP.get(table, table)
+            tasks.append((step["id"], source_type, q, step.get("extract", [])))
 
         results = await asyncio.gather(*[_vector_search(q, table) for _, table, q, _ in tasks])
 
@@ -459,7 +468,7 @@ def _language_instruction(language_code: Optional[str]) -> str:
 async def run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     try:
         # ── Node 1: Router ────────────────────────────────────────────────────
-        yield sse_step("Classifying intent...")
+        yield sse_step("Understanding your request...")
         routing = await _router(req)
         intent = routing.get("intent", "tender_search")
 
@@ -472,16 +481,16 @@ async def run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
             return
 
         # ── Node 2: Planner ───────────────────────────────────────────────────
-        yield sse_step("Planning retrieval strategy...")
+        yield sse_step("Planning the evidence search...")
         steps = await _planner(req.query, intent)
         n_steps = len(steps)
-        yield sse_step(f"Searching {n_steps} source{'s' if n_steps != 1 else ''} in parallel...")
+        yield sse_step(f"Searching {n_steps} official or indexed source{'s' if n_steps != 1 else ''}...")
 
         # ── Node 3: Executor (parallel multi-hop) ─────────────────────────────
         chunks = await _execute_plan(steps, req.query)
 
         # ── Node 4: Guardrail ─────────────────────────────────────────────────
-        yield sse_step("Verifying evidence...")
+        yield sse_step("Checking citations and claim support...")
         confidence, is_void = _assess_evidence(chunks)
         contradiction = _detect_contradiction(chunks, req.query)
         temporal_warnings = _temporal_warnings(chunks)
@@ -518,7 +527,7 @@ async def run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
             yield sse_step(f"Flagging {len(temporal_warnings)} temporal inconsistency...")
 
         # ── Node 5: Stream response ───────────────────────────────────────────
-        yield sse_step("Generating response...")
+        yield sse_step("Drafting the verified answer...")
 
         context = _build_context(chunks, confidence, temporal_warnings, authority_text)
         system = (

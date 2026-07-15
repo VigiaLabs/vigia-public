@@ -26,6 +26,7 @@ import { buildNh44PersonnelConditionDisclosure, buildNhaiComplaintDisclosure, bu
 import { PayloadSchema, type Payload, type VigiaState } from '@/lib/agents/state';
 import { getCachedResponse, setCachedResponse } from '@/lib/cache/semantic-cache';
 import { streamFromEngine } from '@/lib/search-engine/client';
+import { buildCitizenComplaintDisclosure, isCitizenComplaintQuery } from '@/lib/complaints/authority-routing';
 
 export const runtime = 'nodejs';
 
@@ -112,7 +113,8 @@ export async function POST(req: Request) {
       : attachedImage?.type === 'file'
         ? attachedImage.url
         : undefined;
-    const shouldUseCache = !imageUrl && !contextualFollowUp;
+    const citizenComplaintRequest = isCitizenComplaintQuery(retrievalQueryText) || imageUrl !== undefined;
+    const shouldUseCache = !imageUrl && !contextualFollowUp && !citizenComplaintRequest;
 
     // ─── Semantic Cache Check ───────────────────────────────────────
     const cached = shouldUseCache ? await getCachedResponse(queryText) : null;
@@ -153,7 +155,7 @@ export async function POST(req: Request) {
         let retrievedChunks: string[] = [];
 
         // ─── External Engine Path (Fargate SSE) ──────────────────
-        if (process.env.VIGIA_ENGINE_URL && !pipelinePayload.imageUrl) {
+        if (process.env.VIGIA_ENGINE_URL && !pipelinePayload.imageUrl && !citizenComplaintRequest) {
           try {
             const history = messages
               .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -206,7 +208,7 @@ export async function POST(req: Request) {
 
         try {
           // Node 1: Router
-          emitStep('Classifying intent...');
+          emitStep('Understanding your request...');
           const initialState: VigiaState = {
             traceId: crypto.randomUUID(),
             startedAt: Date.now(),
@@ -238,7 +240,9 @@ export async function POST(req: Request) {
           }
 
           // Node 2: Ingest (parallel agents)
-          emitStep(`Searching ${state.activeAgents.length} source${state.activeAgents.length !== 1 ? 's' : ''}...`);
+          emitStep(citizenComplaintRequest
+            ? 'Checking the photo, location, and responsible authority...'
+            : `Searching ${state.activeAgents.length} source${state.activeAgents.length !== 1 ? 's' : ''}...`);
           const ingestResult = await ingestNode(state);
           state = {
             ...state,
@@ -257,7 +261,7 @@ export async function POST(req: Request) {
           }
 
           // Node 3: Guardrail
-          emitStep('Verifying evidence...');
+          emitStep(citizenComplaintRequest ? 'Verifying official contact details...' : 'Verifying evidence...');
           const guardrailResult = await guardrailNode(state);
           state = {
             ...state,
@@ -369,6 +373,24 @@ export async function POST(req: Request) {
           const visionEvidence = state.evidence.findLast((item) =>
             item.agentId === 'vision' && item.status === 'completed'
           );
+          const complaintDisclosure = buildCitizenComplaintDisclosure(
+            retrievalQueryText,
+            pipelinePayload.gps,
+            visionEvidence,
+          );
+          if (complaintDisclosure && evidenceAnnotation) {
+            const annotation = evidenceAnnotation as {
+              sources?: Array<{ id: string }>;
+              claims?: unknown[];
+              pendingAction?: unknown;
+            };
+            annotation.sources = Array.from(new Map([
+              ...(annotation.sources ?? []),
+              ...complaintDisclosure.sources,
+            ].map((source) => [source.id, source])).values());
+            annotation.claims = [...(annotation.claims ?? []), ...complaintDisclosure.claims];
+            annotation.pendingAction = complaintDisclosure.pendingAction;
+          }
           const visionDisclosure = visionEvidence
               ? [
                 '**What I can see in the photo**',
@@ -411,7 +433,9 @@ export async function POST(req: Request) {
                 'VIGIA will not sum unrelated sections, packages, arbitration figures, or concessions into a fabricated highway total.',
               ].join('\n')
             : null;
-          const deterministicText = emargDisclosure
+          const deterministicText = complaintDisclosure
+            ? complaintDisclosure.text
+            : emargDisclosure
             ? emargDisclosure
             : nhaiPersonnelDisclosure
             ? nhaiPersonnelDisclosure
@@ -451,7 +475,7 @@ export async function POST(req: Request) {
         }
 
         // ─── Stream LLM Response ──────────────────────────────────
-        emitStep('Generating response...');
+        emitStep('Drafting the verified answer...');
         const system = baseSystem + pipelineContext + buildResponseLanguageContext(responseLanguage);
 
         // Prevent chat history contamination: only include recent messages,

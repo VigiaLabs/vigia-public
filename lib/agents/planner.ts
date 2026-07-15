@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 export const PlanStepSchema = z.object({
   id: z.string(),
-  tool: z.enum(['searchNHAI', 'searchNHAIPIU', 'searchPWD', 'searchPMGSY', 'searchAll']),
+  tool: z.enum(['searchNHAI', 'searchNHAIPIU', 'searchPWD', 'searchPMGSY', 'searchReference', 'searchAll']),
   query: z.string(),
   extract: z.array(z.string()).optional(),
   dependsOn: z.array(z.string()).optional(),
@@ -86,6 +86,7 @@ export async function generatePlan(
 - searchNHAIPIU: Official NHAI project/PIU contacts for national highways
 - searchPWD: State PWD personnel directory (executive engineers, phone numbers, emails, divisions, states)
 - searchPMGSY: Rural road data (road names, contractors, costs, districts, states, schemes)
+- searchReference: Official and clearly labelled reference material about road networks and infrastructure
 
 Given a user query, output a COMPLETE execution plan with ALL steps needed to fully answer the query. Rules:
 1. If the query needs data from multiple sources, create separate steps for each.
@@ -100,6 +101,7 @@ Given a user query, output a COMPLETE execution plan with ALL steps needed to fu
 7. For PMGSY queries, use searchPMGSY directly.
 8. If the query asks about multiple unrelated things, create independent parallel steps.
 9. ALWAYS include geographic terms (city, state, district names) from the user query in your search queries. Never drop location context.
+10. For road-network overviews, city infrastructure context, or questions explicitly asking for Wikipedia/reference material, include searchReference.
 
 USER QUERY: "${query}"
 INTENT: ${intent ?? 'unknown'}
@@ -155,6 +157,15 @@ HAS GPS: ${hasGps}`,
     });
   }
 
+  const asksForReference = /\b(road network|infrastructure overview|wikipedia|roads in|highways in)\b/i.test(query);
+  if (asksForReference && !object.steps.some((step) => step.tool === 'searchReference')) {
+    object.steps.push({
+      id: 'road_reference_auto',
+      tool: 'searchReference',
+      query: query.slice(0, 100),
+    });
+  }
+
   // If query mentions NH/SH road but no searchNHAI step exists, add one
   const mentionsNhai = /\b(?:NH|SH|MDR)[-\s]?\d+[A-Z]?\b|national highway|budget|contract|tender/i.test(query);
   const hasNhaiStep = object.steps.some(s => s.tool === 'searchNHAI');
@@ -167,5 +178,6 @@ HAS GPS: ${hasGps}`,
     });
   }
 
+  object.steps = object.steps.slice(0, 4);
   return object;
 }

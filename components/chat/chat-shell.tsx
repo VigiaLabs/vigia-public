@@ -421,17 +421,15 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   const isSending = status === 'streaming' || status === 'submitted';
   const isBusy = isSending || isProcessingVoice || isVoiceRecording;
 
-  const lastAssistantHasText = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role !== 'assistant') continue;
-      return messages[i].parts?.some(
-        (p): p is { type: 'text'; text: string } => p.type === 'text' && !!p.text
-      ) ?? false;
-    }
-    return false;
+  const currentAssistantHasText = useMemo(() => {
+    const latest = messages.at(-1);
+    if (latest?.role !== 'assistant') return false;
+    return latest.parts?.some(
+      (part): part is { type: 'text'; text: string } => part.type === 'text' && !!part.text
+    ) ?? false;
   }, [messages]);
 
-  const showGeneratingCard = isSending && messages.length > 0 && !lastAssistantHasText;
+  const showGeneratingCard = isSending && messages.length > 0 && !currentAssistantHasText;
 
   const voiceSessionPhase = useMemo((): VoiceSessionPhase | null => {
     if (!isVoiceTurn && !isTTSActive) return null;

@@ -12,7 +12,7 @@ const assert = (condition, label) => {
 };
 const isHttps = (value) => typeof value === 'string' && value.startsWith('https://');
 
-const [worldBank, emarg, renewal, offline, manifest, golden, nh44Sections, nhaiPiuContacts] = await Promise.all([
+const [worldBank, emarg, renewal, offline, manifest, golden, nh44Sections, nhaiPiuContacts, chennaiSources] = await Promise.all([
   readJson('data/v2/world-bank-ke-transport.json'),
   readJson('data/v2/emarg-road-maintenance.json'),
   readJson('data/v2/periodic-renewal-documents.json'),
@@ -21,6 +21,7 @@ const [worldBank, emarg, renewal, offline, manifest, golden, nh44Sections, nhaiP
   readJson('data/v2/golden-questions.json'),
   readJson('data/nh44-sections.json'),
   readJson('data/v2/nhai-piu-contacts.json'),
+  readJson('data/v2/chennai-road-sources.json'),
 ]);
 
 assert(worldBank.sourcePublisher === 'World Bank', 'World Bank publisher is explicit');
@@ -52,6 +53,11 @@ const nh163gPiu = nhaiPiuContacts.records.find((record) => record.roadNumbers.in
 assert(nh163gPiu?.phone === '+91 8919631585' && nh163gPiu?.designation.includes('Project Director'), 'NH-163G contact preserves the official NHAI role and phone');
 assert(nh163gPiu?.pageNumber === 43 && nh163gPiu?.sourcePdfSha256 === 'f66b82ec59f2bd08943c6f830c79c4b56cd3dc1a17b41a8c4a04ead1ed47b1f7', 'NH-163G contact retains verified page and PDF hash');
 assert(!JSON.stringify(nh163gPiu).includes('9440818085'), 'NH-163G NHAI contact does not substitute the State R&B phone');
+assert(chennaiSources.records.length === 9, 'Chennai registry contains nine curated source records');
+assert(chennaiSources.records.every((record) => isHttps(record.metadata.source_url) && record.metadata.source_quote?.length > 20), 'Every Chennai record retains an HTTPS source and exact source quote');
+const gccRoadContact = chennaiSources.records.find((record) => record.sourceId === 'gcc-bus-route-roads-contact-2026');
+assert(gccRoadContact?.metadata.phone === '9445190735' && gccRoadContact?.metadata.email === 'sebrr@chennaicorporation.gov.in', 'Chennai complaint routing preserves the published GCC road contact');
+assert(chennaiSources.records.filter((record) => record.sourceType === 'road_reference').every((record) => record.metadata.trust_level === 'reference-source'), 'Wikipedia records are labelled as secondary reference sources');
 
 const database = new Database(resolve('data/vigia_edge.db'), { readonly: true });
 const metadata = Object.fromEntries(database.prepare('SELECT key, value FROM sync_metadata').all().map((row) => [row.key, row.value]));
@@ -74,6 +80,9 @@ const semanticCacheCode = await readFile(resolve('lib/cache/semantic-cache.ts'),
 const chatRouteCode = await readFile(resolve('app/api/chat/route.ts'), 'utf8');
 const sarvamSttCode = await readFile(resolve('lib/voice/sarvam-stt.ts'), 'utf8');
 const standaloneServerCode = await readFile(resolve('server/index.ts'), 'utf8');
+const complaintRoutingCode = await readFile(resolve('lib/complaints/authority-routing.ts'), 'utf8');
+const complaintActionsCode = await readFile(resolve('components/chat/pending-action-card.tsx'), 'utf8');
+const chatShellCode = await readFile(resolve('components/chat/chat-shell.tsx'), 'utf8');
 assert(['construction-contractor', 'sanctioned amount', 'expenditure', 'physical-relaying', 'O&M commencement', 'present-safety'].every((token) => safetyCode.includes(token)), 'Claim gate encodes role, financial, maintenance, and safety distinctions');
 assert(['Verified', 'Derived', 'Inferred', 'Unavailable', 'Conflicting evidence', 'Cached offline'].every((label) => uiCode.includes(label)), 'Web UI renders every V2 evidence state');
 assert(queueCode.includes("status: 'pending'") && queueCode.includes("fetch('/api/evidence'"), 'Outbox persists pending submissions for evidence analysis');
@@ -94,6 +103,9 @@ assert(chatRouteCode.includes('nh44WholeTotalDisclosure') && chatRouteCode.inclu
 assert(adminCode.includes('No exact indexed project record was found') && adminCode.includes('roadDataFound: false'), 'Unknown national highways cannot inherit semantically adjacent project records');
 assert(['saaras:v3', "language_code', 'unknown", "mode', 'transcribe", 'GetSecretValueCommand'].every((token) => sarvamSttCode.includes(token)), 'Web voice input uses Sarvam Saaras v3 auto-detection with server-side credentials');
 assert(standaloneServerCode.includes("app.post('/sarvam-proxy/stt'") && standaloneServerCode.includes('languageInstruction(body.response_language)'), 'Android search service proxies Sarvam and enforces latest-turn response language');
+assert(complaintRoutingCode.includes('buildCitizenComplaintDisclosure') && complaintRoutingCode.includes('sebrr@chennaicorporation.gov.in') && complaintRoutingCode.includes('ownershipCaveat'), 'Short complaint routing uses verified Chennai contacts with a jurisdiction caveat');
+assert(complaintActionsCode.includes('Send alert to authority') && complaintActionsCode.includes('Contact authority') && complaintActionsCode.includes('mailto:'), 'Complaint UI provides explicit email and phone actions without auto-sending');
+assert(chatShellCode.includes('currentAssistantHasText') && !chatShellCode.includes('lastAssistantHasText'), 'Live pipeline progress is not suppressed by an earlier assistant reply');
 
 const nhaiDatabase = new Database(resolve('data/nhai_mock.db'), { readonly: true });
 const nh163gRows = nhaiDatabase.prepare("SELECT count(*) AS count FROM nhai_sections WHERE upper(content) LIKE '%163G%'").get().count;
@@ -108,6 +120,7 @@ if (process.argv.includes('--live')) {
     emarg.sourceUrl,
     ...renewal.records.map((record) => record.sourceUrl),
     ...offlineRecords.map((record) => record.sourceUrl),
+    ...chennaiSources.records.map((record) => record.metadata.source_url),
   ])];
   for (const url of urls) {
     try {
@@ -119,7 +132,7 @@ if (process.argv.includes('--live')) {
   }
 }
 
-const snapshotHash = createHash('sha256').update(JSON.stringify({ worldBank, emarg, renewal, offline, golden })).digest('hex');
+const snapshotHash = createHash('sha256').update(JSON.stringify({ worldBank, emarg, renewal, offline, golden, chennaiSources })).digest('hex');
 console.log(`V2 release checks: ${checks.length - failures.length}/${checks.length} passed`);
 console.log(`Evidence snapshot SHA-256: ${snapshotHash}`);
 if (failures.length) {
