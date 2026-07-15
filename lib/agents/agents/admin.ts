@@ -307,6 +307,17 @@ async function buildEmargEvidence(text: string, start: number): Promise<Normaliz
       label: `eMARG Know Your Road — ${road.connectionCode ?? road.roadDetailsId}`,
       url: road.sourceUrl,
       trustLevel: 'official-portal',
+      documentTitle: `eMARG Know Your Road — roadDetailsId ${road.roadDetailsId}`,
+      excerpt: [
+        `roadDetailsId: ${road.roadDetailsId}`,
+        `road_name: ${road.roadName}`,
+        road.contractorName ? `contractorName: ${road.contractorName}` : null,
+        road.maintenanceStartDateRaw ? `strMaintenanceStartDate: ${road.maintenanceStartDateRaw}` : null,
+        road.consolidatedGrossExpenditureInr !== null
+          ? `consolidatedGrossExpenditure: ${road.consolidatedGrossExpenditureInr}`
+          : null,
+      ].filter((value): value is string => value !== null).join('\n'),
+      sourceLocator: `roadDetailsId ${road.roadDetailsId}`,
     })),
     claims,
     metadata: { ...snapshotMetadata, source: 'emarg-public-road-detail' },
