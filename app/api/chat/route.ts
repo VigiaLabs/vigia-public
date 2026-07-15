@@ -330,14 +330,25 @@ export async function POST(req: Request) {
             pendingAction: uiPayload.pendingAction,
           };
 
-          if (state.pipelineStatus === 'complete' && state.auditFinding) {
+          const personnelDisclosure = state.evidence.findLast((item) =>
+            item.agentId === 'admin' &&
+            item.metadata?.personnelAnchorMissing === true &&
+            item.metadata?.roadDataFound === true
+          );
+          const deterministicText = personnelDisclosure
+            ? personnelDisclosure.findings.slice(0, 5).join('\n')
+            : state.pipelineStatus === 'complete' && state.auditFinding
+              ? state.auditFinding
+              : null;
+
+          if (deterministicText) {
             const textId = crypto.randomUUID();
             writer.write({ type: 'text-start', id: textId } as any);
-            writer.write({ type: 'text-delta', id: textId, delta: state.auditFinding } as any);
+            writer.write({ type: 'text-delta', id: textId, delta: deterministicText } as any);
             writer.write({ type: 'text-end', id: textId } as any);
             writer.write({ type: 'message-metadata', messageMetadata: evidenceAnnotation });
             await setCachedResponse(queryText, {
-              text: state.auditFinding,
+              text: deterministicText,
               metadata: evidenceAnnotation,
               cachedAt: Date.now(),
             });

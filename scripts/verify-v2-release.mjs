@@ -74,8 +74,9 @@ assert(sourceCardCode.includes('passage.quote') && sourceCardCode.includes('Open
 assert(plannerCode.includes('official|responsible|authority') && plannerCode.includes("startsWith('NH-')"), 'Road personnel planner recognizes responsibility wording and protects NHAI jurisdiction');
 assert(plannerCode.includes('nhai_exact_road') && plannerCode.includes('Exact national-highway lookup'), 'Explicit national-highway IDs use deterministic retrieval planning');
 assert(federatedSearchCode.includes('prioritizeExactRoadMatches') && federatedSearchCode.includes('\\d+[A-Z]?'), 'Federated retrieval prioritizes exact suffixed road identifiers');
-assert(semanticCacheCode.includes('v5-exact-road-evidence'), 'Semantic cache invalidates stale pre-coverage answers');
-assert(chatRouteCode.includes("state.pipelineStatus === 'complete' && state.auditFinding") && chatRouteCode.includes('delta: state.auditFinding'), 'Terminal data-void responses bypass free-form generation');
+assert(semanticCacheCode.includes('v6-deterministic-personnel'), 'Semantic cache invalidates stale pre-coverage answers');
+assert(chatRouteCode.includes("state.pipelineStatus === 'complete' && state.auditFinding") && chatRouteCode.includes('delta: deterministicText'), 'Terminal data-void responses bypass free-form generation');
+assert(chatRouteCode.includes('personnelAnchorMissing') && chatRouteCode.includes('personnelDisclosure.findings.slice(0, 5)'), 'Missing NHAI officer disclosures bypass free-form jurisdiction substitution');
 
 const nhaiDatabase = new Database(resolve('data/nhai_mock.db'), { readonly: true });
 const nh163gRows = nhaiDatabase.prepare("SELECT count(*) AS count FROM nhai_sections WHERE upper(content) LIKE '%163G%'").get().count;
