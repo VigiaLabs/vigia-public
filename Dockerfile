@@ -23,9 +23,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=8080
 
-# Production deps only
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts --legacy-peer-deps
+# Install only the standalone search service's runtime dependency graph.
+COPY server/package.runtime.json ./package.json
+RUN npm install --omit=dev --legacy-peer-deps
 
 # Compiled output + data
 # tsc -p server/tsconfig.json outputs to dist/server/ (rootDir is repo root)
