@@ -218,7 +218,7 @@ async function buildInternationalEvidence(
 }
 
 async function buildEmargEvidence(text: string, start: number): Promise<NormalizedEvidence | null> {
-  if (!/\b(pmgsy|emarg|rural road|maintenance expenditure|maintenance contractor)\b/i.test(text)) return null;
+  if (!/\b(pmgsy|emarg|rural road|gram sadak|roadDetailsId)\b/i.test(text)) return null;
   const roads = await queryEmargRoads(text, 5);
   if (roads.length === 0) return null;
 
@@ -332,7 +332,10 @@ export async function runAdminAgent(
   // No hard gate needed — low-relevance results will naturally score low confidence.
 
   try {
-    const { roadNumber, state } = await extractRoadContext(text);
+    const canonicalRoad = extractCanonicalRoadId(text);
+    const { roadNumber, state } = canonicalRoad
+      ? { roadNumber: canonicalRoad, state: null }
+      : await extractRoadContext(text);
 
     // Resolve road type from GPS if available
     let roadType: 'NH' | 'SH' | 'MDR' | 'rural' | 'unknown' = 'unknown';
@@ -384,12 +387,17 @@ export async function runAdminAgent(
           trustLevel: 'official-portal',
         }];
 
-        const asksForProjectData = /\b(sanctioned|approved|budget|cost|spent|expenditure|contractor|concessionaire)\b/i.test(text);
+        const requestedRoad = extractCanonicalRoadId(text);
+        const asksForProjectData = Boolean(requestedRoad) || /\b(project|record|sanctioned|approved|budget|cost|spent|expenditure|contractor|concessionaire)\b/i.test(text);
         if (asksForProjectData) {
           const { searchUnified, getTrustLevel } = await import('../../tools/search-unified');
+          const { searchNHAI } = await import('../../tools/search-federated');
           const seenProjectEvidence = new Set<string>();
-          const projectResults = (await searchUnified(text, 8)).filter((item) => {
-            if (item.sourceType === 'pwd_contact' || item.similarity < 0.4) return false;
+          const retrievedProjects = requestedRoad?.startsWith('NH-')
+            ? await searchNHAI(requestedRoad, 8)
+            : await searchUnified(text, 8);
+          const projectResults = retrievedProjects.filter((item) => {
+            if (item.sourceType === 'pwd_contact' || (!requestedRoad && item.similarity < 0.4)) return false;
             const key = item.chunkText.slice(0, 120);
             if (seenProjectEvidence.has(key)) return false;
             seenProjectEvidence.add(key);
@@ -403,6 +411,7 @@ export async function runAdminAgent(
               ? item.metadata.source_url
               : getDefaultSourceUrl(item.sourceType),
             trustLevel: getTrustLevel(item.sourceType),
+            ...buildCitationProvenance(item),
           })));
         }
 
@@ -457,6 +466,30 @@ export async function runAdminAgent(
               query: result.query,
               extracted: result.extracted,
             })));
+            const requestedRoad = extractCanonicalRoadId(text);
+            if (intent === 'personnel' && requestedRoad?.startsWith('NH-')) {
+              const authority = await getComplaintAuthority('NH', state);
+              return {
+                agentId: 'admin',
+                status: 'completed',
+                confidence: 0.55,
+                findings: [
+                  `No exact indexed project record was found for ${requestedRoad}.`,
+                  `No project-specific named NHAI officer can be verified for ${requestedRoad}.`,
+                  `Responsible authority route: ${authority.name}.`,
+                  `Official complaint portal: ${authority.complaintPortal}.`,
+                  ...(authority.phone ? [`Official helpline: ${authority.phone}.`] : []),
+                ],
+                citations: [{
+                  sourceId: 'complaint-authority',
+                  label: authority.source,
+                  url: authority.sourceUrl,
+                  trustLevel: 'official-portal',
+                }],
+                metadata: { planSteps: plan.steps.length, personnelAnchorMissing: true, roadDataFound: false },
+                latencyMs: Date.now() - start,
+              };
+            }
             return {
               agentId: 'admin',
               status: 'completed',
@@ -485,7 +518,7 @@ export async function runAdminAgent(
             const roadResults = deduped.filter((result) => result.sourceType === 'nhai_contract');
             if (roadResults.length > 0) {
               const authority = await getComplaintAuthority('NH', roadResults[0].state ?? state);
-              const roadId = text.match(/\bNH[-\s]?\d+[A-Z]?\b/i)?.[0].replace(/\s+/, '-').toUpperCase() ?? 'this national highway';
+              const roadId = extractCanonicalRoadId(text) ?? 'this national highway';
               return {
                 agentId: 'admin',
                 status: 'completed',

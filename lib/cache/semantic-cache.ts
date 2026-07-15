@@ -11,7 +11,7 @@ interface CachedResponse {
 
 let redis: any = null;
 let redisChecked = false;
-const CACHE_SCHEMA_VERSION = 'v6-deterministic-personnel';
+const CACHE_SCHEMA_VERSION = 'v11-final-demo-evidence';
 
 async function getRedis() {
   if (redisChecked) return redis;

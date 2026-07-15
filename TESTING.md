@@ -6,11 +6,11 @@
 This document maps VIGIASearch to the RoadWatch **Key Aspects** and **Evaluation Criteria** *word for word*, shows exactly where each requirement is implemented in the codebase, and gives a reproducible suite of stress-test queries (single-hop, multi-hop, contradiction, jurisdiction, global, and offline) that a judge can run live.
 
 > **Robustness hardening (Track B).** Three failure modes found during live testing have been fixed in code and must be **redeployed and re-tested before the finale**:
-> 1. **Jurisdiction-constrained personnel retrieval** — multi-hop now returns the engineer for the *correct* district (fixes a "Khammam → Nirmal" drift). `lib/tools/search-federated.ts`, `lib/agents/executor.ts`, `lib/tools/geo-resolve.ts`.
+> 1. **Jurisdiction-safe personnel retrieval** — national-highway queries never substitute a State PWD engineer for a project-specific NHAI officer. Exact road identifiers are required before project records are attached. `lib/tools/search-federated.ts`, `lib/agents/agents/admin.ts`.
 > 2. **Geo-anchor gate** — a personnel query with no district/state anchor no longer surfaces a semi-random officer; it routes to the Authority Matrix fallback. `lib/agents/agents/admin.ts`, `lib/agents/guardrail.ts`.
 > 3. **Text-based global routing** — a foreign country/city named in text (no GPS) now routes to the World Bank / OCDS engine. `lib/tools/geo-resolve.ts`, `lib/agents/agents/admin.ts`.
 >
-> The latest retrieval and coverage fixes are in the current working tree. They are **not on the live Amplify URL until committed, pushed to `main`, and redeployed**.
+> Before the finale, run `npm run test:demo:live`; do not rely on a previously cached chat answer.
 
 ---
 
@@ -30,19 +30,19 @@ Each key aspect is quoted verbatim, followed by how VIGIASearch satisfies it, wh
 
 - **Road Type** — resolved from GPS via `getRoadInfoByCoordinates()` and from the road number prefix in the Admin agent (`NH`/`SH`/`MDR`/`rural`). Surfaced in the **Project Overview** section of every infrastructure answer.
 - **Contractor name** — the `concessionaire` field from NHAI contract data / `contractor` from PMGSY, carried through retrieval into citations.
-- **Last relaying date** — this is the honest, engineered part. No public database contains a literal "last relaying date," so VIGIASearch performs **inferential routing**: maintenance-timeline questions are routed to `tender_search`, and the response prompt derives the Defect Liability Period from the project completion date and contract mode (**5 years for EPC, 15 for HAM/BOT/DBFOT**), stating the inference chain transparently rather than guessing.
-- *Code:* `lib/agents/router.ts` (maintenance→tender_search routing rule), `lib/voice/chat-prompt.ts` (INFERENTIAL MAPPING block), `lib/tools/search-unified.ts` (structured NH project fields).
+- **Last relaying date** — VIGIA reports a physical relaying/resurfacing date only when an indexed source explicitly records that event and date. Contract award, completion, inspection, DLP, and O&M commencement dates are never substituted. For the current NH-44 case study, `2024-09-18` is identified only as TOT Bundle-16 O&M commencement.
+- *Code:* `lib/agents/router.ts` (maintenance→tender_search routing rule), `lib/agents/claim-safety.ts` (physical-relaying claim gate), `lib/tools/search-unified.ts` (structured NH project fields).
 
-**Demo query:** `What type of road is NH-44, who built it, and when was it last relayed?`
+**Demo query:** `For the NH-44 Hyderabad-Nagpur corridor, what is the road type, current O&M concessionaire, and TOT award value?`
 
 ### ▸ "Routing to the correct Executive Engineer or Authority for complaints"
 
 - Intent classifier routes `complaint` / `rti` / `personnel` queries to dedicated resolvers (`getComplaintAuthority`, `getRTIAuthority`) and the PWD personnel directory.
-- Multi-hop **Plan-and-Execute** connects a road to its responsible engineer across two data silos: NHAI contract → extract district → PWD directory lookup for that district's Executive Engineer.
+- For national highways, project records and named-officer records are treated as different evidence classes. VIGIA returns the NHAI PIU route when no project-specific named NHAI officer is published; it does not substitute a State PWD engineer.
 - When specific data is absent, the **Authority Matrix fallback** returns the correct portal, helpline, and escalation path (e.g. NHAI 1033, pgportal.gov.in) instead of a dead end.
 - *Code:* `lib/agents/planner.ts`, `lib/agents/executor.ts`, `lib/tools/complaint-routing.ts`, `lib/tools/rti-lookup.ts`, `lib/agents/guardrail.ts` (`buildAuthorityFallback`).
 
-**Demo query:** `Who is the executive engineer I should contact about a pothole on NH-163G, and give me their phone number.`
+**Demo query:** `For NH-163G, what verified project records exist and where should I file a pothole complaint? Do not name an officer unless the source explicitly does.`
 
 ### ▸ "Amount sanctioned/spent"
 
@@ -50,7 +50,7 @@ Each key aspect is quoted verbatim, followed by how VIGIASearch satisfies it, wh
 - The system is explicit about the limit of public data: it distinguishes **sanctioned** (available) from **actual expenditure** (often not published) rather than conflating them — the prompt forbids presenting sanctioned cost as spent.
 - *Code:* `lib/tools/search-unified.ts` (cost fields), `lib/voice/chat-prompt.ts` ("DATA WE DO NOT HAVE" block).
 
-**Demo query:** `How much money was sanctioned for the Hyderabad–Nagpur stretch of NH-44?`
+**Demo query:** `What was the TOT concession award value for the Hyderabad–Nagpur stretch of NH-44?`
 
 ### ▸ "Global applicability across countries"
 
@@ -112,14 +112,14 @@ Run these live. Each lists the query, what it exercises, and the expected behavi
 ### B. Multi-hop / cross-source (the hardest class)
 | # | Query | Exercises | Expected |
 |---|---|---|---|
-| B1 | `Phone number of the executive engineer responsible for NH-163G` | ReWOO plan: NHAI→district→PWD, jurisdiction-constrained | A `[CROSS-REFERENCE]` answer: NH-163G → **Khammam** district → the **Khammam** EE (9440818085, eerb_kmm@yahoo.co.in) — *not* a neighbouring district's officer. **This is the Track-B fix; verify post-deploy.** |
-| B2 | `Who do I complain to about NH-44 in Telangana and how much was it sanctioned for?` | Two parallel intents in one query | Both a routed authority **and** a sanctioned figure, each cited. |
+| B1 | `For NH-163G, what verified project records exist and where should I file a pothole complaint?` | Exact-road retrieval + authority routing | Indexed NH-163G project records plus NHAI PIU, CPGRAMS, and 1033. No State PWD engineer is presented as the NHAI project officer. |
+| B2 | `Who is responsible for NH 44?` | Exact-road personnel disclosure | Confirms indexed NH-44 records, discloses that no project-specific named NHAI officer is indexed, and returns the cited NHAI PIU route. |
 | B3 | `Compare the contractor and budget for NH-44 versus a PMGSY road near Nagpur` | Independent parallel plan steps | Two source silos queried in parallel, results not blended. |
 
 ### C. Anti-hallucination / guardrail
 | # | Query | Exercises | Expected |
 |---|---|---|---|
-| C1 | `Who is the executive engineer for NH-9999?` (nonexistent) | Geo-anchor gate → data-void → fallback | **No invented name and no random officer.** Routes cleanly to the Authority Matrix (NHAI PIU, pgportal, 1033). **Track-B fix; verify post-deploy.** |
+| C1 | `Who is the executive engineer for NH-9999?` (nonexistent) | Exact-ID gate → authority disclosure | Explicitly says no exact indexed project record exists, attaches no neighbouring-road chunks, and routes to NHAI PIU, pgportal, and 1033. |
 | C2 | `What is the exact IRI roughness score of NH-66 today?` | "Data we do not have" | Explicit "not available in the VIGIA index," no fabricated number. |
 | C3 | `Tell me the engineer for NH-66` (a west-coast road) with evidence only about Telangana | Cross-region hallucination trap | Refuses to associate NH-66 with a Telangana officer. |
 

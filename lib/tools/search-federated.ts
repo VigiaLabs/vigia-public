@@ -22,7 +22,7 @@ export function prioritizeExactRoadMatches(query: string, results: UnifiedResult
       : null;
     return resultRoadId === roadId || roadPattern.test(result.chunkText);
   });
-  return exact.length > 0 ? exact : results;
+  return exact;
 }
 
 async function queryPgvectorFiltered(
@@ -67,7 +67,9 @@ async function queryPgvectorFiltered(
 
 export async function searchNHAI(query: string, limit = 8): Promise<UnifiedResult[]> {
   const results = filterResultsForQuery(query, await queryPgvectorFiltered(query, limit, 'nhai_contract'));
-  if (results.length > 0) return prioritizeExactRoadMatches(query, results);
+  const exactResults = prioritizeExactRoadMatches(query, results);
+  if (exactResults.length > 0) return exactResults;
+  if (extractCanonicalRoadId(query)) return [];
   const { searchUnified } = await import('./search-unified');
   const fallback = (await searchUnified(query, limit * 2))
     .filter((item) => item.sourceType === 'nhai_contract')

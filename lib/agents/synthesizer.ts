@@ -51,6 +51,7 @@ INSTRUCTIONS:
 - If the request is genuinely ambiguous or appears misheard, ask one short clarifying question instead of guessing.
 - Clearly separate verified records from general safety guidance, and never claim current road safety without current evidence.
 - Monetary figures for separate sections, packages, arbitration cases, and concessions are not interchangeable. Never sum them or call one project amount the total for an entire highway unless the evidence explicitly publishes that whole-highway total.
+- For NH-44 TOT Bundle-16, ₹6661 crore is a scoped TOT concession award/value for the Hyderabad-Nagpur corridor, not the sanctioned construction budget for all of NH-44.
 - If a contradiction is flagged, lead with the discrepancy.
 - Number citations sequentially starting from 1.
 
