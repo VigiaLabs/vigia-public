@@ -2,7 +2,8 @@ import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-sec
 import { normalizeLanguageCode, resolveResponseLanguage } from '@/lib/voice/locale';
 import type { TranscriptionResponse } from '@/types/voice';
 
-const SARVAM_STT_URL = 'https://api.sarvam.ai/speech-to-text';
+const SARVAM_STT_URL = process.env.SARVAM_STT_URL?.trim()
+  || 'http://vigia-ts-search-204472952.us-east-1.elb.amazonaws.com/sarvam-proxy/stt';
 const SARVAM_SECRET_ID = process.env.SARVAM_SECRET_ID?.trim() || 'vigia/sarvam-api-key';
 let cachedApiKey: string | null = null;
 
@@ -50,7 +51,6 @@ export async function transcribeWithSarvam(
   audioBuffer: Buffer,
   mimeType: string
 ): Promise<TranscriptionResponse> {
-  const apiKey = await getSarvamApiKey();
   const form = new FormData();
   form.append(
     'file',
@@ -62,9 +62,12 @@ export async function transcribeWithSarvam(
   form.append('mode', 'transcribe');
   form.append('with_timestamps', 'false');
 
+  const directSarvamRequest = SARVAM_STT_URL.startsWith('https://api.sarvam.ai/');
   const response = await fetch(SARVAM_STT_URL, {
     method: 'POST',
-    headers: { 'api-subscription-key': apiKey },
+    headers: directSarvamRequest
+      ? { 'api-subscription-key': await getSarvamApiKey() }
+      : undefined,
     body: form,
     signal: AbortSignal.timeout(30_000),
   });
