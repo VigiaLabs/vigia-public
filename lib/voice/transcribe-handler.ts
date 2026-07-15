@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DeepgramClient } from '@deepgram/sdk';
 import { transcribeWithAzure, isAzureSttConfigured } from '@/lib/voice/azure-stt';
+import { transcribeWithSarvam } from '@/lib/voice/sarvam-stt';
 import { getDeepgramApiKey } from '@/lib/voice/config';
 import {
   DEFAULT_VOICE_LOCALE,
@@ -120,15 +121,20 @@ export async function transcribeAudioRequest(request: NextRequest) {
 
     let payload: TranscriptionResponse;
 
-    if (isAzureSttConfigured()) {
-      const azureResult = await transcribeWithAzure(audioBuffer, mimeType);
-      payload = {
-        text: azureResult.text,
-        locale: azureResult.locale,
-        ...(azureResult.confidence !== undefined ? { confidence: azureResult.confidence } : {}),
-      };
-    } else {
-      payload = await transcribeWithDeepgram(audioBuffer);
+    try {
+      payload = await transcribeWithSarvam(audioBuffer, mimeType);
+    } catch (sarvamError) {
+      console.error('Sarvam transcription failed; using configured fallback:', sarvamError);
+      if (isAzureSttConfigured()) {
+        const azureResult = await transcribeWithAzure(audioBuffer, mimeType);
+        payload = {
+          text: azureResult.text,
+          locale: azureResult.locale,
+          ...(azureResult.confidence !== undefined ? { confidence: azureResult.confidence } : {}),
+        };
+      } else {
+        payload = await transcribeWithDeepgram(audioBuffer);
+      }
     }
 
     return NextResponse.json(payload);

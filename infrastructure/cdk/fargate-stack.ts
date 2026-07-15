@@ -110,6 +110,14 @@ export class VigiaFargateStack extends cdk.Stack {
       resources: [`arn:aws:lambda:${this.region}:${this.account}:function:vigia-retrieval-proxy`],
     }));
 
+    taskRole.addToPolicy(new iam.PolicyStatement({
+      effect: iam.Effect.ALLOW,
+      actions: ['secretsmanager:GetSecretValue'],
+      resources: [
+        `arn:aws:secretsmanager:${this.region}:${this.account}:secret:vigia/sarvam-api-key*`,
+      ],
+    }));
+
     // Secrets Manager: read Upstash Redis credentials (if configured)
     if (props.redisSecretName) {
       taskRole.addToPolicy(new iam.PolicyStatement({

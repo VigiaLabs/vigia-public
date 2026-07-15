@@ -425,6 +425,36 @@ def _build_context(chunks: list[dict], confidence: float, temporal_warnings: lis
     return ctx
 
 
+LANGUAGE_NAMES = {
+    "hi-IN": "Hindi",
+    "bn-IN": "Bengali",
+    "ta-IN": "Tamil",
+    "te-IN": "Telugu",
+    "gu-IN": "Gujarati",
+    "kn-IN": "Kannada",
+    "ml-IN": "Malayalam",
+    "mr-IN": "Marathi",
+    "pa-IN": "Punjabi",
+    "od-IN": "Odia",
+    "or-IN": "Odia",
+    "ur-IN": "Urdu",
+    "en-IN": "Indian English",
+}
+
+
+def _language_instruction(language_code: Optional[str]) -> str:
+    if not language_code:
+        return "Match the language of the user's latest message."
+    normalized = language_code.replace("_", "-")
+    language = LANGUAGE_NAMES.get(normalized, normalized)
+    return (
+        f"The user's latest message is in {language} ({normalized}). "
+        f"Write the ENTIRE answer in {language}. Translate English evidence into {language}, "
+        "while keeping official names, identifiers, URLs, and citation labels unchanged. "
+        "Ignore the language used by earlier assistant messages."
+    )
+
+
 # ── Full pipeline ─────────────────────────────────────────────────────────────
 async def run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
     try:
@@ -494,7 +524,10 @@ async def run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
         system = (
             "You are VIGIA, an AI-powered infrastructure auditing assistant for Indian roads. "
             "Help citizens with road quality data, complaints, and RTI. "
-            "Be precise, cite sources, never fabricate data.\n" + context
+            "Be precise, cite sources, never fabricate data.\n"
+            + _language_instruction(req.response_language)
+            + "\n"
+            + context
         )
 
         conversation = [{"role": h.role, "content": [{"text": h.content}]} for h in req.history[-6:]]
