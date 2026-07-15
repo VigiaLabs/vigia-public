@@ -8,7 +8,7 @@ import { getMessageText } from '@/lib/voice/get-message-text';
 import {
   resolveTurnLanguage,
 } from '@/lib/voice/locale';
-import { speakText, stopSpeaking } from '@/lib/voice/speak-text';
+import { stopSpeaking } from '@/lib/voice/speak-text';
 import { stripMarkdown } from '@/lib/voice/strip-markdown';
 import { transcribeVoiceBlob } from '@/lib/voice/transcribe-voice-blob';
 import type { ResponseStyle } from '@/lib/settings/types';
@@ -62,8 +62,6 @@ export type UseVoiceChatOptions = {
   id?: string;
   api?: string;
   initialMessages?: UIMessage[];
-  /** When true, assistant replies are spoken after voice-initiated turns. */
-  speakResponses?: boolean;
   /** Used when auto-detect is off or text detection is inconclusive. */
   defaultLocale?: VoiceLocale | null;
   autoDetectLanguage?: boolean;
@@ -94,7 +92,6 @@ export function useVoiceChat({
   id,
   api = '/api/chat',
   initialMessages,
-  speakResponses = true,
   defaultLocale = null,
   autoDetectLanguage = true,
   responseStyle,
@@ -103,7 +100,6 @@ export function useVoiceChat({
   onFinish,
 }: UseVoiceChatOptions = {}) {
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
-  const [isSpeaking, setIsSpeaking] = useState(false);
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [voiceLocale, setVoiceLocale] = useState<VoiceLocale | null>(null);
   const [pipelineSteps, setPipelineSteps] = useState<string[]>([]);
@@ -133,36 +129,8 @@ export function useVoiceChat({
     },
     onFinish: async ({ message, isError, isAbort }) => {
       await onFinish?.(message, { isError, isAbort });
-
-      if (isError || isAbort || message.role !== 'assistant') {
-        voiceTurnActiveRef.current = false;
-        turnLocaleRef.current = null;
-        return;
-      }
-
-      if (!speakResponses || !voiceTurnActiveRef.current) {
-        voiceTurnActiveRef.current = false;
-        turnLocaleRef.current = null;
-        return;
-      }
-
       voiceTurnActiveRef.current = false;
-      const speakLocale = turnLocaleRef.current;
       turnLocaleRef.current = null;
-
-      const cleanText = stripMarkdown(getMessageText(message));
-      if (!cleanText) return;
-
-      setIsSpeaking(true);
-      try {
-        await speakText(cleanText, { locale: speakLocale ?? undefined });
-      } catch (error) {
-        const err = error instanceof Error ? error : new Error('Speech playback failed');
-        setVoiceError(err.message);
-        onVoiceError?.(err);
-      } finally {
-        setIsSpeaking(false);
-      }
     },
   });
 
@@ -268,7 +236,6 @@ export function useVoiceChat({
     append,
     handleVoiceCapture,
     isProcessingVoice,
-    isSpeaking,
     voiceError,
     voiceLocale,
     turnLocaleRef,

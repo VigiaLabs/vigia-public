@@ -231,8 +231,6 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     pipelineSteps,
   } = useVoiceChat({
     id: chatId,
-    // TTS is demonstrated on the mobile app; web voice turns are STT + text only.
-    speakResponses: false,
     defaultLocale,
     autoDetectLanguage: preferences.autoDetectLanguage,
     responseStyle: preferences.responseStyle,
