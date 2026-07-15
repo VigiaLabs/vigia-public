@@ -11,7 +11,11 @@ import {
   getMessagesByThread,
   updateMessageMetadata,
   queueSubmission,
+  isStuckOfflineAssistantMessage,
 } from '@/lib/db';
+import { persistOfflineQueryTurn } from '@/lib/db/persist-offline-turn';
+import { syncPendingQueries } from '@/lib/edge/pending-query-sync';
+import { PendingQueryRetryCard } from '@/components/chat/pending-query-retry-card';
 import { ChatMessage } from '@/components/chat/chat-message';
 import { PipelineTrace } from '@/components/chat/pipeline-trace';
 import { SourcesPanel } from '@/components/chat/sources-panel';
@@ -51,7 +55,7 @@ import {
   VoiceSessionBar,
   type VoiceSessionPhase,
 } from '@/components/chat/voice-session-bar';
-import { useVoiceChat } from '@/hooks/use-voice-chat';
+import { useVoiceChat, isNetworkError } from '@/hooks/use-voice-chat';
 import { getMessageText } from '@/lib/voice/get-message-text';
 import { speakText, stopSpeaking } from '@/lib/voice/speak-text';
 import { stripMarkdown } from '@/lib/voice/strip-markdown';
@@ -79,13 +83,45 @@ function notifyThreadsUpdated() {
   window.dispatchEvent(new Event('vigia:threads-updated'));
 }
 
-function getBrowserLocation(enabled: boolean): Promise<{ lat: number; lng: number } | undefined> {
+const QUEUED_OFFLINE_COPY =
+  "You're offline, so I couldn't run a live search. I've saved this question and will answer it automatically the moment you're back online — it won't be lost.";
+const INTERRUPTED_COPY =
+  "The connection dropped while I was searching. I've saved this question and will finish answering automatically as soon as you reconnect.";
+
+/** True when the browser reports no connectivity right now. */
+function browserOffline(): boolean {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+/** Avoid Next.js RSC fetches when offline — they crash the page. */
+function navigateToThread(threadId: string, router: ReturnType<typeof useRouter>) {
+  const path = `/t/${threadId}`;
+  if (browserOffline()) {
+    window.history.replaceState(window.history.state, '', path);
+    return;
+  }
+  router.replace(path, { scroll: false });
+}
+
+function getBrowserLocation(
+  enabled: boolean,
+  options?: { timeoutMs?: number }
+): Promise<{ lat: number; lng: number } | undefined> {
   if (!enabled || !navigator.geolocation) return Promise.resolve(undefined);
-  return new Promise((resolve) => navigator.geolocation.getCurrentPosition(
-    (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
-    () => resolve(undefined),
-    { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
-  ));
+  const timeoutMs = options?.timeoutMs ?? 5000;
+  return new Promise((resolve) =>
+    navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ lat: position.coords.latitude, lng: position.coords.longitude }),
+      () => resolve(undefined),
+      { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: 300000 }
+    )
+  );
+}
+
+/** Read thread id from URL when Next.js params lag behind history.replaceState. */
+function threadIdFromPathname(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  return window.location.pathname.match(/^\/t\/([^/]+)/)?.[1];
 }
 
 export function ChatShell({ threadId: initialThreadId }: Props) {
@@ -120,8 +156,17 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   const pendingVoiceTtsLocaleRef = useRef<VoiceLocale | null>(null);
   const loadedThreadRef = useRef<string | null>(null);
   const selfCreatedThreadRef = useRef<string | null>(null);
+  // Details of the in-progress voice turn, so a mid-flight disconnect can be
+  // queued for replay (the transcribed text is only known inside the hook).
+  const lastVoiceTurnRef = useRef<{
+    threadId: string;
+    text: string;
+    userMessageId: string;
+  } | null>(null);
 
   const isTTSActive = isSpeaking || isLoadingSpeech;
+
+  const activeThreadId = currentThreadId ?? initialThreadId ?? threadIdFromPathname() ?? null;
 
   const ensureThread = useCallback(
     async (title: string) => {
@@ -132,10 +177,10 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
       const trimmedTitle = title.length > 40 ? `${title.slice(0, 40)}…` : title;
       await createThread(threadId, trimmedTitle);
       setCurrentThreadId(threadId);
+      setChatId(threadId);
       selfCreatedThreadRef.current = threadId;
       notifyThreadsUpdated();
-      // Use router.replace so Next.js tracks the URL for future navigations
-      router.replace(`/t/${threadId}`, { scroll: false });
+      navigateToThread(threadId, router);
       return threadId;
     },
     [currentThreadId, router]
@@ -200,9 +245,14 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     onBeforeSend: async ({ text, locale }) => {
       pendingVoiceTtsLocaleRef.current = locale;
       const threadId = await ensureThread(text);
-      await saveMessage(threadId, 'user', text);
+      const userMessageId = await saveMessage(threadId, 'user', text);
+      lastVoiceTurnRef.current = { threadId, text, userMessageId };
     },
-    onFinish: async (message) => {
+    onFinish: async (message, { isError, isAbort }) => {
+      // A dropped/aborted stream may contain partial assistant text. Do not
+      // persist it; the caller will queue one placeholder for a clean replay.
+      if (isError || isAbort) return;
+
       const shouldSpeak = voiceTurnRef.current;
       const preferredLocale =
         pendingVoiceTtsLocaleRef.current ??
@@ -259,6 +309,102 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
 
   // Message loading is handled in the initialThreadId effect above
 
+  /**
+   * Persist a placeholder answer and queue the query for cloud replay when we
+   * either can't reach the network now (offline) or a live search was cut off
+   * mid-flight. The placeholder bubble is rewritten with the real answer once
+   * connectivity returns.
+   */
+  const queueTurnForReplay = useCallback(
+    async (opts: {
+      threadId: string;
+      userMessageId: string;
+      text: string;
+      gps?: { lat: number; lng: number };
+      imageUrl?: string;
+      interrupted: boolean;
+    }) => {
+      const placeholderText = opts.interrupted ? INTERRUPTED_COPY : QUEUED_OFFLINE_COPY;
+      const placeholderMeta: Record<string, unknown> = {
+        type: 'vigia-pending-retry',
+        originalQuery: opts.text,
+        offline: {
+          mode: 'offline',
+          lastSyncAt: offlineRuntime.lastSyncAt || undefined,
+          packVersion: offlineRuntime.packVersion ?? undefined,
+          stale: offlineRuntime.stale,
+        },
+      };
+
+      const { messages } = await persistOfflineQueryTurn({
+        threadId: opts.threadId,
+        userMessageId: opts.userMessageId,
+        text: opts.text,
+        placeholderText,
+        placeholderMeta,
+        gps: opts.gps,
+        imageUrl: opts.imageUrl,
+      });
+
+      setMessages(toUIMessages(messages));
+      await offlineRuntime.refreshPendingCount();
+      window.dispatchEvent(new Event('vigia:pending-count-changed'));
+      notifyThreadsUpdated();
+
+      if (!browserOffline()) {
+        void syncPendingQueries(opts.threadId);
+      }
+    },
+    [offlineRuntime, setMessages]
+  );
+
+  const reloadThreadMessages = useCallback(async (threadId: string) => {
+    const records = await getMessagesByThread(threadId);
+    setMessages(toUIMessages(records));
+  }, [setMessages]);
+
+  const triggerReplayForOpenThread = useCallback(async () => {
+    const tid = activeThreadId;
+    if (!tid || browserOffline()) return;
+    const result = await syncPendingQueries(tid);
+    if (result.synced > 0) {
+      await reloadThreadMessages(tid);
+    }
+  }, [activeThreadId, reloadThreadMessages]);
+
+  // Reload the open thread from IndexedDB whenever a queued query has been
+  // replayed and answered, so the placeholder bubble shows the real answer.
+  useEffect(() => {
+    const onSynced = (event: Event) => {
+      const detail = (event as CustomEvent).detail as { threadIds?: string[] } | undefined;
+      const tid = activeThreadId;
+      if (!tid) return;
+      if (detail?.threadIds && !detail.threadIds.includes(tid)) return;
+      void reloadThreadMessages(tid);
+    };
+    const onThreadsUpdated = () => {
+      if (activeThreadId) void reloadThreadMessages(activeThreadId);
+    };
+    window.addEventListener('vigia:pending-queries-synced', onSynced);
+    window.addEventListener('vigia:threads-updated', onThreadsUpdated);
+    return () => {
+      window.removeEventListener('vigia:pending-queries-synced', onSynced);
+      window.removeEventListener('vigia:threads-updated', onThreadsUpdated);
+    };
+  }, [activeThreadId, reloadThreadMessages]);
+
+  // Replay when the open thread has queued work and connectivity returns.
+  useEffect(() => {
+    if (!activeThreadId || !messagesLoaded || browserOffline()) return;
+    void triggerReplayForOpenThread();
+  }, [activeThreadId, messagesLoaded, offlineRuntime.mode, offlineRuntime.pendingQueryCount, triggerReplayForOpenThread]);
+
+  useEffect(() => {
+    const onOnline = () => { void triggerReplayForOpenThread(); };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [triggerReplayForOpenThread]);
+
   const isSending = status === 'streaming' || status === 'submitted';
   const isBusy = isSending || isProcessingVoice || isVoiceRecording;
 
@@ -311,6 +457,9 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     // Skip if this is a self-initiated router.replace after creating a thread
     if (initialThreadId && initialThreadId === selfCreatedThreadRef.current) {
       selfCreatedThreadRef.current = null;
+      setCurrentThreadId(initialThreadId);
+      setChatId(initialThreadId);
+      setMessagesLoaded(true);
       return;
     }
     selfCreatedThreadRef.current = null;
@@ -374,8 +523,21 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     setIsVoiceTurn(true);
     try {
       await handleVoiceCapture(blob);
-    } catch {
+      lastVoiceTurnRef.current = null;
+    } catch (err) {
       cancelPendingVoiceReply();
+      // A dropped connection after transcription: queue the turn for replay
+      // instead of surfacing "Failed to fetch".
+      const turn = lastVoiceTurnRef.current;
+      if (isNetworkError(err) && turn) {
+        lastVoiceTurnRef.current = null;
+        await queueTurnForReplay({
+          threadId: turn.threadId,
+          userMessageId: turn.userMessageId,
+          text: turn.text,
+          interrupted: !browserOffline() && offlineRuntime.mode !== 'offline',
+        });
+      }
     }
   };
 
@@ -389,57 +551,92 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     setError(null);
     clearVoiceError();
 
-    const threadId = await ensureThread(text);
-    const userMessageId = await saveMessage(threadId, 'user', text);
-    const gps = await getBrowserLocation(sendLocation);
-
-    if (offlineRuntime.mode === 'offline') {
-      const cached = await buildOfflineAnswer(text, gps);
-      const isCitizenReport = imageDataUrl !== null || /\b(report|pothole|damage|broken|hazard|complaint)\b/i.test(text);
-      let assistantText: string;
-      let metadata: Record<string, unknown>;
-
-      if (cached) {
-        assistantText = cached.text;
-        metadata = cached.metadata;
-      } else if (isCitizenReport) {
-        await queueSubmission({ threadId, text, imageUrl: imageDataUrl ?? undefined, gps });
-        await offlineRuntime.refreshPendingCount();
-        assistantText = 'Saved locally and queued for VIGIA analysis after reconnection. This does **not** mean a complaint has been filed with a government authority.';
-        metadata = {
-          type: 'vigia-evidence',
-          sources: [],
-          claims: [{
-            category: 'report-status', status: 'unavailable', subject: 'citizen report',
-            predicate: 'authority-filing-status', value: 'not filed', sourceId: 'local-outbox',
-            sourceQuote: 'Stored only in this browser until reconnection', retrievedAt: new Date().toISOString(),
-          }],
-          offline: { mode: 'offline', lastSyncAt: offlineRuntime.lastSyncAt || undefined, packVersion: offlineRuntime.packVersion ?? undefined, stale: offlineRuntime.stale },
-        };
-      } else {
-        assistantText = 'Cloud road-document search is unavailable offline. Previously saved conversations remain readable; reconnect to run a current source search.';
-        metadata = {
-          type: 'vigia-evidence', sources: [],
-          claims: [{ category: 'coverage', status: 'unavailable', subject: text, predicate: 'cloud-search', sourceId: 'offline-runtime', sourceQuote: 'No live retrieval was performed', retrievedAt: new Date().toISOString() }],
-          offline: { mode: 'offline', lastSyncAt: offlineRuntime.lastSyncAt || undefined, packVersion: offlineRuntime.packVersion ?? undefined, stale: offlineRuntime.stale },
-        };
-      }
-
-      const assistantId = await saveMessage(threadId, 'assistant', assistantText, metadata);
-      setMessages((current) => [...current,
-        { id: userMessageId, role: 'user', parts: [{ type: 'text', text }] },
-        { id: assistantId, role: 'assistant', parts: [{ type: 'text', text: assistantText }], metadata },
-      ]);
-      setImageDataUrl(null);
-      notifyThreadsUpdated();
-      return;
-    }
+    const treatAsOffline = browserOffline() || offlineRuntime.mode === 'offline';
 
     try {
-      await sendMessage({ text }, { requestBody: { imageUrl: imageDataUrl ?? undefined, gps } });
-      setImageDataUrl(null);
+      const threadId = await ensureThread(text);
+      const userMessageId = await saveMessage(threadId, 'user', text);
+
+      // Show the user message immediately from IndexedDB — before GPS or network.
+      const afterUserSave = await getMessagesByThread(threadId);
+      setMessages(toUIMessages(afterUserSave));
+      notifyThreadsUpdated();
+
+      const imageUrl = imageDataUrl ?? undefined;
+      const isCitizenReport =
+        imageUrl != null ||
+        /\b(report|pothole|damage|broken|hazard|complaint)\b/i.test(text);
+
+      // Don't block offline persistence on GPS (can hang several seconds offline).
+      const gps = treatAsOffline
+        ? undefined
+        : await getBrowserLocation(sendLocation, { timeoutMs: 3000 });
+
+      if (treatAsOffline) {
+        const cached = await buildOfflineAnswer(text, gps);
+
+        if (cached) {
+          const assistantId = await saveMessage(threadId, 'assistant', cached.text, cached.metadata);
+          const records = await getMessagesByThread(threadId);
+          setMessages(toUIMessages(records));
+          setImageDataUrl(null);
+          notifyThreadsUpdated();
+          return;
+        }
+
+        if (isCitizenReport) {
+          await queueSubmission({ threadId, text, imageUrl, gps });
+          await offlineRuntime.refreshPendingCount();
+          const assistantText = 'Saved locally and queued for VIGIA analysis after reconnection. This does **not** mean a complaint has been filed with a government authority.';
+          const metadata: Record<string, unknown> = {
+            type: 'vigia-evidence',
+            sources: [],
+            claims: [{
+              category: 'report-status', status: 'unavailable', subject: 'citizen report',
+              predicate: 'authority-filing-status', value: 'not filed', sourceId: 'local-outbox',
+              sourceQuote: 'Stored only in this browser until reconnection', retrievedAt: new Date().toISOString(),
+            }],
+            offline: { mode: 'offline', lastSyncAt: offlineRuntime.lastSyncAt || undefined, packVersion: offlineRuntime.packVersion ?? undefined, stale: offlineRuntime.stale },
+          };
+          await saveMessage(threadId, 'assistant', assistantText, metadata);
+          const records = await getMessagesByThread(threadId);
+          setMessages(toUIMessages(records));
+          setImageDataUrl(null);
+          notifyThreadsUpdated();
+          return;
+        }
+
+        await queueTurnForReplay({
+          threadId,
+          userMessageId,
+          text,
+          imageUrl,
+          interrupted: false,
+        });
+        setImageDataUrl(null);
+        return;
+      }
+
+      try {
+        await sendMessage({ text }, { requestBody: { imageUrl, gps } });
+        setImageDataUrl(null);
+      } catch (err) {
+        if (isNetworkError(err)) {
+          await queueTurnForReplay({
+            threadId,
+            userMessageId,
+            text,
+            gps,
+            imageUrl,
+            interrupted: true,
+          });
+          setImageDataUrl(null);
+        } else {
+          throw err;
+        }
+      }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong.';
+      const msg = err instanceof Error ? err.message : 'Could not save your message locally.';
       setError(msg);
     }
   }
@@ -597,7 +794,15 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
 
                   // Extract vigia-evidence from message metadata
                   const rawMetadata = (msg as { metadata?: unknown }).metadata;
-                  const evidence = isAssistant && isVigiaEvidenceMetadata(rawMetadata)
+                  const msgText = getMessageText(msg);
+                  const isStuckPlaceholder =
+                    isAssistant &&
+                    isStuckOfflineAssistantMessage({
+                      role: 'assistant',
+                      content: msgText,
+                      metadata: rawMetadata as Record<string, unknown> | undefined,
+                    });
+                  const evidence = isAssistant && !isStuckPlaceholder && isVigiaEvidenceMetadata(rawMetadata)
                     ? rawMetadata
                     : null;
 
@@ -629,6 +834,18 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                             : undefined
                         }
                       />
+                      {isStuckPlaceholder && (
+                        <PendingQueryRetryCard
+                          isRetrying={offlineRuntime.querySync.running}
+                          lastError={offlineRuntime.querySync.lastError}
+                          onRetry={() => {
+                            if (activeThreadId) {
+                              void offlineRuntime.retryQueuedQueries(activeThreadId);
+                              void triggerReplayForOpenThread();
+                            }
+                          }}
+                        />
+                      )}
                       {isAssistant && evidence && (
                         <div className="shell-answer-footer mt-5 space-y-4">
                           <EvidenceStatePanel claims={evidence.claims} offline={evidence.offline} />
