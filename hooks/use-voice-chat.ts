@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useChat } from '@ai-sdk/react';
-import type { UIMessage } from 'ai';
+import type { FileUIPart, UIMessage } from 'ai';
 import { getMessageText } from '@/lib/voice/get-message-text';
 import {
   resolveTurnLanguage,
@@ -127,7 +127,7 @@ export function useVoiceChat({
 
   const sendMessage = useCallback(
     async (
-      message: { text: string },
+      message: { text: string; files?: FileUIPart[] },
       options?: { locale?: VoiceLocale | null; requestBody?: Record<string, unknown> }
     ) => {
       const text = message.text.trim();

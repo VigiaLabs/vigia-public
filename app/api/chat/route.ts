@@ -89,9 +89,17 @@ export async function POST(req: Request) {
       ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
       .map((p) => p.text)
       .join(' ') ?? '';
+    const attachedImage = lastUserMsg?.parts?.find((part) =>
+      part.type === 'file' && part.mediaType.startsWith('image/'));
+    const imageUrl = typeof parsed.imageUrl === 'string'
+      ? parsed.imageUrl
+      : attachedImage?.type === 'file'
+        ? attachedImage.url
+        : undefined;
+    const shouldUseCache = !imageUrl;
 
     // ─── Semantic Cache Check ───────────────────────────────────────
-    const cached = await getCachedResponse(queryText);
+    const cached = shouldUseCache ? await getCachedResponse(queryText) : null;
     if (cached) {
       const stream = createUIMessageStream({
         execute: async ({ writer }) => {
@@ -107,7 +115,7 @@ export async function POST(req: Request) {
     // ─── Pipeline Payload ───────────────────────────────────────────
     const payloadResult = PayloadSchema.safeParse({
       text: queryText,
-      imageUrl: parsed.imageUrl,
+      imageUrl,
       gps: parsed.gps,
       threadId: crypto.randomUUID(),
       messageId: crypto.randomUUID(),
@@ -129,7 +137,7 @@ export async function POST(req: Request) {
         let retrievedChunks: string[] = [];
 
         // ─── External Engine Path (Fargate SSE) ──────────────────
-        if (process.env.VIGIA_ENGINE_URL) {
+        if (process.env.VIGIA_ENGINE_URL && !pipelinePayload.imageUrl) {
           try {
             const history = messages
               .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -149,6 +157,8 @@ export async function POST(req: Request) {
               threadId: pipelinePayload.threadId,
               messageId: pipelinePayload.messageId,
               history,
+              gps: pipelinePayload.gps,
+              imageUrl: pipelinePayload.imageUrl,
               responseLanguage: responseLanguage != null ? String(responseLanguage) : undefined,
               responseStyle: responseStyle ?? undefined,
             })) {
@@ -326,6 +336,7 @@ export async function POST(req: Request) {
             totalLatencyMs: uiPayload.totalLatencyMs,
             contradictionVerified: uiPayload.contradictionVerified,
             budgetData: uiPayload.budgetData,
+            evidenceImages: uiPayload.evidenceImages,
             spatialMarkers: uiPayload.spatialMarkers,
             pendingAction: uiPayload.pendingAction,
           };
@@ -335,6 +346,25 @@ export async function POST(req: Request) {
             item.metadata?.personnelAnchorMissing === true
           );
           const evidenceText = state.evidence.flatMap((item) => item.findings).join('\n');
+          const visionEvidence = state.evidence.findLast((item) =>
+            item.agentId === 'vision' && item.status === 'completed'
+          );
+          const visionDisclosure = visionEvidence
+              ? [
+                '**What I can see in the photo**',
+                `- Model assessment: ${visionEvidence.severity ?? 'unclassified'} (${Math.round(visionEvidence.confidence * 100)}% confidence).`,
+                ...visionEvidence.findings
+                  .filter((finding) => !finding.startsWith('Note:'))
+                  .map((finding) => `- ${finding.replace(/^\[CITIZEN CLAIM\]\s*/i, '')}`),
+                '',
+                '**Recommended next steps**',
+                pipelinePayload.gps
+                  ? `- Use the attached coordinates (${pipelinePayload.gps.lat.toFixed(5)}, ${pipelinePayload.gps.lng.toFixed(5)}) to identify the responsible road authority.`
+                  : '- Attach the location so VIGIA can identify whether NHAI, the State PWD, a municipality, or another road authority is responsible.',
+                '- Ask VIGIA to draft a complaint email that includes the observations, location, and this photo.',
+                '- Treat this as a citizen photo assessment until an authority verifies the condition on site.',
+              ].join('\n')
+            : null;
           const isNh44TotQuery = /\bNH[-\s]?44\b/i.test(queryText) &&
             /\b(?:Hyderabad|Nagpur)\b/i.test(queryText) &&
             /\bTOT\b/i.test(queryText) &&
@@ -361,7 +391,9 @@ export async function POST(req: Request) {
                 'VIGIA will not sum unrelated sections, packages, arbitration figures, or concessions into a fabricated highway total.',
               ].join('\n')
             : null;
-          const deterministicText = personnelDisclosure
+          const deterministicText = visionDisclosure
+            ? visionDisclosure
+            : personnelDisclosure
             ? personnelDisclosure.findings.slice(0, 5).join('\n')
             : nh44TotDisclosure
               ? nh44TotDisclosure
@@ -377,11 +409,13 @@ export async function POST(req: Request) {
             writer.write({ type: 'text-delta', id: textId, delta: deterministicText } as any);
             writer.write({ type: 'text-end', id: textId } as any);
             writer.write({ type: 'message-metadata', messageMetadata: evidenceAnnotation });
-            await setCachedResponse(queryText, {
-              text: deterministicText,
-              metadata: evidenceAnnotation,
-              cachedAt: Date.now(),
-            });
+            if (shouldUseCache) {
+              await setCachedResponse(queryText, {
+                text: deterministicText,
+                metadata: evidenceAnnotation,
+                cachedAt: Date.now(),
+              });
+            }
             return;
           }
         } catch (err) {
@@ -429,7 +463,9 @@ export async function POST(req: Request) {
               writer.write({ type: 'message-metadata', messageMetadata: evidenceAnnotation });
             }
             // Cache the response
-            void setCachedResponse(queryText, { text: fullText, metadata: evidenceAnnotation, cachedAt: Date.now() });
+            if (shouldUseCache) {
+              void setCachedResponse(queryText, { text: fullText, metadata: evidenceAnnotation, cachedAt: Date.now() });
+            }
           },
         });
 

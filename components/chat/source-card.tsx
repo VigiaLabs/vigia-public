@@ -33,7 +33,12 @@ export function SourceRow({ source, index, highlighted, claims = [] }: Props) {
     : claims.find((claim) => claim.sourceLocator)?.sourceLocator ?? getSourceLocation(source);
   const passages: Array<{ quote: string; locator: string | undefined }> = [];
   if (source.excerpt) passages.push({ quote: source.excerpt, locator: sourceLocation });
-  passages.push(...claims.map((claim) => ({ quote: claim.sourceQuote, locator: claim.sourceLocator })));
+  passages.push(...claims.map((claim) => ({
+    quote: claim.sourceQuote,
+    locator: claim.sourceLocator && !sourceLocation.includes(claim.sourceLocator)
+      ? `${sourceLocation} · ${claim.sourceLocator}`
+      : sourceLocation,
+  })));
   const uniquePassages = passages.filter(
     (passage, passageIndex) => passages.findIndex((candidate) => candidate.quote === passage.quote) === passageIndex
   );
@@ -70,7 +75,7 @@ export function SourceRow({ source, index, highlighted, claims = [] }: Props) {
           <span className="mt-2 block space-y-2">
             {uniquePassages.map((passage, passageIndex) => (
               <span key={`${passage.quote.slice(0, 40)}-${passageIndex}`} className="block rounded-lg border border-neutral-200 bg-white px-3 py-2.5">
-                {passage.locator && passage.locator !== sourceLocation && (
+                {passage.locator && (
                   <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-neutral-400">
                     {passage.locator}
                   </span>

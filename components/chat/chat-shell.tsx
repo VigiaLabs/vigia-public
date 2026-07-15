@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getLandingGreeting, LANDING_SUGGESTIONS } from '@/lib/chat/greeting';
-import type { UIMessage } from 'ai';
+import type { FileUIPart, UIMessage } from 'ai';
 import {
   createThread,
   saveMessage,
@@ -61,18 +61,31 @@ import type { VoiceLocale } from '@/types/voice';
 import { isVigiaEvidenceMetadata } from '@/types/evidence';
 import { useOfflineRuntime } from '@/lib/edge/offline-context';
 import { buildOfflineAnswer } from '@/lib/edge/offline-answer';
+import { prepareImageDataUrl } from '@/lib/chat/prepare-image';
 
 type Props = { threadId?: string };
 
 function toUIMessages(
   records: Array<{ id: string; role: string; content: string; metadata?: Record<string, unknown> }>
 ): UIMessage[] {
-  return records.map((m) => ({
-    id: m.id,
-    role: m.role as UIMessage['role'],
-    parts: [{ type: 'text', text: m.content }],
-    ...(m.metadata ? { metadata: m.metadata } : {}),
-  }));
+  return records.map((m) => {
+    const imageUrl = m.role === 'user' && typeof m.metadata?.imageUrl === 'string'
+      ? m.metadata.imageUrl
+      : null;
+    const imageMediaType = typeof m.metadata?.imageMediaType === 'string'
+      ? m.metadata.imageMediaType
+      : imageUrl?.match(/^data:([^;,]+)/)?.[1] ?? 'image/jpeg';
+    const parts: UIMessage['parts'] = [
+      ...(imageUrl ? [{ type: 'file' as const, mediaType: imageMediaType, url: imageUrl }] : []),
+      { type: 'text' as const, text: m.content },
+    ];
+    return {
+      id: m.id,
+      role: m.role as UIMessage['role'],
+      parts,
+      ...(m.metadata ? { metadata: m.metadata } : {}),
+    };
+  });
 }
 
 function notifyThreadsUpdated() {
@@ -349,18 +362,16 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     setValue(next);
   }
 
-  function handleImageFile(file: File) {
+  async function handleImageFile(file: File) {
     if (!file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => setImageDataUrl(reader.result as string);
-    reader.readAsDataURL(file);
+    setImageDataUrl(await prepareImageDataUrl(file));
   }
 
   function handlePaste(e: React.ClipboardEvent) {
     for (const item of e.clipboardData.items) {
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile();
-        if (file) handleImageFile(file);
+        if (file) void handleImageFile(file);
         break;
       }
     }
@@ -380,22 +391,28 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   };
 
   async function handleSubmit() {
-    const text = value.trim();
+    const submittedImage = imageDataUrl;
+    const text = value.trim() || (submittedImage
+      ? 'Please analyze this road photo and recommend the appropriate next steps.'
+      : '');
     if (!text || isBusy) return;
 
     if (isTTSActive || isVoiceTurn) interruptSpeaking();
     clearVoiceLocale();
     setValue('');
+    setImageDataUrl(null);
     setError(null);
     clearVoiceError();
 
     const threadId = await ensureThread(text);
-    const userMessageId = await saveMessage(threadId, 'user', text);
+    const imageMediaType = submittedImage?.match(/^data:([^;,]+)/)?.[1] ?? 'image/jpeg';
+    const userMetadata = submittedImage ? { imageUrl: submittedImage, imageMediaType } : undefined;
+    const userMessageId = await saveMessage(threadId, 'user', text, userMetadata);
     const gps = await getBrowserLocation(sendLocation);
 
     if (offlineRuntime.mode === 'offline') {
       const cached = await buildOfflineAnswer(text, gps);
-      const isCitizenReport = imageDataUrl !== null || /\b(report|pothole|damage|broken|hazard|complaint)\b/i.test(text);
+      const isCitizenReport = submittedImage !== null || /\b(report|pothole|damage|broken|hazard|complaint)\b/i.test(text);
       let assistantText: string;
       let metadata: Record<string, unknown>;
 
@@ -403,7 +420,7 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
         assistantText = cached.text;
         metadata = cached.metadata;
       } else if (isCitizenReport) {
-        await queueSubmission({ threadId, text, imageUrl: imageDataUrl ?? undefined, gps });
+        await queueSubmission({ threadId, text, imageUrl: submittedImage ?? undefined, gps });
         await offlineRuntime.refreshPendingCount();
         assistantText = 'Saved locally and queued for VIGIA analysis after reconnection. This does **not** mean a complaint has been filed with a government authority.';
         metadata = {
@@ -427,18 +444,28 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
 
       const assistantId = await saveMessage(threadId, 'assistant', assistantText, metadata);
       setMessages((current) => [...current,
-        { id: userMessageId, role: 'user', parts: [{ type: 'text', text }] },
+        {
+          id: userMessageId,
+          role: 'user',
+          parts: [
+            ...(submittedImage ? [{ type: 'file' as const, mediaType: imageMediaType, url: submittedImage }] : []),
+            { type: 'text' as const, text },
+          ],
+          ...(userMetadata ? { metadata: userMetadata } : {}),
+        },
         { id: assistantId, role: 'assistant', parts: [{ type: 'text', text: assistantText }], metadata },
       ]);
-      setImageDataUrl(null);
       notifyThreadsUpdated();
       return;
     }
 
     try {
-      await sendMessage({ text }, { requestBody: { imageUrl: imageDataUrl ?? undefined, gps } });
-      setImageDataUrl(null);
+      const files: FileUIPart[] | undefined = submittedImage
+        ? [{ type: 'file', mediaType: imageMediaType, url: submittedImage }]
+        : undefined;
+      await sendMessage({ text, files }, { requestBody: { gps } });
     } catch (err) {
+      if (submittedImage) setImageDataUrl(submittedImage);
       const msg = err instanceof Error ? err.message : 'Something went wrong.';
       setError(msg);
     }
@@ -644,7 +671,10 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                             onRegenerate={undefined}
                           />
                           {!!evidence.pendingAction && (
-                            <PendingActionCard action={evidence.pendingAction as React.ComponentProps<typeof PendingActionCard>['action']} />
+                            <PendingActionCard
+                              action={evidence.pendingAction as React.ComponentProps<typeof PendingActionCard>['action']}
+                              onSelectAction={(action) => setValue(action)}
+                            />
                           )}
                           {getFollowUps(msg).length > 0 && (
                             <div className="border-t border-border/40 pt-4">

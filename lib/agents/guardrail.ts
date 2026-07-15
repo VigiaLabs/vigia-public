@@ -229,8 +229,10 @@ export async function guardrailNode(
         coordinates: state.payload.gps,
         visionFindings: vision.findings,
         suggestedActions: [
-          'Flag this coordinate for official PWD review',
-          'Verify against DePIN telemetry data',
+          state.payload.gps
+            ? 'Find the responsible road authority for this location'
+            : 'Attach location to identify the responsible authority',
+          'Draft a complaint email using this photo',
         ],
       },
       pipelineStatus: 'synthesizing',

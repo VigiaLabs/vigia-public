@@ -1,7 +1,7 @@
 """
 VIGIASearch Engine — FastAPI SSE service
 Full port of the TypeScript LangGraph pipeline:
-  Router → Planner → Parallel Ingest (admin/vision/telemetry) → Guardrail (CRAG) → Stream
+  Router → Planner → Parallel Ingest → Guardrail (CRAG) → Stream
 
 Tokens stream as they arrive from Bedrock — no buffering.
 """
@@ -193,7 +193,7 @@ Reply with ONLY a JSON object (no markdown fences):
 {{"intent":"<conversational|complaint|rti|condition|personnel|tender_search>","agents":["admin"],"conversational_reply":null}}
 
 RULES:
-- agents: always include "admin". Add "vision" if IMAGE=True. Add "telemetry" if GPS=True.
+- agents: always include "admin". Add "vision" if IMAGE=True. Telemetry ingestion is currently disabled.
 - conversational: agents=[], set conversational_reply (<50 words)
 - tender_search: contract/budget/concessionaire/maintenance/DLP/last relaying/project completion
 - CRITICAL: "last relaying"/"when resurfaced"/"DLP"/"completion date" → tender_search NOT condition"""
@@ -508,7 +508,24 @@ async def run_pipeline(req: SearchRequest) -> AsyncGenerator[str, None]:
 
         # Emit metadata after streaming completes
         good_chunks = [c for c in chunks if c.get("score", 0) > 0.55]
-        sources = [{"label": c["label"], "url": c.get("url")} for c in good_chunks[:5] if c.get("label") and c["label"] != "error"]
+        sources = []
+        for index, chunk in enumerate(good_chunks[:5]):
+            if not chunk.get("label") or chunk["label"] == "error":
+                continue
+            metadata = chunk.get("metadata") or {}
+            sources.append({
+                "id": metadata.get("source_id") or metadata.get("sourceId") or f"engine-source-{index}",
+                "label": metadata.get("source_label") or metadata.get("document_title") or chunk["label"],
+                "trustLevel": metadata.get("trust_level") or "official-portal",
+                "url": chunk.get("url"),
+                "documentTitle": metadata.get("document_title") or metadata.get("documentTitle"),
+                "excerpt": chunk.get("text"),
+                "sourceLocator": metadata.get("source_locator") or metadata.get("sourceLocator") or metadata.get("locator"),
+                "pageNumber": metadata.get("page_number") or metadata.get("pageNumber") or metadata.get("page"),
+                "paragraphNumber": metadata.get("paragraph_number") or metadata.get("paragraphNumber") or metadata.get("paragraph"),
+                "sectionTitle": metadata.get("section_title") or metadata.get("sectionTitle"),
+                "chunkIndex": metadata.get("chunk_index") or metadata.get("chunkIndex"),
+            })
         yield sse_metadata({
             "type": "vigia-evidence",
             "sources": sources,

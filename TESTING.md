@@ -139,7 +139,9 @@ Run these live. Each lists the query, what it exercises, and the expected behavi
 ### F. Contradiction (with image upload, if enabled)
 | # | Query | Exercises | Expected |
 |---|---|---|---|
-| F1 | Upload a photo of a destroyed road + `Is NH-44 in good condition here?` | Zero-trust vision + contradiction path | Photo tagged `[CITIZEN CLAIM]`; it does **not** override the official record, but surfaces a "Flag for official PWD review" action and a hedged answer. |
+| F1 | Upload a road-damage photo + `What do you see and what should I do?` | Multimodal vision + citizen-evidence guardrail | The sent image appears in the user message and clears from the composer. The answer starts with visible observations, labels them as an unverified citizen photo assessment, then offers authority lookup and complaint-email drafting. |
+| F2 | Open **Sources** for a PDF-backed answer | Passage provenance | Every quote shows its exact excerpt and locator. PDF sources show the indexed page number and open at that page; HTML sources explicitly say that a PDF page number is not applicable. |
+| F3 | Upload two different road photos with the same text | Image cache isolation | Each photo is analyzed independently; a previous photo answer is never returned from semantic cache. |
 
 ### G. Offline / low-network (see §4 for setup)
 | # | Scenario | Expected |

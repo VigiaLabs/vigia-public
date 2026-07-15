@@ -45,7 +45,7 @@ Questions about "last relaying," "maintenance date," "when was it resurfaced," "
 
 AGENT SELECTION RULES (only for non-conversational intents):
 - Add "vision" ONLY if IMAGE ATTACHED is true
-- Add "telemetry" ONLY if GPS COORDINATES ATTACHED is true
+- Telemetry ingestion is currently disabled. GPS may still be used by the admin agent for jurisdiction lookup.
 - Add "admin" for complaint, rti, condition, personnel, or tender_search intents
 - If intent is "condition" and IMAGE ATTACHED, include both "vision" and "admin"
 
@@ -67,7 +67,9 @@ For "conversational": provide a short helpful conversationalReply (under 50 word
       };
     }
 
-    const agents = object.activeAgents?.length ? object.activeAgents : ['admin' as const];
+    const requestedAgents = object.activeAgents?.length ? object.activeAgents : ['admin' as const];
+    const agents = requestedAgents.filter((agent) => agent !== 'telemetry');
+    if (agents.length === 0) agents.push('admin');
     const trace: DebugTraceEntry = {
       node: 'router',
       timestamp: Date.now(),
@@ -84,7 +86,6 @@ For "conversational": provide a short helpful conversationalReply (under 50 word
     // Fallback: default to tender_search with admin
     const agents: VigiaState['activeAgents'] = ['admin'];
     if (hasImage) agents.unshift('vision');
-    if (hasGps) agents.push('telemetry');
 
     const trace: DebugTraceEntry = {
       node: 'router',
