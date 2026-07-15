@@ -11,7 +11,7 @@ interface CachedResponse {
 
 let redis: any = null;
 let redisChecked = false;
-const CACHE_SCHEMA_VERSION = 'v12-official-tot-provenance';
+const CACHE_SCHEMA_VERSION = 'v13-official-tot-provenance';
 
 async function getRedis() {
   if (redisChecked) return redis;
