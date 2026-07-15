@@ -115,7 +115,8 @@
     "lanes": 6,
     "concessionaire": "Highway Infrastructure Trust (KKR InvIT)",
     "contract_mode": "TOT",
-    "sanctioned_cost_crore": 6661.0,
+    "sanctioned_cost_crore": null,
+    "tot_concession_award_value_crore": 6661.0,
     "expenditure_cost_crore": null,
     "award_date": "2024-09-18",
     "completion_date": null,
@@ -123,8 +124,8 @@
     "status": "O&M Active",
     "condition_notes": "251 km stretch awarded under TOT Bundle-16 for 20-year Operation & Maintenance. Concessionaire responsible for all periodic renewal, resurfacing, and maintenance during concession period (2024-2044). Toll collection by concessionaire.",
     "last_maintenance_date": "2024-09-18",
-    "source": "NHAI TOT Bundle-16 Award (September 2024)",
-    "source_url": "https://www.thehindubusinessline.com/economy/logistics/nhai-awards-toll-operate-and-transfer-bundle-for-6661-crore/article68664872.ece"
+    "source": "PIB / NHAI TOT Bundle-16 Award (20 September 2024)",
+    "source_url": "https://www.pib.gov.in/Pressreleaseshare.aspx?PRID=2057184&lang=2&reg=48"
   },
   {
     "section_name": "Panipat-Jalandhar (Arbitration Settled)",
@@ -173,7 +174,8 @@
     "lanes": 6,
     "concessionaire": "Highway Infrastructure Trust (O&M via TOT Bundle-16)",
     "contract_mode": "NHDP (construction) / TOT (O&M)",
-    "sanctioned_cost_crore": 6661.0,
+    "sanctioned_cost_crore": null,
+    "tot_concession_award_value_crore": 6661.0,
     "expenditure_cost_crore": null,
     "award_date": "2024-09-18",
     "completion_date": "2015-01-01",
@@ -181,7 +183,7 @@
     "status": "Completed (O&M Active under TOT)",
     "condition_notes": "Construction completed under NHDP North-South Corridor. O&M now under TOT Bundle-16 (251 km Telangana portion) awarded to Highway Infrastructure Trust for 20 years. Periodic renewal and resurfacing is concessionaire's responsibility.",
     "last_maintenance_date": "2024-09-18",
-    "source": "NHAI TOT Bundle-16 / NHDP Records",
-    "source_url": "https://www.thehindubusinessline.com/economy/logistics/nhai-awards-toll-operate-and-transfer-bundle-for-6661-crore/article68664872.ece"
+    "source": "PIB / NHAI TOT Bundle-16 Award",
+    "source_url": "https://www.pib.gov.in/Pressreleaseshare.aspx?PRID=2057184&lang=2&reg=48"
   }
 ]

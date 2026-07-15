@@ -60,6 +60,7 @@ export function dedupeSources(sources: VigiaSource[]): VigiaSource[] {
 
 export function getDomain(url?: string): string {
   if (!url) return 'Document';
+  if (url.startsWith('data:image/')) return 'Citizen photo';
   try {
     return new URL(url).hostname.replace(/^www\./, '');
   } catch {
@@ -70,7 +71,10 @@ export function getDomain(url?: string): string {
 export function getFaviconUrl(url?: string, size = 32): string | null {
   if (!url) return null;
   try {
-    const domain = new URL(url).hostname;
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    const domain = parsed.hostname;
+    if (!domain) return null;
     return `https://www.google.com/s2/favicons?domain=${domain}&sz=${size}`;
   } catch {
     return null;
@@ -79,7 +83,13 @@ export function getFaviconUrl(url?: string, size = 32): string | null {
 
 export function getSourceLocation(source: VigiaSource): string {
   const parts: string[] = [];
-  if (source.pageNumber) parts.push(`Page ${source.pageNumber}`);
+  if (source.pageNumber) {
+    parts.push(`Page ${source.pageNumber}`);
+  } else if (source.url?.toLowerCase().includes('.pdf')) {
+    parts.push('PDF page not supplied by the index');
+  } else if (source.url?.startsWith('http')) {
+    parts.push('Web page (no PDF page number)');
+  }
   if (source.sectionTitle) parts.push(source.sectionTitle);
   if (source.paragraphNumber) parts.push(`Paragraph ${source.paragraphNumber}`);
   if (source.sourceLocator && !parts.includes(source.sourceLocator)) parts.push(source.sourceLocator);
@@ -88,10 +98,13 @@ export function getSourceLocation(source: VigiaSource): string {
 }
 
 export function getSourceHref(source: VigiaSource): string | undefined {
-  if (!source.url || !source.pageNumber) return source.url;
+  if (!source.url) return undefined;
   try {
     const url = new URL(source.url);
-    if (url.pathname.toLowerCase().endsWith('.pdf')) url.hash = `page=${source.pageNumber}`;
+    if (!['http:', 'https:'].includes(url.protocol)) return undefined;
+    if (url.pathname.toLowerCase().endsWith('.pdf') && source.pageNumber) {
+      url.hash = `page=${source.pageNumber}`;
+    }
     return url.toString();
   } catch {
     return source.url;

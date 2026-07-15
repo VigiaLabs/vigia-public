@@ -16,6 +16,7 @@
     "data:ingest:renewal-v2": "node scripts/ingest-periodic-renewal-documents.mjs",
     "data:build:offline-v2": "node scripts/build-offline-pack.mjs",
     "test:v2": "npm run data:build:offline-v2 && node scripts/verify-v2-release.mjs",
+    "test:demo:live": "node scripts/verify-demo-queries.mjs --live",
     "release:verify:v2": "npm run test:v2 && node scripts/verify-v2-release.mjs --live",
     "server:dev": "ts-node --project server/tsconfig.json -r tsconfig-paths/register server/index.ts",
     "server:build": "tsc -p server/tsconfig.json && tsc-alias -p server/tsconfig.json",

@@ -27,7 +27,17 @@ export function ChatMessage({
   onOpenSource,
 }: Props) {
   const text = getMessageText(message);
-  if (!text) return null;
+  const metadataImage = typeof (message.metadata as Record<string, unknown> | undefined)?.imageUrl === 'string'
+    ? (message.metadata as Record<string, string>).imageUrl
+    : null;
+  const images = Array.from(new Set([
+    ...(message.parts ?? [])
+      .filter((part): part is Extract<(typeof message.parts)[number], { type: 'file' }> =>
+        part.type === 'file' && part.mediaType.startsWith('image/'))
+      .map((part) => part.url),
+    ...(metadataImage ? [metadataImage] : []),
+  ]));
+  if (!text && images.length === 0) return null;
 
   const isUser = message.role === 'user';
 
@@ -43,7 +53,18 @@ export function ChatMessage({
         )}
       >
         {isUser ? (
-          text
+          <div className="space-y-2.5">
+            {images.map((url, index) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={`${url.slice(0, 48)}-${index}`}
+                src={url}
+                alt="Road photo attached by user"
+                className="max-h-[360px] w-full rounded-xl object-cover"
+              />
+            ))}
+            {text && <div>{text}</div>}
+          </div>
         ) : (
           <div className="relative">
             {isSpeaking && !isStreaming && (

@@ -13,7 +13,7 @@ export const PlanStepSchema = z.object({
 
 export const PlanSchema = z.object({
   steps: z.array(PlanStepSchema).min(1).max(4),
-  reasoning: z.string(),
+  reasoning: z.string().default('Model-generated retrieval plan.'),
 });
 
 export type Plan = z.infer<typeof PlanSchema>;
@@ -24,6 +24,20 @@ export async function generatePlan(
   intent: string | undefined,
   hasGps: boolean
 ): Promise<Plan> {
+  const roadMatch = query.match(/\b(NH|SH|MDR)[-\s]?(\d+[A-Z]?)\b/i);
+  const canonicalRoad = roadMatch ? `${roadMatch[1].toUpperCase()}-${roadMatch[2].toUpperCase()}` : null;
+
+  if (canonicalRoad?.startsWith('NH-') && !/\bPMGSY\b/i.test(query)) {
+    return {
+      steps: [{
+        id: 'nhai_exact_road',
+        tool: 'searchNHAI',
+        query: canonicalRoad,
+      }],
+      reasoning: `Exact national-highway lookup for ${canonicalRoad}.`,
+    };
+  }
+
   const { object } = await generateObject({
     model: bedrock('amazon.nova-lite-v1:0'),
     schema: PlanSchema,
@@ -38,10 +52,10 @@ Given a user query, output a COMPLETE execution plan with ALL steps needed to fu
 3. Steps WITHOUT dependencies run in PARALLEL.
 4. Use "extract" to specify entities to pull from results: "district", "state", "concessionaire", "roadNumber".
 5. Maximum 4 steps. Most queries need 1-2.
-6. CRITICAL: For ANY query asking about personnel/engineer/contact/phone for a specific road (NH/SH), you MUST output BOTH steps:
+6. For a State Highway personnel query, use both steps:
    - Step 1: searchNHAI to find the road's district (extract: ["district"])
    - Step 2: searchPWD with dependsOn Step 1 and injectFrom district
-   NEVER output only Step 1 without Step 2. The plan must be COMPLETE.
+   For a National Highway personnel query, search NHAI project records only. State PWD officers must not be presented as the project-specific NHAI official.
 7. For PMGSY queries, use searchPMGSY directly.
 8. If the query asks about multiple unrelated things, create independent parallel steps.
 9. ALWAYS include geographic terms (city, state, district names) from the user query in your search queries. Never drop location context.
@@ -51,12 +65,30 @@ INTENT: ${intent ?? 'unknown'}
 HAS GPS: ${hasGps}`,
   });
 
-  // Deterministic fix: personnel queries need PWD step with district injection
-  const isPersonnelQuery = /\b(engineer|EE|phone|contact|officer|personnel)\b/i.test(query);
+  const isPersonnelQuery = /\b(engineer|EE|phone|contact|officer|official|responsible|authority|personnel|in charge|who manages)\b/i.test(query);
+  const isNationalHighwayPersonnel = isPersonnelQuery && canonicalRoad?.startsWith('NH-');
+
+  if (isNationalHighwayPersonnel) {
+    object.steps = object.steps.filter((step) => step.tool !== 'searchPWD');
+    const nhaiStep = object.steps.find((step) => step.tool === 'searchNHAI');
+    if (nhaiStep) {
+      nhaiStep.query = canonicalRoad ?? nhaiStep.query;
+      nhaiStep.extract = [...new Set([...(nhaiStep.extract ?? []), 'district', 'state', 'roadNumber'])];
+    } else {
+      object.steps.push({
+        id: 'nhai_personnel_auto',
+        tool: 'searchNHAI',
+        query: canonicalRoad ?? query.slice(0, 60),
+        extract: ['district', 'state', 'roadNumber'],
+      });
+    }
+  }
+
+  // Deterministic fix: State Highway personnel queries need PWD district injection.
   const hasNhaiExtract = object.steps.some(s => s.tool === 'searchNHAI' && s.extract?.includes('district'));
   const hasPwdWithDep = object.steps.some(s => s.tool === 'searchPWD' && s.dependsOn?.length && s.injectFrom);
 
-  if (isPersonnelQuery && hasNhaiExtract && !hasPwdWithDep) {
+  if (isPersonnelQuery && !isNationalHighwayPersonnel && hasNhaiExtract && !hasPwdWithDep) {
     // Remove any PWD steps without proper dependency injection
     object.steps = object.steps.filter(s => !(s.tool === 'searchPWD' && !s.injectFrom));
     const nhaiStep = object.steps.find(s => s.tool === 'searchNHAI' && s.extract?.includes('district'))!;
@@ -84,14 +116,13 @@ HAS GPS: ${hasGps}`,
   }
 
   // If query mentions NH/SH road but no searchNHAI step exists, add one
-  const mentionsNhai = /\b(NH[-\s]?\d+|SH[-\s]?\d+|national highway|budget|contract|tender)\b/i.test(query);
+  const mentionsNhai = /\b(?:NH|SH|MDR)[-\s]?\d+[A-Z]?\b|national highway|budget|contract|tender/i.test(query);
   const hasNhaiStep = object.steps.some(s => s.tool === 'searchNHAI');
   if (mentionsNhai && !hasNhaiStep) {
-    const roadMatch = query.match(/\b(NH[-\s]?\d+\w?|SH[-\s]?\d+)\b/i);
     object.steps.push({
       id: 'nhai_auto',
       tool: 'searchNHAI',
-      query: roadMatch?.[1] ?? query.slice(0, 60),
+      query: canonicalRoad ?? query.slice(0, 60),
       extract: ['district', 'state'],
     });
   }

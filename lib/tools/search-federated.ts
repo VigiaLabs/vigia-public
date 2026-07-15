@@ -6,6 +6,25 @@
 import { filterResultsForQuery, type UnifiedResult } from './search-unified';
 import { extractIndiaGeo, type IndiaGeo } from './geo-resolve';
 
+export function extractCanonicalRoadId(query: string): string | null {
+  const match = query.match(/\b(NH|SH|MDR)[-\s]?(\d+[A-Z]?)\b/i);
+  return match ? `${match[1].toUpperCase()}-${match[2].toUpperCase()}` : null;
+}
+
+export function prioritizeExactRoadMatches(query: string, results: UnifiedResult[]): UnifiedResult[] {
+  const roadId = extractCanonicalRoadId(query);
+  if (!roadId) return results;
+  const [prefix, number] = roadId.split('-');
+  const roadPattern = new RegExp(`\\b${prefix}[-\\s]?${number}\\b`, 'i');
+  const exact = results.filter((result) => {
+    const resultRoadId = result.roadNumber
+      ? extractCanonicalRoadId(result.roadNumber)
+      : null;
+    return resultRoadId === roadId || roadPattern.test(result.chunkText);
+  });
+  return exact;
+}
+
 async function queryPgvectorFiltered(
   query: string,
   limit: number,
@@ -40,18 +59,22 @@ async function queryPgvectorFiltered(
       concessionaire: r.concessionaire ?? null,
       sourcePdfHash: r.sourcePdfHash ?? null,
     }));
-  } catch {
+  } catch (error) {
+    console.error(`Filtered pgvector retrieval failed for ${sourceType ?? 'all sources'}:`, error);
     return [];
   }
 }
 
 export async function searchNHAI(query: string, limit = 8): Promise<UnifiedResult[]> {
   const results = filterResultsForQuery(query, await queryPgvectorFiltered(query, limit, 'nhai_contract'));
-  if (results.length > 0) return results;
+  const exactResults = prioritizeExactRoadMatches(query, results);
+  if (exactResults.length > 0) return exactResults;
+  if (extractCanonicalRoadId(query)) return [];
   const { searchUnified } = await import('./search-unified');
-  return (await searchUnified(query, limit * 2))
+  const fallback = (await searchUnified(query, limit * 2))
     .filter((item) => item.sourceType === 'nhai_contract')
     .slice(0, limit);
+  return prioritizeExactRoadMatches(query, fallback);
 }
 
 /**

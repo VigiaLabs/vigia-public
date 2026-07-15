@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowUp, ImageIcon, MapPin, X } from 'lucide-react';
 import { useOnlineStatus } from '@/lib/db/use-online-status';
 import { useSettings } from '@/lib/context/settings-context';
+import { prepareImageDataUrl } from '@/lib/chat/prepare-image';
 import { VoiceInput } from './voice-input';
 
 export interface InputBarProps {
@@ -55,7 +56,7 @@ export function InputBar({
   const isBusy = isSending || isProcessingVoice || isVoiceRecordingProp;
   const inputDisabled = isVoiceRecordingProp || isProcessingVoice;
   const hasText = value.trim().length > 0;
-  const canSend = hasText && !isBusy;
+  const canSend = (hasText || Boolean(imageDataUrl)) && !isBusy;
 
   // Auto-resize textarea up to ~6 lines
   useEffect(() => {
@@ -65,11 +66,9 @@ export function InputBar({
     ta.style.height = `${Math.min(ta.scrollHeight, 192)}px`;
   }, [value]);
 
-  function handleImageFile(file: File) {
+  async function handleImageFile(file: File) {
     if (!file.type.startsWith('image/') || !onImageSelect) return;
-    const reader = new FileReader();
-    reader.onload = () => onImageSelect(reader.result as string);
-    reader.readAsDataURL(file);
+    onImageSelect(await prepareImageDataUrl(file));
   }
 
   function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
@@ -113,14 +112,19 @@ export function InputBar({
       <AnimatePresence>
         {imageDataUrl && onImageClear && (
           <motion.div
-            className="mb-2 flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-xs text-text-secondary shadow-sm"
+            className="mb-2 flex items-center gap-3 rounded-xl border border-border bg-white p-2 text-xs text-text-secondary shadow-sm"
             initial={{ opacity: 0, y: 6, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 4, scale: 0.97 }}
             transition={{ duration: 0.18 }}
           >
-            <ImageIcon className="h-3.5 w-3.5 shrink-0 text-text-muted" />
-            <span className="truncate font-medium">Image attached</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageDataUrl}
+              alt="Selected road photo"
+              className="h-14 w-14 shrink-0 rounded-lg border border-border object-cover"
+            />
+            <span className="truncate font-medium">Road photo ready to analyze</span>
             <button
               type="button"
               onClick={onImageClear}
@@ -174,7 +178,7 @@ export function InputBar({
                   className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0];
-                    if (f) handleImageFile(f);
+                    if (f) void handleImageFile(f);
                     e.target.value = '';
                   }}
                 />

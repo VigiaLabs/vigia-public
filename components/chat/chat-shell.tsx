@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getLandingGreeting, LANDING_SUGGESTIONS } from '@/lib/chat/greeting';
-import type { UIMessage } from 'ai';
+import type { FileUIPart, UIMessage } from 'ai';
 import {
   createThread,
   saveMessage,
@@ -65,18 +65,31 @@ import type { VoiceLocale } from '@/types/voice';
 import { isVigiaEvidenceMetadata } from '@/types/evidence';
 import { useOfflineRuntime } from '@/lib/edge/offline-context';
 import { buildOfflineAnswer } from '@/lib/edge/offline-answer';
+import { prepareImageDataUrl } from '@/lib/chat/prepare-image';
 
 type Props = { threadId?: string };
 
 function toUIMessages(
   records: Array<{ id: string; role: string; content: string; metadata?: Record<string, unknown> }>
 ): UIMessage[] {
-  return records.map((m) => ({
-    id: m.id,
-    role: m.role as UIMessage['role'],
-    parts: [{ type: 'text', text: m.content }],
-    ...(m.metadata ? { metadata: m.metadata } : {}),
-  }));
+  return records.map((m) => {
+    const imageUrl = m.role === 'user' && typeof m.metadata?.imageUrl === 'string'
+      ? m.metadata.imageUrl
+      : null;
+    const imageMediaType = typeof m.metadata?.imageMediaType === 'string'
+      ? m.metadata.imageMediaType
+      : imageUrl?.match(/^data:([^;,]+)/)?.[1] ?? 'image/jpeg';
+    const parts: UIMessage['parts'] = [
+      ...(imageUrl ? [{ type: 'file' as const, mediaType: imageMediaType, url: imageUrl }] : []),
+      { type: 'text' as const, text: m.content },
+    ];
+    return {
+      id: m.id,
+      role: m.role as UIMessage['role'],
+      parts,
+      ...(m.metadata ? { metadata: m.metadata } : {}),
+    };
+  });
 }
 
 function notifyThreadsUpdated() {
@@ -498,18 +511,16 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
     setValue(next);
   }
 
-  function handleImageFile(file: File) {
+  async function handleImageFile(file: File) {
     if (!file.type.startsWith('image/')) return;
-    const reader = new FileReader();
-    reader.onload = () => setImageDataUrl(reader.result as string);
-    reader.readAsDataURL(file);
+    setImageDataUrl(await prepareImageDataUrl(file));
   }
 
   function handlePaste(e: React.ClipboardEvent) {
     for (const item of e.clipboardData.items) {
       if (item.type.startsWith('image/')) {
         const file = item.getAsFile();
-        if (file) handleImageFile(file);
+        if (file) void handleImageFile(file);
         break;
       }
     }
@@ -542,12 +553,16 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
   };
 
   async function handleSubmit() {
-    const text = value.trim();
+    const submittedImage = imageDataUrl;
+    const text = value.trim() || (submittedImage
+      ? 'Please analyze this road photo and recommend the appropriate next steps.'
+      : '');
     if (!text || isBusy) return;
 
     if (isTTSActive || isVoiceTurn) interruptSpeaking();
     clearVoiceLocale();
     setValue('');
+    setImageDataUrl(null);
     setError(null);
     clearVoiceError();
 
@@ -555,14 +570,18 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
 
     try {
       const threadId = await ensureThread(text);
-      const userMessageId = await saveMessage(threadId, 'user', text);
+      const imageMediaType = submittedImage?.match(/^data:([^;,]+)/)?.[1] ?? 'image/jpeg';
+      const userMetadata = submittedImage
+        ? { imageUrl: submittedImage, imageMediaType }
+        : undefined;
+      const userMessageId = await saveMessage(threadId, 'user', text, userMetadata);
 
       // Show the user message immediately from IndexedDB — before GPS or network.
       const afterUserSave = await getMessagesByThread(threadId);
       setMessages(toUIMessages(afterUserSave));
       notifyThreadsUpdated();
 
-      const imageUrl = imageDataUrl ?? undefined;
+      const imageUrl = submittedImage ?? undefined;
       const isCitizenReport =
         imageUrl != null ||
         /\b(report|pothole|damage|broken|hazard|complaint)\b/i.test(text);
@@ -576,10 +595,9 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
         const cached = await buildOfflineAnswer(text, gps);
 
         if (cached) {
-          const assistantId = await saveMessage(threadId, 'assistant', cached.text, cached.metadata);
+          await saveMessage(threadId, 'assistant', cached.text, cached.metadata);
           const records = await getMessagesByThread(threadId);
           setMessages(toUIMessages(records));
-          setImageDataUrl(null);
           notifyThreadsUpdated();
           return;
         }
@@ -601,7 +619,6 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
           await saveMessage(threadId, 'assistant', assistantText, metadata);
           const records = await getMessagesByThread(threadId);
           setMessages(toUIMessages(records));
-          setImageDataUrl(null);
           notifyThreadsUpdated();
           return;
         }
@@ -613,13 +630,14 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
           imageUrl,
           interrupted: false,
         });
-        setImageDataUrl(null);
         return;
       }
 
       try {
-        await sendMessage({ text }, { requestBody: { imageUrl, gps } });
-        setImageDataUrl(null);
+        const files: FileUIPart[] | undefined = submittedImage
+          ? [{ type: 'file', mediaType: imageMediaType, url: submittedImage }]
+          : undefined;
+        await sendMessage({ text, files }, { requestBody: { gps } });
       } catch (err) {
         if (isNetworkError(err)) {
           await queueTurnForReplay({
@@ -630,12 +648,13 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
             imageUrl,
             interrupted: true,
           });
-          setImageDataUrl(null);
         } else {
+          if (submittedImage) setImageDataUrl(submittedImage);
           throw err;
         }
       }
     } catch (err) {
+      if (submittedImage) setImageDataUrl(submittedImage);
       const msg = err instanceof Error ? err.message : 'Could not save your message locally.';
       setError(msg);
     }
@@ -861,7 +880,10 @@ export function ChatShell({ threadId: initialThreadId }: Props) {
                             onRegenerate={undefined}
                           />
                           {!!evidence.pendingAction && (
-                            <PendingActionCard action={evidence.pendingAction as React.ComponentProps<typeof PendingActionCard>['action']} />
+                            <PendingActionCard
+                              action={evidence.pendingAction as React.ComponentProps<typeof PendingActionCard>['action']}
+                              onSelectAction={(action) => setValue(action)}
+                            />
                           )}
                           {getFollowUps(msg).length > 0 && (
                             <div className="border-t border-border/40 pt-4">
