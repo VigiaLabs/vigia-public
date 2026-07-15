@@ -10,6 +10,13 @@
       "forbiddenClaims": ["maintenance contractor built the road", "O&M contractor is the EPC contractor"]
     },
     {
+      "id": "partial-evidence-01",
+      "category": "financial-semantics",
+      "query": "eMARG roadDetailsId 64984, distinguish construction from maintenance contractor and report maintenance start, sanction, expenditure, and physical relaying without inference.",
+      "requiredBehavior": "Preserve verified maintenance contractor, maintenance start, and expenditure while marking sanctioned amount and physical relaying date unavailable.",
+      "forbiddenClaims": ["total data void", "maintenance contractor is construction contractor", "maintenance start is physical relaying"]
+    },
+    {
       "id": "finance-01",
       "category": "financial-semantics",
       "query": "How much was spent on maintenance of eMARG roadDetailsId 64984?",

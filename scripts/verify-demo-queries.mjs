@@ -36,6 +36,14 @@ const cases = [
     requireExcerpt: false,
   },
   {
+    id: 'emarg-partial-evidence',
+    query: 'eMARG roadDetailsId 64984, state whether the record proves a construction contractor or only a maintenance contractor. Give the maintenance start date, sanctioned amount, maintenance expenditure, and last physical relaying date. Do not infer missing values; cite every claim.',
+    required: [/MUKTI NATH SONOWAL/i, /maintenance contractor/i, /3 March 2020/i, /₹\s?9,?94,?923|994,923/i, /sanctioned amount[^\n]*(?:not published|unavailable)/i, /physical relaying date[^\n]*(?:not published|unavailable)/i],
+    forbidden: [/This specific data is not available in the VIGIA index/i, /construction contractor:\s*\*\*MUKTI NATH SONOWAL/i, /03-03-2020[^\n]*physical relaying/i],
+    minimumSources: 1,
+    requireExcerpt: true,
+  },
+  {
     id: 'maintenance-semantics',
     query: 'For NH-44 Hyderabad-Nagpur, what does the maintenance-related date 2024-09-18 represent?',
     required: [/2024-09-18/, /O&M|operation and maintenance/i, /commencement|start/i],

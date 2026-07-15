@@ -21,6 +21,7 @@ import type { ResponseStyle } from '@/lib/settings/types';
 import { routerNode, ingestNode, guardrailNode, uiHookNode } from '@/lib/agents/graph';
 import { extractUIPayload } from '@/lib/agents/ui-hook';
 import { scoreFaithfulness } from '@/lib/agents/faithfulness';
+import { buildEmargRecordDisclosure } from '@/lib/agents/emarg-disclosure';
 import { PayloadSchema, type Payload, type VigiaState } from '@/lib/agents/state';
 import { getCachedResponse, setCachedResponse } from '@/lib/cache/semantic-cache';
 import { streamFromEngine } from '@/lib/search-engine/client';
@@ -346,6 +347,7 @@ export async function POST(req: Request) {
             item.metadata?.personnelAnchorMissing === true
           );
           const evidenceText = state.evidence.flatMap((item) => item.findings).join('\n');
+          const emargDisclosure = buildEmargRecordDisclosure(queryText, state.evidence);
           const visionEvidence = state.evidence.findLast((item) =>
             item.agentId === 'vision' && item.status === 'completed'
           );
@@ -391,7 +393,9 @@ export async function POST(req: Request) {
                 'VIGIA will not sum unrelated sections, packages, arbitration figures, or concessions into a fabricated highway total.',
               ].join('\n')
             : null;
-          const deterministicText = visionDisclosure
+          const deterministicText = emargDisclosure
+            ? emargDisclosure
+            : visionDisclosure
             ? visionDisclosure
             : personnelDisclosure
             ? personnelDisclosure.findings.slice(0, 5).join('\n')

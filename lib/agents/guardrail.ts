@@ -78,8 +78,6 @@ function getDataVoidReason(evidence: NormalizedEvidence[], queryText: string): s
     /\barbitration\b/i.test(finding) || /not the sanctioned/i.test(finding)
   );
   if (asksForSanctionedCost && onlyArbitrationFigures) return 'only arbitration figures were retrieved for a sanctioned-cost query';
-  const unsupportedClaim = assessCriticalClaimSupport(queryText, evidence).find((assessment) => !assessment.supported);
-  if (unsupportedClaim) return unsupportedClaim.reason;
   if (admin.findings.some((f) =>
     DATA_VOID_MARKERS.some((marker) => f.includes(marker))
   )) return 'retrieval returned an explicit no-data marker';
@@ -279,7 +277,14 @@ export async function guardrailNode(
     // 5.2 Cross-agent consistency
     const consistencyWarning = validateCrossAgentConsistency(state.evidence);
 
-    const warnings = [...temporalWarnings, ...(consistencyWarning ? [consistencyWarning] : [])];
+    const unsupportedClaimWarnings = formatUnsupportedCriticalClaims(
+      assessCriticalClaimSupport(state.payload.text ?? '', state.evidence),
+    );
+    const warnings = [
+      ...temporalWarnings,
+      ...(consistencyWarning ? [consistencyWarning] : []),
+      ...unsupportedClaimWarnings,
+    ];
 
     return {
       contradictionDetected: false,
