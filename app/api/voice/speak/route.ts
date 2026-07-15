@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { synthesizeAzureSpeech } from '@/lib/voice/azure-tts';
+import { synthesizeSarvamSpeech } from '@/lib/voice/sarvam-tts';
 import { isVoiceLocale, resolveVoiceLocale } from '@/lib/voice/locale';
 import type { SpeakRequest, VoiceLocale } from '@/types/voice';
 
@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
       preferredLocale,
     });
 
-    const result = await synthesizeAzureSpeech(content, locale);
+    const result = await synthesizeSarvamSpeech(content, locale);
 
     if (!result.ok) {
       return NextResponse.json({ error: result.message }, { status: result.status });
@@ -43,13 +43,13 @@ export async function POST(req: NextRequest) {
     return new NextResponse(result.audio, {
       status: 200,
       headers: {
-        'Content-Type': 'audio/mpeg',
+        'Content-Type': result.contentType,
         'Cache-Control': 'no-store',
         'X-Voice-Locale': locale,
       },
     });
   } catch (error) {
-    console.error('Azure TTS error:', error);
+    console.error('Sarvam TTS error:', error);
 
     const message =
       error instanceof Error ? error.message : 'Failed to synthesize speech';

@@ -31,7 +31,7 @@ export function isSpeakingActive(): boolean {
 }
 
 /**
- * Synthesize speech via /api/voice/speak and play the returned MPEG stream.
+ * Synthesize speech via /api/voice/speak and play the returned audio stream.
  */
 export async function speakText(text: string, options?: SpeakTextOptions): Promise<void> {
   stopSpeaking();
