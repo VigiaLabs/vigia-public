@@ -59,13 +59,28 @@ const citationStateCode = await readFile(resolve('lib/agents/state.ts'), 'utf8')
 const retrievalCode = await readFile(resolve('lib/tools/search-unified.ts'), 'utf8');
 const adminCode = await readFile(resolve('lib/agents/agents/admin.ts'), 'utf8');
 const sourceCardCode = await readFile(resolve('components/chat/source-card.tsx'), 'utf8');
+const plannerCode = await readFile(resolve('lib/agents/planner.ts'), 'utf8');
+const federatedSearchCode = await readFile(resolve('lib/tools/search-federated.ts'), 'utf8');
+const semanticCacheCode = await readFile(resolve('lib/cache/semantic-cache.ts'), 'utf8');
+const chatRouteCode = await readFile(resolve('app/api/chat/route.ts'), 'utf8');
 assert(['construction-contractor', 'sanctioned amount', 'expenditure', 'physical-relaying', 'O&M commencement', 'present-safety'].every((token) => safetyCode.includes(token)), 'Claim gate encodes role, financial, maintenance, and safety distinctions');
 assert(['Verified', 'Derived', 'Inferred', 'Unavailable', 'Conflicting evidence', 'Cached offline'].every((label) => uiCode.includes(label)), 'Web UI renders every V2 evidence state');
 assert(queueCode.includes("status: 'pending'") && queueCode.includes("fetch('/api/evidence'"), 'Outbox persists pending submissions for evidence analysis');
 assert(['excerpt', 'pageNumber', 'paragraphNumber', 'sectionTitle', 'chunkIndex'].every((field) => citationStateCode.includes(field)), 'Citation schema retains passage-level provenance');
 assert(retrievalCode.includes('SELECT content, section_title, page_number FROM nhai_sections'), 'NHAI retrieval retains indexed page numbers');
 assert(adminCode.includes('buildCitationProvenance(r)') && adminCode.includes('excerpt: result.chunkText'), 'Generic retrieval citations retain exact chunks');
+assert(adminCode.includes('hasExactRoadMatch') && adminCode.includes('Math.max(0.55, topSimilarity)'), 'Exact road identifiers clear semantic-score data-void thresholds');
 assert(sourceCardCode.includes('passage.quote') && sourceCardCode.includes('Open source') && sourceCardCode.includes('sourceLocation'), 'Sources panel renders passage, locator, and document link');
+assert(plannerCode.includes('official|responsible|authority') && plannerCode.includes("startsWith('NH-')"), 'Road personnel planner recognizes responsibility wording and protects NHAI jurisdiction');
+assert(plannerCode.includes('nhai_exact_road') && plannerCode.includes('Exact national-highway lookup'), 'Explicit national-highway IDs use deterministic retrieval planning');
+assert(federatedSearchCode.includes('prioritizeExactRoadMatches') && federatedSearchCode.includes('\\d+[A-Z]?'), 'Federated retrieval prioritizes exact suffixed road identifiers');
+assert(semanticCacheCode.includes('v5-exact-road-evidence'), 'Semantic cache invalidates stale pre-coverage answers');
+assert(chatRouteCode.includes("state.pipelineStatus === 'complete' && state.auditFinding") && chatRouteCode.includes('delta: state.auditFinding'), 'Terminal data-void responses bypass free-form generation');
+
+const nhaiDatabase = new Database(resolve('data/nhai_mock.db'), { readonly: true });
+const nh163gRows = nhaiDatabase.prepare("SELECT count(*) AS count FROM nhai_sections WHERE upper(content) LIKE '%163G%'").get().count;
+nhaiDatabase.close();
+assert(nh163gRows > 0, 'Local NHAI index contains NH-163G project records');
 
 if (process.argv.includes('--live')) {
   const urls = [...new Set([

@@ -314,7 +314,7 @@ export async function POST(req: Request) {
               if (emailMatches) pipelineContext += 'VERIFIED EMAIL: ' + emailMatches[0].replace('Email: ', '') + '\n';
               pipelineContext += '═══ USE ONLY THESE DETAILS. DO NOT SUBSTITUTE. ═══\n';
             }
-            pipelineContext += '\n\nIMPORTANT: Answer using ONLY the evidence above. Cite sources with [Source: Document Name]. If the evidence contains project metadata (budget, mode, timeline, km stretch), include it in a **Project Overview** section even if the user did not ask for it.\n\nSTRICT ANTI-HALLUCINATION RULES:\n- NEVER invent names, phone numbers, email addresses, or costs. If a phone number or name is not LITERALLY written in the evidence above, do NOT include one.\n- If the evidence does not contain the answer, say "This specific data is not available in the VIGIA index" — do NOT fill in the gap with made-up data.\n- Every name, number, email, and cost you output MUST appear verbatim in the evidence chunks above. If you cannot point to the exact line, do not include it.\n\nCRITICAL CONTACT INFORMATION RULE:\n- For personnel queries: ONLY use names, phone numbers, and emails that appear EXACTLY in the evidence bullets above.\n- The ONLY valid contact details are those preceded by "Phone:", "Email:", or that appear as part of a person\'s title line in the evidence.\n- If you output a phone number like 98XXXXXXXX that is NOT in the evidence, you are hallucinating. Use ONLY landline numbers (like 020-XXXXXXXX) or mobile numbers that appear verbatim above.\n- COPY-PASTE the name and number from the evidence. Do not paraphrase or substitute.';
+            pipelineContext += '\n\nIMPORTANT: Answer using ONLY the evidence above. Cite sources with [Source: Document Name]. If the evidence contains project metadata (budget, mode, timeline, km stretch), include it in a **Project Overview** section even if the user did not ask for it.\n\nSTRICT ANTI-HALLUCINATION RULES:\n- NEVER invent names, phone numbers, email addresses, or costs. If a phone number or name is not LITERALLY written in the evidence above, do NOT include one.\n- If the evidence does not contain the answer, say "This specific data is not available in the VIGIA index" — do NOT fill in the gap with made-up data.\n- Every name, number, email, and cost you output MUST appear verbatim in the evidence chunks above. If you cannot point to the exact line, do not include it.\n- NEVER sum costs from separate sections, packages, arbitration cases, or concessions. If the user asks for the total budget of an entire highway and the evidence only contains scoped project amounts, state that no authoritative whole-highway total is available and list each amount with its exact scope.\n- NEVER infer project status, completion, progress, road length, or a date\'s meaning from an LOA/award date or OCR layout. Omit a field unless the evidence explicitly labels it.\n\nCRITICAL CONTACT INFORMATION RULE:\n- For personnel queries: ONLY use names, phone numbers, and emails that appear EXACTLY in the evidence bullets above.\n- The ONLY valid contact details are those preceded by "Phone:", "Email:", or that appear as part of a person\'s title line in the evidence.\n- If you output a phone number like 98XXXXXXXX that is NOT in the evidence, you are hallucinating. Use ONLY landline numbers (like 020-XXXXXXXX) or mobile numbers that appear verbatim above.\n- COPY-PASTE the name and number from the evidence. Do not paraphrase or substitute.';
           }
 
           evidenceAnnotation = {
@@ -329,6 +329,20 @@ export async function POST(req: Request) {
             spatialMarkers: uiPayload.spatialMarkers,
             pendingAction: uiPayload.pendingAction,
           };
+
+          if (state.pipelineStatus === 'complete' && state.auditFinding) {
+            const textId = crypto.randomUUID();
+            writer.write({ type: 'text-start', id: textId } as any);
+            writer.write({ type: 'text-delta', id: textId, delta: state.auditFinding } as any);
+            writer.write({ type: 'text-end', id: textId } as any);
+            writer.write({ type: 'message-metadata', messageMetadata: evidenceAnnotation });
+            await setCachedResponse(queryText, {
+              text: state.auditFinding,
+              metadata: evidenceAnnotation,
+              cachedAt: Date.now(),
+            });
+            return;
+          }
         } catch (err) {
           console.error('Pipeline error (falling back to base LLM):', err);
         }

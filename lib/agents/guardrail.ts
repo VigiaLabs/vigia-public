@@ -67,21 +67,27 @@ function isRoadMismatch(queryText: string, admin: NormalizedEvidence): boolean {
   return !found.has(queried);
 }
 
-function isDataVoid(evidence: NormalizedEvidence[], queryText: string): boolean {
+function getDataVoidReason(evidence: NormalizedEvidence[], queryText: string): string | null {
   const admin = evidence.findLast((e) => e.agentId === 'admin');
-  if (!admin || admin.status === 'error' || admin.status === 'skipped') return true;
-  if (admin.confidence < DATA_VOID_CONFIDENCE_THRESHOLD) return true;
-  if (admin.findings.length === 0) return true;
-  if (isRoadMismatch(queryText, admin)) return true;
+  if (!admin || admin.status === 'error' || admin.status === 'skipped') return 'admin evidence missing or unavailable';
+  if (admin.confidence < DATA_VOID_CONFIDENCE_THRESHOLD) return `admin confidence ${admin.confidence.toFixed(2)} below ${DATA_VOID_CONFIDENCE_THRESHOLD.toFixed(2)}`;
+  if (admin.findings.length === 0) return 'admin findings are empty';
+  if (isRoadMismatch(queryText, admin)) return 'retrieved road identifier does not match the requested road';
   const asksForSanctionedCost = /\b(sanctioned|approved)\b.*\b(cost|budget|amount)\b|\b(cost|budget|amount)\b.*\b(sanctioned|approved)\b/i.test(queryText);
   const onlyArbitrationFigures = admin.findings.length > 0 && admin.findings.every((finding) =>
     /\barbitration\b/i.test(finding) || /not the sanctioned/i.test(finding)
   );
-  if (asksForSanctionedCost && onlyArbitrationFigures) return true;
-  if (assessCriticalClaimSupport(queryText, evidence).some((assessment) => !assessment.supported)) return true;
-  return admin.findings.some((f) =>
+  if (asksForSanctionedCost && onlyArbitrationFigures) return 'only arbitration figures were retrieved for a sanctioned-cost query';
+  const unsupportedClaim = assessCriticalClaimSupport(queryText, evidence).find((assessment) => !assessment.supported);
+  if (unsupportedClaim) return unsupportedClaim.reason;
+  if (admin.findings.some((f) =>
     DATA_VOID_MARKERS.some((marker) => f.includes(marker))
-  );
+  )) return 'retrieval returned an explicit no-data marker';
+  return null;
+}
+
+function isDataVoid(evidence: NormalizedEvidence[], queryText: string): boolean {
+  return getDataVoidReason(evidence, queryText) !== null;
 }
 
 function detectContradiction(evidence: NormalizedEvidence[]): boolean {
@@ -238,6 +244,7 @@ export async function guardrailNode(
 
   // 2. Data Void detection
   if (isDataVoid(state.evidence, state.payload.text ?? '')) {
+    const dataVoidReason = getDataVoidReason(state.evidence, state.payload.text ?? '') ?? 'unknown reason';
     if (state.retryCount === 0) {
       const rewritten = await rewriteQuery(
         state.payload.text ?? '',
@@ -252,7 +259,7 @@ export async function guardrailNode(
         debugTrace: [{
           node: 'guardrail',
           timestamp: Date.now(),
-          decision: `Data void detected (low confidence) — rewritten query: "${rewritten}"`,
+          decision: `Data void detected (${dataVoidReason}) — rewritten query: "${rewritten}"`,
         }],
       };
     }

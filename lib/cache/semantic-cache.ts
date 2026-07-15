@@ -11,6 +11,7 @@ interface CachedResponse {
 
 let redis: any = null;
 let redisChecked = false;
+const CACHE_SCHEMA_VERSION = 'v5-exact-road-evidence';
 
 async function getRedis() {
   if (redisChecked) return redis;
@@ -34,7 +35,7 @@ async function getRedis() {
 
 function queryToKey(query: string): string {
   const normalized = query.toLowerCase().trim().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ');
-  return `vigia:cache:${normalized}`;
+  return `vigia:cache:${CACHE_SCHEMA_VERSION}:${normalized}`;
 }
 
 export async function getCachedResponse(query: string): Promise<CachedResponse | null> {
