@@ -3,14 +3,16 @@
 import { useEffect, useRef } from 'react';
 import { dedupeSourceList, SourceRow, SourceRowSkeleton } from './source-card';
 import type { VigiaSource } from '@/lib/sources/utils';
+import type { EvidenceClaim } from '@/lib/agents/state';
 
 type Props = {
   sources?: VigiaSource[];
   highlightedSourceId?: string | null;
   loading?: boolean;
+  claims?: EvidenceClaim[];
 };
 
-export function SourceList({ sources = [], highlightedSourceId, loading }: Props) {
+export function SourceList({ sources = [], highlightedSourceId, loading, claims = [] }: Props) {
   const list = dedupeSourceList(sources);
   const highlightRef = useRef<HTMLDivElement | null>(null);
 
@@ -39,7 +41,12 @@ export function SourceList({ sources = [], highlightedSourceId, loading }: Props
         const highlighted = highlightedSourceId === source.id;
         return (
           <div key={source.id ?? `${source.label}-${i}`} ref={highlighted ? highlightRef : undefined}>
-            <SourceRow source={source} index={i + 1} highlighted={highlighted} />
+            <SourceRow
+              source={source}
+              index={i + 1}
+              highlighted={highlighted}
+              claims={claims.filter((claim) => claim.sourceId === source.id)}
+            />
           </div>
         );
       })}

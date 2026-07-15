@@ -3,6 +3,13 @@ export type VigiaSource = {
   label: string;
   trustLevel: string;
   url?: string;
+  documentTitle?: string;
+  excerpt?: string;
+  sourceLocator?: string;
+  pageNumber?: number;
+  paragraphNumber?: number;
+  sectionTitle?: string;
+  chunkIndex?: number;
 };
 
 export const TRUST_META: Record<
@@ -44,7 +51,7 @@ export function getTrustMeta(trustLevel: string) {
 export function dedupeSources(sources: VigiaSource[]): VigiaSource[] {
   const seen = new Set<string>();
   return sources.filter((source) => {
-    const key = source.url || source.id || source.label;
+    const key = source.id || source.url || source.label;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -67,6 +74,27 @@ export function getFaviconUrl(url?: string, size = 32): string | null {
     return `https://www.google.com/s2/favicons?domain=${domain}&sz=${size}`;
   } catch {
     return null;
+  }
+}
+
+export function getSourceLocation(source: VigiaSource): string {
+  const parts: string[] = [];
+  if (source.pageNumber) parts.push(`Page ${source.pageNumber}`);
+  if (source.sectionTitle) parts.push(source.sectionTitle);
+  if (source.paragraphNumber) parts.push(`Paragraph ${source.paragraphNumber}`);
+  if (source.sourceLocator && !parts.includes(source.sourceLocator)) parts.push(source.sourceLocator);
+  if (source.chunkIndex !== undefined) parts.push(`Chunk ${source.chunkIndex}`);
+  return parts.join(' · ') || 'Exact indexed passage';
+}
+
+export function getSourceHref(source: VigiaSource): string | undefined {
+  if (!source.url || !source.pageNumber) return source.url;
+  try {
+    const url = new URL(source.url);
+    if (url.pathname.toLowerCase().endsWith('.pdf')) url.hash = `page=${source.pageNumber}`;
+    return url.toString();
+  } catch {
+    return source.url;
   }
 }
 

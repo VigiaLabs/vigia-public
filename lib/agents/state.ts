@@ -26,6 +26,13 @@ export const CitationSchema = z.object({
   label: z.string(),
   url: z.string().optional(),
   trustLevel: z.enum(['verified-spatial', 'legally-binding', 'official-portal', 'citizen-claim']),
+  documentTitle: z.string().optional(),
+  excerpt: z.string().optional(),
+  sourceLocator: z.string().optional(),
+  pageNumber: z.number().int().positive().optional(),
+  paragraphNumber: z.number().int().positive().optional(),
+  sectionTitle: z.string().optional(),
+  chunkIndex: z.number().int().nonnegative().optional(),
 });
 
 export const EvidenceClaimSchema = z.object({

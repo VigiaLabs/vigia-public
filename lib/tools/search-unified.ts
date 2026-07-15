@@ -95,7 +95,14 @@ async function queryPgvectorUnified(query: string, limit: number): Promise<Unifi
       sourceType: r.sourceType ?? 'nhai_contract',
       state: r.state ?? null,
       district: r.district ?? null,
-      metadata: r.metadata ?? null,
+      metadata: {
+        ...(r.metadata ?? {}),
+        ...(r.pageNumber != null && r.metadata?.page_number == null ? { page_number: r.pageNumber } : {}),
+        ...(r.paragraphNumber != null && r.metadata?.paragraph_number == null ? { paragraph_number: r.paragraphNumber } : {}),
+        ...(r.sectionTitle && r.metadata?.section_title == null ? { section_title: r.sectionTitle } : {}),
+        ...(r.documentTitle && r.metadata?.document_title == null ? { document_title: r.documentTitle } : {}),
+        ...(r.chunkIndex != null && r.metadata?.chunk_index == null ? { chunk_index: r.chunkIndex } : {}),
+      },
       roadNumber: r.roadNumber ?? null,
       concessionaire: r.concessionaire ?? null,
       sourcePdfHash: r.sourcePdfHash ?? null,
@@ -241,7 +248,7 @@ async function queryLocalFts5Unified(query: string, limit: number): Promise<Unif
     // Search nhai_sections FTS5
     try {
       const rows = db.prepare(
-        `SELECT content, section_title FROM nhai_sections WHERE nhai_sections MATCH ? ORDER BY rank LIMIT ?`
+        `SELECT content, section_title, page_number FROM nhai_sections WHERE nhai_sections MATCH ? ORDER BY rank LIMIT ?`
       ).all(ftsQuery, (!isPmgsyQuery && !isPersonnelQuery) ? limit : 2) as any[];
       for (const r of rows) {
         results.push({
@@ -249,7 +256,12 @@ async function queryLocalFts5Unified(query: string, limit: number): Promise<Unif
           similarity: (!isPmgsyQuery && !isPersonnelQuery) ? 0.75 : 0.5,
           sourceType: 'nhai_contract',
           state: null, district: null,
-          metadata: { source_url: 'https://nhai.gov.in/nhai/sites/default/files/mix_file/awarded_year_22_23_0.pdf' },
+          metadata: {
+            source_url: 'https://nhai.gov.in/nhai/sites/default/files/mix_file/awarded_year_22_23_0.pdf',
+            section_title: r.section_title,
+            page_number: r.page_number,
+            document_title: 'NHAI Awarded Projects 2022–23',
+          },
           roadNumber: null, concessionaire: null, sourcePdfHash: 'nhai-awarded-22-23',
         });
       }

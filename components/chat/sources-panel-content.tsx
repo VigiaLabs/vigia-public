@@ -40,7 +40,11 @@ export function SourcesPanelContent({
 
   return (
     <>
-      <SourceList sources={sources} highlightedSourceId={highlightedSourceId} />
+      <SourceList
+        sources={sources}
+        highlightedSourceId={highlightedSourceId}
+        claims={payload?.claims ?? []}
+      />
 
       {evidenceImages.length > 0 && (
         <section className="border-t border-neutral-100 px-5 py-5">

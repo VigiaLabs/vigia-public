@@ -55,9 +55,17 @@ assert(missingEmergencyProvenance === 0 && missingAuthorityProvenance === 0, 'SQ
 const safetyCode = await readFile(resolve('lib/agents/claim-safety.ts'), 'utf8');
 const uiCode = await readFile(resolve('components/chat/evidence-state-panel.tsx'), 'utf8');
 const queueCode = await readFile(resolve('lib/db.ts'), 'utf8');
+const citationStateCode = await readFile(resolve('lib/agents/state.ts'), 'utf8');
+const retrievalCode = await readFile(resolve('lib/tools/search-unified.ts'), 'utf8');
+const adminCode = await readFile(resolve('lib/agents/agents/admin.ts'), 'utf8');
+const sourceCardCode = await readFile(resolve('components/chat/source-card.tsx'), 'utf8');
 assert(['construction-contractor', 'sanctioned amount', 'expenditure', 'physical-relaying', 'O&M commencement', 'present-safety'].every((token) => safetyCode.includes(token)), 'Claim gate encodes role, financial, maintenance, and safety distinctions');
 assert(['Verified', 'Derived', 'Inferred', 'Unavailable', 'Conflicting evidence', 'Cached offline'].every((label) => uiCode.includes(label)), 'Web UI renders every V2 evidence state');
 assert(queueCode.includes("status: 'pending'") && queueCode.includes("fetch('/api/evidence'"), 'Outbox persists pending submissions for evidence analysis');
+assert(['excerpt', 'pageNumber', 'paragraphNumber', 'sectionTitle', 'chunkIndex'].every((field) => citationStateCode.includes(field)), 'Citation schema retains passage-level provenance');
+assert(retrievalCode.includes('SELECT content, section_title, page_number FROM nhai_sections'), 'NHAI retrieval retains indexed page numbers');
+assert(adminCode.includes('buildCitationProvenance(r)') && adminCode.includes('excerpt: result.chunkText'), 'Generic retrieval citations retain exact chunks');
+assert(sourceCardCode.includes('passage.quote') && sourceCardCode.includes('Open source') && sourceCardCode.includes('sourceLocation'), 'Sources panel renders passage, locator, and document link');
 
 if (process.argv.includes('--live')) {
   const urls = [...new Set([

@@ -119,6 +119,13 @@ export interface UIPayload {
     label: string;
     trustLevel: string;
     url?: string;
+    documentTitle?: string;
+    excerpt?: string;
+    sourceLocator?: string;
+    pageNumber?: number;
+    paragraphNumber?: number;
+    sectionTitle?: string;
+    chunkIndex?: number;
   }>;
   claims: EvidenceClaim[];
   offline?: OfflineEvidenceState;
@@ -188,6 +195,13 @@ export function extractUIPayload(state: VigiaState): UIPayload {
       label: c.label,
       trustLevel: c.trustLevel,
       url: c.url,
+      documentTitle: c.documentTitle,
+      excerpt: c.excerpt,
+      sourceLocator: c.sourceLocator,
+      pageNumber: c.pageNumber,
+      paragraphNumber: c.paragraphNumber,
+      sectionTitle: c.sectionTitle,
+      chunkIndex: c.chunkIndex,
     }));
   const claimKeys = new Set<string>();
   const claims = state.evidence.flatMap((evidence) => evidence.claims ?? []).filter((claim) => {

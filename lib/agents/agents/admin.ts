@@ -8,6 +8,7 @@ import { getComplaintAuthority } from '../../tools/complaint-routing';
 import { resolveCountry, queryInternational } from '../../tools/global-engine';
 import { detectForeignCountry } from '../../tools/geo-resolve';
 import { getEmargSnapshotMetadata, parseEmargDate, queryEmargRoads } from '../../tools/emarg';
+import type { UnifiedResult } from '../../tools/search-unified';
 
 const DEFAULT_SOURCE_URLS: Record<string, string> = {
   nhai_contract: 'https://nhai.gov.in/nhai/sites/default/files/mix_file/awarded_year_22_23_0.pdf',
@@ -23,6 +24,43 @@ function getDefaultSourceUrl(sourceType: string): string {
 function metadataString(metadata: Record<string, unknown> | null | undefined, key: string): string | undefined {
   const value = metadata?.[key];
   return typeof value === 'string' ? value : undefined;
+}
+
+function metadataPositiveInteger(
+  metadata: Record<string, unknown> | null | undefined,
+  ...keys: string[]
+): number | undefined {
+  for (const key of keys) {
+    const value = metadata?.[key];
+    const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return undefined;
+}
+
+function metadataNonnegativeInteger(
+  metadata: Record<string, unknown> | null | undefined,
+  ...keys: string[]
+): number | undefined {
+  for (const key of keys) {
+    const value = metadata?.[key];
+    const parsed = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN;
+    if (Number.isInteger(parsed) && parsed >= 0) return parsed;
+  }
+  return undefined;
+}
+
+function buildCitationProvenance(result: UnifiedResult) {
+  const metadata = result.metadata;
+  return {
+    documentTitle: metadataString(metadata, 'document_title') ?? metadataString(metadata, 'documentTitle'),
+    excerpt: result.chunkText,
+    sourceLocator: metadataString(metadata, 'source_locator') ?? metadataString(metadata, 'sourceLocator') ?? metadataString(metadata, 'locator'),
+    pageNumber: metadataPositiveInteger(metadata, 'page_number', 'pageNumber', 'page'),
+    paragraphNumber: metadataPositiveInteger(metadata, 'paragraph_number', 'paragraphNumber', 'paragraph'),
+    sectionTitle: metadataString(metadata, 'section_title') ?? metadataString(metadata, 'sectionTitle'),
+    chunkIndex: metadataNonnegativeInteger(metadata, 'chunk_index', 'chunkIndex'),
+  };
 }
 
 function buildCitationLabel(r: { sourceType: string; state?: string | null; district?: string | null; concessionaire?: string | null }, index: number): string {
@@ -485,6 +523,7 @@ export async function runAdminAgent(
               label: buildCitationLabel(r, i),
               url: metadataString(r.metadata, 'source_url') ?? getDefaultSourceUrl(r.sourceType),
               trustLevel: getTrustLevel(r.sourceType),
+              ...buildCitationProvenance(r),
             })),
             metadata: {
               planSteps: plan.steps.length,
@@ -541,6 +580,7 @@ export async function runAdminAgent(
               label: buildCitationLabel(r, i),
               url: metadataString(r.metadata, 'source_url') ?? getDefaultSourceUrl(r.sourceType),
               trustLevel: getTrust(r.sourceType),
+              ...buildCitationProvenance(r),
             })),
             metadata: { resultCount: results.length, topSimilarity, fallback: true },
             latencyMs: Date.now() - start,
