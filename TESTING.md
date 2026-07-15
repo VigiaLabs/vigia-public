@@ -123,7 +123,7 @@ Run these live. Each lists the query, what it exercises, and the expected behavi
 | C1 | `Who is the executive engineer for NH-9999?` (nonexistent) | Exact-ID gate → authority disclosure | Explicitly says no exact indexed project record exists, attaches no neighbouring-road chunks, and routes to NHAI PIU, pgportal, and 1033. |
 | C2 | `What is the exact IRI roughness score of NH-66 today?` | "Data we do not have" | Explicit "not available in the VIGIA index," no fabricated number. |
 | C3 | `Who is the Executive Engineer for NH-44, and what is its current IRI roughness score? Cite the official record.` | Partial-evidence preservation | Returns scoped verified NH-44 corridor facts (6L, O&M concessionaire, ₹6,661 crore TOT value, O&M start) while separately marking the named officer and current IRI unavailable. |
-| C3 | `Tell me the engineer for NH-66` (a west-coast road) with evidence only about Telangana | Cross-region hallucination trap | Refuses to associate NH-66 with a Telangana officer. |
+| C4 | `Tell me the engineer for NH-66` (a west-coast road) with evidence only about Telangana | Cross-region hallucination trap | Refuses to associate NH-66 with a Telangana officer. |
 
 ### D. Spatial / jurisdiction (the Dubai bug regression tests)
 | # | Query | Exercises | Expected |
