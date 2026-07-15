@@ -1,12 +1,8 @@
 /**
  * Thin client for the VIGIASearch Fargate engine.
  *
- * Events emitted by the engine (from main.py):
- *   {"type":"step",       "step":"..."}
- *   {"type":"text-delta", "delta":"..."}
- *   {"type":"metadata",   "payload":{...}}
- *   {"type":"done"}
- *   {"type":"error",      "message":"..."}
+ * The engine uses named SSE events (`event: step`, `event: text`, etc.).
+ * This adapter normalizes them into the event union consumed by the web route.
  */
 
 export type EngineEvent =
@@ -61,6 +57,7 @@ export async function* streamFromEngine(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buf = '';
+  let eventName = '';
 
   try {
     while (true) {
@@ -71,10 +68,32 @@ export async function* streamFromEngine(
       buf = lines.pop() ?? '';
       for (const line of lines) {
         const trimmed = line.trim();
+        if (trimmed.startsWith('event:')) {
+          eventName = trimmed.slice(6).trim();
+          continue;
+        }
         if (!trimmed.startsWith('data:')) continue;
         const json = trimmed.slice(5).trim();
         if (!json) continue;
-        try { yield JSON.parse(json) as EngineEvent; } catch { /* skip malformed */ }
+        try {
+          const data = JSON.parse(json) as Record<string, unknown>;
+          if (eventName === 'step' && typeof data.step === 'string') {
+            yield { type: 'step', step: data.step };
+          } else if (eventName === 'text' && typeof data.delta === 'string') {
+            yield { type: 'text-delta', delta: data.delta };
+          } else if (eventName === 'metadata') {
+            yield { type: 'metadata', payload: data };
+          } else if (eventName === 'done') {
+            yield { type: 'done' };
+          } else if (eventName === 'error') {
+            yield { type: 'error', message: typeof data.message === 'string' ? data.message : 'Engine error' };
+          } else if (typeof data.type === 'string') {
+            yield data as EngineEvent;
+          }
+          eventName = '';
+        } catch {
+          eventName = '';
+        }
       }
     }
   } finally {

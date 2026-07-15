@@ -12,7 +12,7 @@ const assert = (condition, label) => {
 };
 const isHttps = (value) => typeof value === 'string' && value.startsWith('https://');
 
-const [worldBank, emarg, renewal, offline, manifest, golden, nh44Sections] = await Promise.all([
+const [worldBank, emarg, renewal, offline, manifest, golden, nh44Sections, nhaiPiuContacts] = await Promise.all([
   readJson('data/v2/world-bank-ke-transport.json'),
   readJson('data/v2/emarg-road-maintenance.json'),
   readJson('data/v2/periodic-renewal-documents.json'),
@@ -20,6 +20,7 @@ const [worldBank, emarg, renewal, offline, manifest, golden, nh44Sections] = awa
   readJson('public/offline/manifest.json'),
   readJson('data/v2/golden-questions.json'),
   readJson('data/nh44-sections.json'),
+  readJson('data/v2/nhai-piu-contacts.json'),
 ]);
 
 assert(worldBank.sourcePublisher === 'World Bank', 'World Bank publisher is explicit');
@@ -47,6 +48,10 @@ assert(golden.questions.every((question) => question.requiredBehavior && questio
 const nh44TotRecords = nh44Sections.filter((record) => record.tot_concession_award_value_crore === 6661);
 assert(nh44TotRecords.length === 2, 'NH-44 TOT records use a dedicated concession-award field');
 assert(nh44TotRecords.every((record) => record.sanctioned_cost_crore == null && record.source_url.startsWith('https://www.pib.gov.in/')), 'NH-44 TOT value is not mislabeled as sanctioned cost and cites PIB');
+const nh163gPiu = nhaiPiuContacts.records.find((record) => record.roadNumbers.includes('NH-163G'));
+assert(nh163gPiu?.phone === '+91 8919631585' && nh163gPiu?.designation.includes('Project Director'), 'NH-163G contact preserves the official NHAI role and phone');
+assert(nh163gPiu?.pageNumber === 43 && nh163gPiu?.sourcePdfSha256 === 'f66b82ec59f2bd08943c6f830c79c4b56cd3dc1a17b41a8c4a04ead1ed47b1f7', 'NH-163G contact retains verified page and PDF hash');
+assert(!JSON.stringify(nh163gPiu).includes('9440818085'), 'NH-163G NHAI contact does not substitute the State R&B phone');
 
 const database = new Database(resolve('data/vigia_edge.db'), { readonly: true });
 const metadata = Object.fromEntries(database.prepare('SELECT key, value FROM sync_metadata').all().map((row) => [row.key, row.value]));
@@ -74,13 +79,13 @@ assert(['Verified', 'Derived', 'Inferred', 'Unavailable', 'Conflicting evidence'
 assert(queueCode.includes("status: 'pending'") && queueCode.includes("fetch('/api/evidence'"), 'Outbox persists pending submissions for evidence analysis');
 assert(['excerpt', 'pageNumber', 'paragraphNumber', 'sectionTitle', 'chunkIndex'].every((field) => citationStateCode.includes(field)), 'Citation schema retains passage-level provenance');
 assert(retrievalCode.includes('SELECT content, section_title, page_number FROM nhai_sections'), 'NHAI retrieval retains indexed page numbers');
-assert(adminCode.includes('buildCitationProvenance(r)') && adminCode.includes('excerpt: result.chunkText'), 'Generic retrieval citations retain exact chunks');
+assert(adminCode.includes('buildCitationProvenance(r)') && adminCode.includes("metadataString(metadata, 'excerpt') ?? result.chunkText"), 'Generic retrieval citations prefer exact source excerpts');
 assert(adminCode.includes('hasExactRoadMatch') && adminCode.includes('Math.max(0.55, topSimilarity)'), 'Exact road identifiers clear semantic-score data-void thresholds');
 assert(sourceCardCode.includes('passage.quote') && sourceCardCode.includes('Open source') && sourceCardCode.includes('sourceLocation'), 'Sources panel renders passage, locator, and document link');
 assert(plannerCode.includes('official|responsible|authority') && plannerCode.includes("startsWith('NH-')"), 'Road personnel planner recognizes responsibility wording and protects NHAI jurisdiction');
 assert(plannerCode.includes('nhai_exact_road') && plannerCode.includes('Exact national-highway lookup'), 'Explicit national-highway IDs use deterministic retrieval planning');
 assert(federatedSearchCode.includes('prioritizeExactRoadMatches') && federatedSearchCode.includes('return exact;'), 'Federated retrieval requires exact suffixed road identifiers');
-assert(semanticCacheCode.includes('v15-context-aware-followups'), 'Semantic cache invalidates stale context-free follow-up answers');
+assert(semanticCacheCode.includes('v16-nhai-piu-multihop'), 'Semantic cache invalidates stale national-highway personnel answers');
 assert(adminCode.includes('pmgsy|emarg|rural road|gram sadak|roadDetailsId') && !adminCode.includes('rural road|maintenance expenditure|maintenance contractor'), 'eMARG retrieval requires an explicit rural-road anchor');
 assert(chatRouteCode.includes("state.pipelineStatus === 'complete' && state.auditFinding") && chatRouteCode.includes('delta: deterministicText'), 'Terminal data-void responses bypass free-form generation');
 assert(chatRouteCode.includes('personnelAnchorMissing') && chatRouteCode.includes('personnelDisclosure.findings.slice(0, 5)'), 'Missing NHAI officer disclosures bypass free-form jurisdiction substitution');

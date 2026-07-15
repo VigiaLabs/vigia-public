@@ -28,6 +28,14 @@ const cases = [
     requireExcerpt: true,
   },
   {
+    id: 'nh163g-personnel-multihop',
+    query: 'Phone number of the Executive Engineer responsible for NH-163G. Show the road-to-district-to-authority reasoning and cite the official source.',
+    required: [/NH-163G/i, /Khammam/i, /NHAI Project Implementation Unit|PIU/i, /G Durga Prasad/i, /8919631585/i, /Project Director/i, /not an Executive Engineer/i],
+    forbidden: [/9440818085/i, /No project-specific named NHAI officer is present/i],
+    minimumSources: 2,
+    requireExcerpt: true,
+  },
+  {
     id: 'unknown-road',
     query: 'Who is the executive engineer for NH-9999?',
     required: [/No exact indexed project record was found for NH-9999/i, /NHAI Project Implementation Unit|PIU/i, /1033/],

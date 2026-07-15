@@ -55,7 +55,7 @@ function buildCitationProvenance(result: UnifiedResult) {
   const metadata = result.metadata;
   return {
     documentTitle: metadataString(metadata, 'document_title') ?? metadataString(metadata, 'documentTitle'),
-    excerpt: result.chunkText,
+    excerpt: metadataString(metadata, 'excerpt') ?? result.chunkText,
     sourceLocator: metadataString(metadata, 'source_locator') ?? metadataString(metadata, 'sourceLocator') ?? metadataString(metadata, 'locator'),
     pageNumber: metadataPositiveInteger(metadata, 'page_number', 'pageNumber', 'page'),
     paragraphNumber: metadataPositiveInteger(metadata, 'paragraph_number', 'paragraphNumber', 'paragraph'),
@@ -72,6 +72,9 @@ function buildCitationLabel(r: { sourceType: string; state?: string | null; dist
     }
     if (r.state) return `NHAI Project — ${r.state}`;
     return `NHAI Awarded Projects PDF [${index + 1}]`;
+  }
+  if (r.sourceType === 'nhai_piu_contact') {
+    return r.district ? `NHAI PIU — ${r.district}` : 'NHAI Project/PIU Contact';
   }
   if (r.sourceType === 'pmgsy_road') {
     return r.district ? `PMGSY — ${r.district}, ${r.state}` : 'PMGSY OMMAS Portal';
@@ -525,7 +528,7 @@ export async function runAdminAgent(
           // evidence classes. Preserve matching road records while clearly disclosing
           // when no project-specific government officer is present; never substitute a
           // State PWD officer as the responsible NHAI official.
-          if (intent === 'personnel' && !deduped.some(r => r.sourceType === 'pwd_contact')) {
+          if (intent === 'personnel' && !deduped.some(r => r.sourceType === 'pwd_contact' || r.sourceType === 'nhai_piu_contact')) {
             const roadResults = deduped.filter((result) => result.sourceType === 'nhai_contract');
             if (roadResults.length > 0) {
               const authority = await getComplaintAuthority('NH', roadResults[0].state ?? state);
@@ -580,7 +583,7 @@ export async function runAdminAgent(
           }));
 
           // Boost confidence if cross-referencing successfully found targeted results
-          const crossRefSuccess = plan.steps.some(s => s.dependsOn?.length) && deduped.some(r => r.sourceType === 'pwd_contact');
+          const crossRefSuccess = plan.steps.some(s => s.dependsOn?.length) && deduped.some(r => r.sourceType === 'pwd_contact' || r.sourceType === 'nhai_piu_contact');
           const confidence = crossRefSuccess
             ? 0.85
             : hasExactRoadMatch
@@ -604,16 +607,29 @@ export async function runAdminAgent(
           if (plan.steps.some(s => s.dependsOn?.length) && Object.keys(extractedEntities).length > 0) {
             const entityStr = Object.entries(extractedEntities).map(([k, v]) => `${k}="${v}"`).join(', ');
             // Find the top PWD result to highlight the answer explicitly
-            const topPwd = deduped.find(r => r.sourceType === 'pwd_contact');
-            const pwdPhone = metadataString(topPwd?.metadata, 'phone');
-            const pwdName = metadataString(topPwd?.metadata, 'name') ?? topPwd?.chunkText.split('.')[0];
-            const answerHint = topPwd
-              ? ` The answer is: ${pwdName}, Phone: ${pwdPhone}.`
+            const topPersonnel = deduped.find(r => r.sourceType === 'nhai_piu_contact' || r.sourceType === 'pwd_contact');
+            const personnelPhone = metadataString(topPersonnel?.metadata, 'phone');
+            const personnelName = metadataString(topPersonnel?.metadata, 'name') ?? topPersonnel?.chunkText.split('.')[0];
+            const answerHint = topPersonnel
+              ? ` The answer is: ${personnelName}, Phone: ${personnelPhone}.`
               : '';
             findings.push(`[CROSS-REFERENCE]: The system identified ${entityStr} from contract data and used it to find the relevant personnel.${answerHint} The personnel results below are specifically for this jurisdiction.`);
           }
 
           findings.push(...deduped.map(r => r.chunkText));
+
+          const nhaiPiuContact = deduped.find((result) => result.sourceType === 'nhai_piu_contact');
+          const personnelRoute = nhaiPiuContact ? {
+            roadNumber: requestedRoad ?? nhaiPiuContact.roadNumber,
+            district: nhaiPiuContact.district,
+            authority: metadataString(nhaiPiuContact.metadata, 'authority'),
+            name: metadataString(nhaiPiuContact.metadata, 'name'),
+            designation: metadataString(nhaiPiuContact.metadata, 'designation'),
+            phone: metadataString(nhaiPiuContact.metadata, 'phone'),
+            email: metadataString(nhaiPiuContact.metadata, 'email'),
+            documentDate: metadataString(nhaiPiuContact.metadata, 'document_date'),
+            sourceId: `nhai_piu_contact-${deduped.indexOf(nhaiPiuContact)}`,
+          } : undefined;
 
           return {
             agentId: 'admin',
@@ -634,6 +650,7 @@ export async function runAdminAgent(
               topSimilarity,
               hasExactRoadMatch,
               reasoning: plan.reasoning,
+              personnelRoute,
               reasoningTrace: [
                 `Planning retrieval strategy (${plan.steps.length} steps)`,
                 ...plan.steps.map(s => s.dependsOn?.length

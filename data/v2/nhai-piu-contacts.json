@@ -1,0 +1,21 @@
+{
+  "records": [
+    {
+      "roadNumbers": ["NH-163G"],
+      "district": "Khammam",
+      "state": "Telangana",
+      "authority": "NHAI Project Implementation Unit (PIU), Khammam",
+      "name": "Sh. G Durga Prasad",
+      "designation": "Deputy General Manager (Tech), NHAI Project Director, PIU Khammam",
+      "phone": "+91 8919631585",
+      "email": "piukhammam@nhai.org",
+      "documentDate": "September 2023",
+      "documentTitle": "NHAI RFP — Safety Consultant for Warangal–Khammam section of NH-163G",
+      "sourceUrl": "https://nhai.gov.in/nhai/sites/default/files/2020/RFP-Safety_Consultant_Mancherial-Warangal-July_2.pdf",
+      "pageNumber": 43,
+      "sourceLocator": "Project details, item 14",
+      "sourceExcerpt": "Name of the Project Director, Mobile no.\nSh G Durga Prasad , DGM (Tech) & Project Director\nMobile : +91 8919631585",
+      "sourcePdfSha256": "f66b82ec59f2bd08943c6f830c79c4b56cd3dc1a17b41a8c4a04ead1ed47b1f7"
+    }
+  ]
+}

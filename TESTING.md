@@ -113,8 +113,9 @@ Run these live. Each lists the query, what it exercises, and the expected behavi
 | # | Query | Exercises | Expected |
 |---|---|---|---|
 | B1 | `For NH-163G, what verified project records exist and where should I file a pothole complaint?` | Exact-road retrieval + authority routing | Indexed NH-163G project records plus NHAI PIU, CPGRAMS, and 1033. No State PWD engineer is presented as the NHAI project officer. |
-| B2 | `Who is responsible for NH 44?` | Exact-road personnel disclosure | Confirms indexed NH-44 records, discloses that no project-specific named NHAI officer is indexed, and returns the cited NHAI PIU route. |
-| B3 | `Compare the contractor and budget for NH-44 versus a PMGSY road near Nagpur` | Independent parallel plan steps | Two source silos queried in parallel, results not blended. |
+| B2 | `Phone number of the Executive Engineer responsible for NH-163G. Show the road-to-district-to-authority reasoning and cite the official source.` | Deterministic road → district → NHAI PIU contact hop | Resolves NH-163G → Khammam → NHAI PIU Khammam → Sh. G Durga Prasad, Project Director, +91 8919631585, citing the official NHAI RFP page 43. Explicitly says the source does not title the contact “Executive Engineer” and never substitutes Telangana R&B phone 9440818085. |
+| B3 | `Who is responsible for NH 44?` | Exact-road personnel disclosure | Confirms indexed NH-44 records, discloses that no project-specific named NHAI officer is indexed, and returns the cited NHAI PIU route. |
+| B4 | `Compare the contractor and budget for NH-44 versus a PMGSY road near Nagpur` | Independent parallel plan steps | Two source silos queried in parallel, results not blended. |
 
 ### C. Anti-hallucination / guardrail
 | # | Query | Exercises | Expected |

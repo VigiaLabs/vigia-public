@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 export const PlanStepSchema = z.object({
   id: z.string(),
-  tool: z.enum(['searchNHAI', 'searchPWD', 'searchPMGSY', 'searchAll']),
+  tool: z.enum(['searchNHAI', 'searchNHAIPIU', 'searchPWD', 'searchPMGSY', 'searchAll']),
   query: z.string(),
   extract: z.array(z.string()).optional(),
   dependsOn: z.array(z.string()).optional(),
@@ -26,6 +26,31 @@ export async function generatePlan(
 ): Promise<Plan> {
   const roadMatch = query.match(/\b(NH|SH|MDR)[-\s]?(\d+[A-Z]?)\b/i);
   const canonicalRoad = roadMatch ? `${roadMatch[1].toUpperCase()}-${roadMatch[2].toUpperCase()}` : null;
+  const isPersonnelQuery = /\b(engineer|EE|phone|contact|officer|official|responsible|authority|personnel|in charge|who manages)\b/i.test(query);
+
+  if (canonicalRoad?.startsWith('NH-') && isPersonnelQuery) {
+    return {
+      steps: [
+        {
+          id: 'nhai_exact_road',
+          tool: 'searchNHAI',
+          query: canonicalRoad,
+          extract: ['district', 'state', 'roadNumber'],
+        },
+        {
+          id: 'nhai_piu_contact',
+          tool: 'searchNHAIPIU',
+          query: `NHAI project contact ${canonicalRoad}`,
+          dependsOn: ['nhai_exact_road'],
+          injectFrom: {
+            district: 'nhai_exact_road.district',
+            state: 'nhai_exact_road.state',
+          },
+        },
+      ],
+      reasoning: `Resolve ${canonicalRoad} to its district, then retrieve the matching official NHAI PIU contact.`,
+    };
+  }
 
   if (canonicalRoad?.startsWith('NH-') && !/\bPMGSY\b/i.test(query)) {
     return {
@@ -43,7 +68,8 @@ export async function generatePlan(
     schema: PlanSchema,
     prompt: `You are a retrieval planner for VIGIA, an Indian infrastructure database with 3 data sources:
 - searchNHAI: Contract data (road numbers, concessionaires, costs, districts, states, project modes EPC/HAM/BOT)
-- searchPWD: Personnel directory (executive engineers, phone numbers, emails, divisions, states)
+- searchNHAIPIU: Official NHAI project/PIU contacts for national highways
+- searchPWD: State PWD personnel directory (executive engineers, phone numbers, emails, divisions, states)
 - searchPMGSY: Rural road data (road names, contractors, costs, districts, states, schemes)
 
 Given a user query, output a COMPLETE execution plan with ALL steps needed to fully answer the query. Rules:
@@ -65,7 +91,6 @@ INTENT: ${intent ?? 'unknown'}
 HAS GPS: ${hasGps}`,
   });
 
-  const isPersonnelQuery = /\b(engineer|EE|phone|contact|officer|official|responsible|authority|personnel|in charge|who manages)\b/i.test(query);
   const isNationalHighwayPersonnel = isPersonnelQuery && canonicalRoad?.startsWith('NH-');
 
   if (isNationalHighwayPersonnel) {

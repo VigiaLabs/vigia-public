@@ -18,6 +18,7 @@ export interface UnifiedResult {
 
 const SOURCE_LABELS: Record<string, string> = {
   nhai_contract: 'NHAI Awarded Projects PDF',
+  nhai_piu_contact: 'NHAI Project/PIU Contact',
   pmgsy_road: 'PMGSY OMMAS Portal',
   pwd_contact: 'State PWD Official Directory',
   authority: 'Government Authority Matrix',
@@ -25,6 +26,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 const TRUST_LEVELS: Record<string, 'legally-binding' | 'official-portal' | 'verified-spatial'> = {
   nhai_contract: 'legally-binding',
+  nhai_piu_contact: 'official-portal',
   pmgsy_road: 'official-portal',
   pwd_contact: 'official-portal',
   authority: 'official-portal',
