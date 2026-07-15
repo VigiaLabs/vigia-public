@@ -67,6 +67,8 @@ const plannerCode = await readFile(resolve('lib/agents/planner.ts'), 'utf8');
 const federatedSearchCode = await readFile(resolve('lib/tools/search-federated.ts'), 'utf8');
 const semanticCacheCode = await readFile(resolve('lib/cache/semantic-cache.ts'), 'utf8');
 const chatRouteCode = await readFile(resolve('app/api/chat/route.ts'), 'utf8');
+const sarvamSttCode = await readFile(resolve('lib/voice/sarvam-stt.ts'), 'utf8');
+const standaloneServerCode = await readFile(resolve('server/index.ts'), 'utf8');
 assert(['construction-contractor', 'sanctioned amount', 'expenditure', 'physical-relaying', 'O&M commencement', 'present-safety'].every((token) => safetyCode.includes(token)), 'Claim gate encodes role, financial, maintenance, and safety distinctions');
 assert(['Verified', 'Derived', 'Inferred', 'Unavailable', 'Conflicting evidence', 'Cached offline'].every((label) => uiCode.includes(label)), 'Web UI renders every V2 evidence state');
 assert(queueCode.includes("status: 'pending'") && queueCode.includes("fetch('/api/evidence'"), 'Outbox persists pending submissions for evidence analysis');
@@ -85,6 +87,8 @@ assert(chatRouteCode.includes('personnelAnchorMissing') && chatRouteCode.include
 assert(chatRouteCode.includes('nh44TotDisclosure') && chatRouteCode.includes('Scoped TOT concession award/value'), 'NH-44 TOT answers distinguish concession value from construction budget');
 assert(chatRouteCode.includes('nh44WholeTotalDisclosure') && chatRouteCode.includes('fabricated highway total'), 'NH-44 whole-road totals bypass contradictory free-form synthesis');
 assert(adminCode.includes('No exact indexed project record was found') && adminCode.includes('roadDataFound: false'), 'Unknown national highways cannot inherit semantically adjacent project records');
+assert(['saaras:v3', "language_code', 'unknown", "mode', 'transcribe", 'GetSecretValueCommand'].every((token) => sarvamSttCode.includes(token)), 'Web voice input uses Sarvam Saaras v3 auto-detection with server-side credentials');
+assert(standaloneServerCode.includes("app.post('/sarvam-proxy/stt'") && standaloneServerCode.includes('languageInstruction(body.response_language)'), 'Android search service proxies Sarvam and enforces latest-turn response language');
 
 const nhaiDatabase = new Database(resolve('data/nhai_mock.db'), { readonly: true });
 const nh163gRows = nhaiDatabase.prepare("SELECT count(*) AS count FROM nhai_sections WHERE upper(content) LIKE '%163G%'").get().count;

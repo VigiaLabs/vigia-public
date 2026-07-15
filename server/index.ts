@@ -9,6 +9,7 @@
 
 import express from 'express';
 import { streamText } from 'ai';
+import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { bedrock } from '../lib/agents/bedrock-provider';
 import { routerNode, ingestNode, guardrailNode, uiHookNode } from '../lib/agents/graph';
 import { extractUIPayload } from '../lib/agents/ui-hook';
@@ -19,9 +20,86 @@ import type { Payload, VigiaState } from '../lib/agents/state';
 const app = express();
 app.use(express.json({ limit: '256kb' }));
 
+const secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION ?? 'us-east-1' });
+let cachedSarvamApiKey: string | undefined;
+
+async function getSarvamApiKey(): Promise<string> {
+  if (process.env.SARVAM_API_KEY) return process.env.SARVAM_API_KEY;
+  if (cachedSarvamApiKey) return cachedSarvamApiKey;
+  const secret = await secretsClient.send(new GetSecretValueCommand({
+    SecretId: process.env.SARVAM_SECRET_ID ?? 'vigia/sarvam-api-key',
+  }));
+  if (!secret.SecretString) throw new Error('Sarvam API key is unavailable');
+  const value = secret.SecretString.trim();
+  if (value.startsWith('{')) {
+    const parsed = JSON.parse(value) as Record<string, unknown>;
+    cachedSarvamApiKey = ['api_key', 'apiKey', 'SARVAM_API_KEY', 'key']
+      .map(key => parsed[key])
+      .find(candidate => typeof candidate === 'string') as string | undefined;
+  } else {
+    cachedSarvamApiKey = value;
+  }
+  if (!cachedSarvamApiKey) throw new Error('Sarvam API key is unavailable');
+  return cachedSarvamApiKey;
+}
+
+function languageInstruction(languageCode?: string): string {
+  const languageNames: Record<string, string> = {
+    'hi-IN': 'Hindi', 'bn-IN': 'Bengali', 'ta-IN': 'Tamil', 'te-IN': 'Telugu',
+    'gu-IN': 'Gujarati', 'kn-IN': 'Kannada', 'ml-IN': 'Malayalam', 'mr-IN': 'Marathi',
+    'pa-IN': 'Punjabi', 'od-IN': 'Odia', 'or-IN': 'Odia', 'ur-IN': 'Urdu',
+    'en-IN': 'Indian English',
+  };
+  const normalized = languageCode?.replace('_', '-');
+  if (!normalized) return 'Match the language of the user\'s latest message.';
+  const language = languageNames[normalized] ?? normalized;
+  return `The user's latest message is in ${language} (${normalized}). Write the ENTIRE answer in ${language}. Translate evidence into ${language}, but preserve official names, identifiers, URLs, and citation labels. Ignore the language of earlier assistant messages.`;
+}
+
 // ─── Health check ──────────────────────────────────────────────────
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', ts: Date.now() });
+});
+
+app.post('/sarvam-proxy/stt', express.raw({ type: () => true, limit: '25mb' }), async (req, res) => {
+  const contentType = req.header('content-type');
+  if (!contentType?.startsWith('multipart/form-data')) {
+    res.status(400).json({ error: 'Content-Type must be multipart/form-data' });
+    return;
+  }
+  try {
+    const response = await fetch('https://api.sarvam.ai/speech-to-text', {
+      method: 'POST',
+      headers: {
+        'api-subscription-key': await getSarvamApiKey(),
+        'content-type': contentType,
+      },
+      body: req.body,
+      signal: AbortSignal.timeout(30_000),
+    });
+    res.status(response.status).type(response.headers.get('content-type') ?? 'application/json');
+    res.send(Buffer.from(await response.arrayBuffer()));
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : 'Sarvam STT failed' });
+  }
+});
+
+app.post('/sarvam-proxy/tts', async (req, res) => {
+  try {
+    const response = await fetch('https://api.sarvam.ai/text-to-speech', {
+      method: 'POST',
+      headers: {
+        'api-subscription-key': await getSarvamApiKey(),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(30_000),
+    });
+    res.status(response.status).type(response.headers.get('content-type') ?? 'application/json');
+    res.send(Buffer.from(await response.arrayBuffer()));
+  } catch (error) {
+    res.status(502).json({ error: error instanceof Error ? error.message : 'Sarvam TTS failed' });
+  }
 });
 
 // ─── SSE Search endpoint ───────────────────────────────────────────
@@ -32,6 +110,8 @@ app.post('/v1/search', async (req, res) => {
     gps?: { lat: number; lng: number };
     imageUrl?: string;
     history?: Array<{ role: string; content: string }>;
+    conversationHistory?: Array<{ role: string; text: string }>;
+    response_language?: string;
   };
 
   if (!body.query || typeof body.query !== 'string') {
@@ -218,13 +298,16 @@ app.post('/v1/search', async (req, res) => {
     const isPersonnelIntent = /\b(engineer|officer|contact|phone|who is|name|complaint)\b/i.test(queryText);
     const chatModel = isPersonnelIntent ? bedrock('amazon.nova-pro-v1:0') : bedrock('amazon.nova-lite-v1:0');
 
-    const historyMessages = (body.history ?? [])
+    const historyMessages = (body.history ?? body.conversationHistory ?? [])
       .slice(-6)
-      .map(m => ({ role: m.role === 'assistant' ? 'assistant' as const : 'user' as const, content: m.content }));
+      .map(m => ({
+        role: m.role === 'assistant' ? 'assistant' as const : 'user' as const,
+        content: 'content' in m ? m.content : m.text,
+      }));
 
     const result = streamText({
       model: chatModel,
-      system: VIGIA_BASE_SYSTEM_PROMPT + pipelineContext,
+      system: `${VIGIA_BASE_SYSTEM_PROMPT}\n\n${languageInstruction(body.response_language)}${pipelineContext}`,
       messages: [...historyMessages, { role: 'user', content: queryText }],
     });
 
