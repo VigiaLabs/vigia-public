@@ -11,7 +11,7 @@ interface CachedResponse {
 
 let redis: any = null;
 let redisChecked = false;
-const CACHE_SCHEMA_VERSION = 'v14-partial-evidence-preservation';
+const CACHE_SCHEMA_VERSION = 'v15-context-aware-followups';
 
 async function getRedis() {
   if (redisChecked) return redis;

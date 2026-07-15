@@ -44,6 +44,39 @@ const cases = [
     requireExcerpt: true,
   },
   {
+    id: 'emarg-partial-evidence-natural',
+    query: 'For eMARG roadDetailsId 64984, state whether the record proves a construction contractor or only a maintenance contractor. Give the maintenance start date, sanctioned amount, maintenance expenditure, and last physical relaying date',
+    required: [/MUKTI NATH SONOWAL/i, /maintenance contractor/i, /3 March 2020/i, /₹\s?9,?94,?923|994,923/i, /sanctioned amount[^\n]*(?:not published|unavailable)/i, /physical relaying date[^\n]*(?:not published|unavailable)/i],
+    forbidden: [/This specific data is not available in the VIGIA index/i, /construction contractor:\s*\*\*MUKTI NATH SONOWAL/i],
+    minimumSources: 1,
+    requireExcerpt: true,
+  },
+  {
+    id: 'emarg-follow-up-verification',
+    query: 'are you sure?',
+    messages: [
+      {
+        id: 'emarg-follow-up-question',
+        role: 'user',
+        parts: [{ type: 'text', text: 'For eMARG roadDetailsId 64984, state whether the record proves a construction contractor or only a maintenance contractor. Give the maintenance start date, sanctioned amount, maintenance expenditure, and last physical relaying date' }],
+      },
+      {
+        id: 'emarg-follow-up-prior-answer',
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'This specific data is not available in the VIGIA index.' }],
+      },
+      {
+        id: 'emarg-follow-up-request',
+        role: 'user',
+        parts: [{ type: 'text', text: 'are you sure?' }],
+      },
+    ],
+    required: [/MUKTI NATH SONOWAL/i, /maintenance contractor/i, /3 March 2020/i, /₹\s?9,?94,?923|994,923/i],
+    forbidden: [/No verified record of a construction contractor or maintenance contractor is present/i, /This specific data is not available in the VIGIA index/i],
+    minimumSources: 1,
+    requireExcerpt: true,
+  },
+  {
     id: 'maintenance-semantics',
     query: 'For NH-44 Hyderabad-Nagpur, what does the maintenance-related date 2024-09-18 represent?',
     required: [/2024-09-18/, /O&M|operation and maintenance/i, /commencement|start/i],
@@ -85,7 +118,7 @@ for (const testCase of cases) {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      messages: [{ id: testCase.id, role: 'user', parts: [{ type: 'text', text: testCase.query }] }],
+      messages: testCase.messages ?? [{ id: testCase.id, role: 'user', parts: [{ type: 'text', text: testCase.query }] }],
     }),
   });
   const result = parseStream(await response.text());

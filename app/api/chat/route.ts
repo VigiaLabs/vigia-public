@@ -52,6 +52,17 @@ function parseResponseStyle(value: unknown): ResponseStyle | null {
   return null;
 }
 
+function getTextFromMessage(message: UIMessage | undefined): string {
+  return message?.parts
+    ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map((part) => part.text)
+    .join(' ') ?? '';
+}
+
+function isContextDependentFollowUp(text: string): boolean {
+  return /^(?:are you sure|can you verify(?: that)?|please (?:verify|double-check)(?: that)?|double-check(?: that)?|really)[?.!\s]*$/i.test(text.trim());
+}
+
 export async function POST(req: Request) {
   const ip = getClientIp(req);
   const rate = checkRateLimit(`chat:${ip}`, RATE_LIMIT);
@@ -85,11 +96,14 @@ export async function POST(req: Request) {
     const baseSystem = buildMultilingualSystemPrompt(VIGIA_BASE_SYSTEM_PROMPT, responseLanguage) + stylePrompt;
 
     // Extract user query text
-    const lastUserMsg = messages.findLast((m) => m.role === 'user');
-    const queryText = lastUserMsg?.parts
-      ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-      .map((p) => p.text)
-      .join(' ') ?? '';
+    const userMessages = messages.filter((message) => message.role === 'user');
+    const lastUserMsg = userMessages.at(-1);
+    const previousUserMsg = userMessages.at(-2);
+    const queryText = getTextFromMessage(lastUserMsg);
+    const contextualFollowUp = isContextDependentFollowUp(queryText) && previousUserMsg !== undefined;
+    const retrievalQueryText = contextualFollowUp
+      ? `${getTextFromMessage(previousUserMsg)}\nFollow-up verification request: ${queryText}`
+      : queryText;
     const attachedImage = lastUserMsg?.parts?.find((part) =>
       part.type === 'file' && part.mediaType.startsWith('image/'));
     const imageUrl = typeof parsed.imageUrl === 'string'
@@ -97,7 +111,7 @@ export async function POST(req: Request) {
       : attachedImage?.type === 'file'
         ? attachedImage.url
         : undefined;
-    const shouldUseCache = !imageUrl;
+    const shouldUseCache = !imageUrl && !contextualFollowUp;
 
     // ─── Semantic Cache Check ───────────────────────────────────────
     const cached = shouldUseCache ? await getCachedResponse(queryText) : null;
@@ -115,7 +129,7 @@ export async function POST(req: Request) {
 
     // ─── Pipeline Payload ───────────────────────────────────────────
     const payloadResult = PayloadSchema.safeParse({
-      text: queryText,
+      text: retrievalQueryText,
       imageUrl,
       gps: parsed.gps,
       threadId: crypto.randomUUID(),
@@ -154,7 +168,7 @@ export async function POST(req: Request) {
             let textStarted = false;
 
             for await (const event of streamFromEngine({
-              query: queryText,
+              query: retrievalQueryText,
               threadId: pipelinePayload.threadId,
               messageId: pipelinePayload.messageId,
               history,
@@ -347,7 +361,7 @@ export async function POST(req: Request) {
             item.metadata?.personnelAnchorMissing === true
           );
           const evidenceText = state.evidence.flatMap((item) => item.findings).join('\n');
-          const emargDisclosure = buildEmargRecordDisclosure(queryText, state.evidence);
+          const emargDisclosure = buildEmargRecordDisclosure(retrievalQueryText, state.evidence);
           const visionEvidence = state.evidence.findLast((item) =>
             item.agentId === 'vision' && item.status === 'completed'
           );
