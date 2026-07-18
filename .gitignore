@@ -46,3 +46,4 @@ infrastructure/cdk/cdk.context.json
 
 # Infrastructure dependencies
 infrastructure/node_modules/
+aws-backup/

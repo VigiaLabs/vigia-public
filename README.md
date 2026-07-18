@@ -4,6 +4,8 @@
 
 Built for the **IIT Madras Road Safety Hackathon 2026 — RoadWatch track**.
 
+> 🏆 **Finalist — BIMSTEC IIT Madras Road Safety Hackathon 2026** (RoadWatch problem statement).
+
 ### 🔴 Live deployment
 
 **https://main.d1y3lme21jz1c7.amplifyapp.com/**
