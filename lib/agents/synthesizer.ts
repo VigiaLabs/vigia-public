@@ -1,5 +1,5 @@
 import { generateObject } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
+import { bedrock } from '@/lib/agents/bedrock-provider';
 import { z } from 'zod';
 import type { DebugTraceEntry, VigiaState } from './state';
 
@@ -35,7 +35,7 @@ function buildPrompt(state: VigiaState): string {
     ? `\n\nCRITICAL: A verified contradiction exists between official documents (claiming compliance) and visual/telemetry evidence (showing severe damage). You MUST highlight this discrepancy prominently in your finding.`
     : '';
 
-  return `You are VIGIA, a civic infrastructure auditing AI. Generate a concise, cited audit finding based on the following evidence.
+  return `You are VIGIA, a calm road-safety and civic-infrastructure expert. Give a natural, concise, cited answer based only on the following evidence.
 
 ${historySection}CURRENT QUERY: "${state.payload.text ?? ''}"
 
@@ -44,10 +44,14 @@ ${evidenceSummary}
 ${contradictionNote}
 
 INSTRUCTIONS:
-- Write a clear, factual audit finding in 2-4 paragraphs.
+- Answer the user's question directly in the first sentence, then explain the supporting road-safety or infrastructure facts in 2-4 short paragraphs.
 - If conversation history exists, ensure your response is contextually relevant to the ongoing discussion.
 - Reference evidence by sourceId in your citations array.
-- Use formal audit language suitable for an official report.
+- Sound like an experienced road-safety adviser speaking to a citizen: calm, practical, and easy to understand. Do not expose internal pipeline steps such as intent classification, retrieval, planning, or tool names.
+- If the request is genuinely ambiguous or appears misheard, ask one short clarifying question instead of guessing.
+- Clearly separate verified records from general safety guidance, and never claim current road safety without current evidence.
+- Monetary figures for separate sections, packages, arbitration cases, and concessions are not interchangeable. Never sum them or call one project amount the total for an entire highway unless the evidence explicitly publishes that whole-highway total.
+- For NH-44 TOT Bundle-16, ₹6661 crore is a scoped TOT concession award/value for the Hyderabad-Nagpur corridor, not the sanctioned construction budget for all of NH-44.
 - If a contradiction is flagged, lead with the discrepancy.
 - Number citations sequentially starting from 1.
 

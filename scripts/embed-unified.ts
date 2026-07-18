@@ -13,7 +13,8 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 function getAwsRegion() {
-  return process.env.APP_AWS_REGION ?? process.env.REGION ?? process.env.AWS_REGION ?? 'us-east-1';
+  const configured = process.env.APP_AWS_REGION ?? process.env.AWS_REGION ?? 'us-east-1';
+  return /^([a-z]{2}(?:-gov)?-[a-z]+-\d)$/.test(configured) ? configured : 'us-east-1';
 }
 
 const bedrock = new BedrockRuntimeClient({ region: getAwsRegion() });

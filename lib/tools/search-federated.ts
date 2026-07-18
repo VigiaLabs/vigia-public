@@ -3,8 +3,27 @@
  * Each tool filters by sourceType at the DB level for targeted retrieval.
  */
 
-import type { UnifiedResult } from './search-unified';
+import { filterResultsForQuery, type UnifiedResult } from './search-unified';
 import { extractIndiaGeo, type IndiaGeo } from './geo-resolve';
+
+export function extractCanonicalRoadId(query: string): string | null {
+  const match = query.match(/\b(NH|SH|MDR)[-\s]?(\d+[A-Z]?)\b/i);
+  return match ? `${match[1].toUpperCase()}-${match[2].toUpperCase()}` : null;
+}
+
+export function prioritizeExactRoadMatches(query: string, results: UnifiedResult[]): UnifiedResult[] {
+  const roadId = extractCanonicalRoadId(query);
+  if (!roadId) return results;
+  const [prefix, number] = roadId.split('-');
+  const roadPattern = new RegExp(`\\b${prefix}[-\\s]?${number}\\b`, 'i');
+  const exact = results.filter((result) => {
+    const resultRoadId = result.roadNumber
+      ? extractCanonicalRoadId(result.roadNumber)
+      : null;
+    return resultRoadId === roadId || roadPattern.test(result.chunkText);
+  });
+  return exact;
+}
 
 async function queryPgvectorFiltered(
   query: string,
@@ -40,13 +59,22 @@ async function queryPgvectorFiltered(
       concessionaire: r.concessionaire ?? null,
       sourcePdfHash: r.sourcePdfHash ?? null,
     }));
-  } catch {
+  } catch (error) {
+    console.error(`Filtered pgvector retrieval failed for ${sourceType ?? 'all sources'}:`, error);
     return [];
   }
 }
 
 export async function searchNHAI(query: string, limit = 8): Promise<UnifiedResult[]> {
-  return queryPgvectorFiltered(query, limit, 'nhai_contract');
+  const results = filterResultsForQuery(query, await queryPgvectorFiltered(query, limit, 'nhai_contract'));
+  const exactResults = prioritizeExactRoadMatches(query, results);
+  if (exactResults.length > 0) return exactResults;
+  if (extractCanonicalRoadId(query)) return [];
+  const { searchUnified } = await import('./search-unified');
+  const fallback = (await searchUnified(query, limit * 2))
+    .filter((item) => item.sourceType === 'nhai_contract')
+    .slice(0, limit);
+  return prioritizeExactRoadMatches(query, fallback);
 }
 
 /**
@@ -79,7 +107,12 @@ export async function searchPWD(
   if (!anchor.district && !anchor.state) return [];
 
   // Over-fetch so post-filtering has candidates to choose from.
-  const raw = await queryPgvectorFiltered(query, Math.max(limit * 3, 15), 'pwd_contact');
+  let raw = await queryPgvectorFiltered(query, Math.max(limit * 3, 15), 'pwd_contact');
+  if (raw.length === 0) {
+    const { searchUnified } = await import('./search-unified');
+    raw = (await searchUnified(query, Math.max(limit * 3, 15)))
+      .filter((item) => item.sourceType === 'pwd_contact');
+  }
   if (raw.length === 0) return [];
 
   const norm = (s?: string | null) => (s ?? '').toLowerCase().trim();
@@ -87,19 +120,33 @@ export async function searchPWD(
     norm(r.district).includes(needle) ||
     norm(r.state).includes(needle) ||
     r.chunkText.toLowerCase().includes(needle);
+  const withOfficialContactExcerpt = (result: UnifiedResult): UnifiedResult => {
+    const name = typeof result.metadata?.name === 'string' ? result.metadata.name : null;
+    const phone = typeof result.metadata?.phone === 'string' ? result.metadata.phone : null;
+    const email = typeof result.metadata?.email === 'string' ? result.metadata.email : null;
+    if (!name || !phone) return result;
+    return {
+      ...result,
+      metadata: {
+        ...result.metadata,
+        excerpt: [name, `Mobile: ${phone}`, email ? `Email: ${email}` : null].filter(Boolean).join(' | '),
+        source_locator: 'Roads & Buildings Department Office — R & B Contacts List',
+      },
+    };
+  };
 
   // District is the strongest constraint. If we have one, keep only officers that match it.
   if (anchor.district) {
     const d = norm(anchor.district);
     const districtMatches = raw.filter((r) => inText(r, d));
-    if (districtMatches.length > 0) return districtMatches.slice(0, limit);
+    if (districtMatches.length > 0) return districtMatches.slice(0, limit).map(withOfficialContactExcerpt);
     // District anchor but no officer in that district → fall through to state, else empty.
   }
 
   if (anchor.state) {
     const s = norm(anchor.state);
     const stateMatches = raw.filter((r) => inText(r, s));
-    if (stateMatches.length > 0) return stateMatches.slice(0, limit);
+    if (stateMatches.length > 0) return stateMatches.slice(0, limit).map(withOfficialContactExcerpt);
   }
 
   // Anchor present but nothing verifiably matches it → refuse rather than guess.
@@ -107,7 +154,22 @@ export async function searchPWD(
 }
 
 export async function searchPMGSY(query: string, limit = 8): Promise<UnifiedResult[]> {
-  return queryPgvectorFiltered(query, limit, 'pmgsy_road');
+  const results = await queryPgvectorFiltered(query, limit, 'pmgsy_road');
+  if (results.length > 0) return results;
+  const { searchUnified } = await import('./search-unified');
+  return (await searchUnified(query, limit * 2))
+    .filter((item) => item.sourceType === 'pmgsy_road')
+    .slice(0, limit);
+}
+
+export async function searchRoadReferences(query: string, limit = 8): Promise<UnifiedResult[]> {
+  const [roadReferences, pmgsyReferences] = await Promise.all([
+    queryPgvectorFiltered(query, limit, 'road_reference'),
+    queryPgvectorFiltered(query, limit, 'pmgsy_reference'),
+  ]);
+  return [...roadReferences, ...pmgsyReferences]
+    .sort((left, right) => right.similarity - left.similarity)
+    .slice(0, limit);
 }
 
 export async function searchAll(query: string, limit = 8): Promise<UnifiedResult[]> {

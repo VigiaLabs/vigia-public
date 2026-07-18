@@ -1,0 +1,165 @@
+{
+  "schemaVersion": "vigia-chennai-road-sources-v1",
+  "version": "2026.07.15",
+  "retrievedAt": "2026-07-15T00:00:00.000+05:30",
+  "records": [
+    {
+      "sourceId": "gcc-bus-route-roads-contact-2026",
+      "sourceType": "pwd_contact",
+      "state": "Tamil Nadu",
+      "district": "Chennai",
+      "text": "Greater Chennai Corporation Roads Department. N. Thirumurugan is published as Superintending Engineer (Bus Route Roads), Greater Chennai Corporation, Ripon Building, Chennai-600003. Phone: 9445190735. Alternate office phone: 044-25619290. Email: sebrr@chennaicorporation.gov.in. The Bus Route Roads department is responsible for improvement and maintenance of bus route roads in Chennai City. This contact does not prove ownership of every road within a Chennai GPS point.",
+      "metadata": {
+        "source_url": "https://chennaicorporation.gov.in/gcc/department/road/",
+        "source_label": "Greater Chennai Corporation — Roads Department",
+        "document_title": "Greater Chennai Corporation Roads Department",
+        "section_title": "Department Head — Bus Route Roads",
+        "source_locator": "Department Head — Bus Route Roads",
+        "source_quote": "N.Thirumurugan Superintending Engineer (Bus Route Roads) Greater Chennai Corporation Ripon Building,Chennai-600003 9445190735/ 25619290 sebrr@chennaicorporation.gov.in",
+        "trust_level": "official-portal",
+        "name": "N. Thirumurugan",
+        "designation": "Superintending Engineer (Bus Route Roads)",
+        "phone": "9445190735",
+        "alternate_phone": "044-25619290",
+        "email": "sebrr@chennaicorporation.gov.in"
+      }
+    },
+    {
+      "sourceId": "gcc-public-grievance-1913-2026",
+      "sourceType": "authority",
+      "state": "Tamil Nadu",
+      "district": "Chennai",
+      "text": "Greater Chennai Corporation Public Grievance and Redressal System. Call 1913 to register a complaint. A paper grievance may be addressed to the Commissioner, Greater Chennai Corporation, Ripon Building, EVR Salai, Chennai-600003. The same official portal provides online complaint registration and complaint-status checking.",
+      "metadata": {
+        "source_url": "https://erp.chennaicorporation.gov.in/pgr/indexpgr.jsp",
+        "source_label": "Greater Chennai Corporation — Public Grievance System",
+        "document_title": "Greater Chennai Corporation Public Grievance and Redressal System",
+        "section_title": "Register Complaint via Phone / Internet",
+        "source_locator": "Register Complaint via Phone / Internet",
+        "source_quote": "Call 1913 to register your complaint. Send your Grievance to The Commissioner, Greater Chennai Corporation, Ripon Building, EVR Salai, Chennai-600003.",
+        "trust_level": "official-portal",
+        "phone": "1913",
+        "portal": "https://erp.chennaicorporation.gov.in/pgr/indexpgr.jsp"
+      }
+    },
+    {
+      "sourceId": "nhai-bce-phase3-package4-nit-2020",
+      "sourceType": "nhai_contract",
+      "state": "Tamil Nadu",
+      "district": "Kancheepuram",
+      "text": "NHAI Notice Inviting Bid dated 31 December 2020 for Bangalore Chennai Expressway Phase III Package IV. The document describes four-laning from chainage 230.000 to 261.705, the Kancheepuram to Sriperumbudur section in Tamil Nadu, under Bharatmala on Hybrid Annuity Mode. Published length: 31.705 km. Published estimated project cost: Rs. 1143.86 crore. This is an estimated package cost in a bid notice, not expenditure and not a whole-expressway sanctioned total.",
+      "metadata": {
+        "source_url": "https://nhai.gov.in/nhai/sites/default/files/2020/NIT%20BCE%20Phase%20III%20Pack%20IV.pdf",
+        "source_label": "NHAI — Bangalore Chennai Expressway Package IV NIT",
+        "document_title": "NIT BCE Phase III Package IV",
+        "page_number": 1,
+        "section_title": "Notice Inviting Bid",
+        "source_locator": "Page 1 — Brief particulars of the Project",
+        "source_quote": "Construction of Four lane Bangalore Chennai Expressway from Ch. 230.000 to Ch. 261.705 (Kanchepuram to Sriperumbudur Section in the State of Tamil Nadu) under Bharatmala on Hybrid Annuity Mode (Phase III-Package IV). Length 31.705 Km. Estimated Project Cost Rs. Cr. 1143.86.",
+        "trust_level": "legally-binding",
+        "road_number": "Bangalore-Chennai Expressway",
+        "financial_type": "estimate",
+        "estimated_project_cost_crore": 1143.86,
+        "length_km": 31.705
+      }
+    },
+    {
+      "sourceId": "nhai-nh716-chennai-tirupati-package1",
+      "sourceType": "nhai_contract",
+      "state": "Tamil Nadu",
+      "district": "Tiruvallur",
+      "text": "NHAI Tamil Nadu project listing: Access Controlled Highway of four lanes with paved shoulders from Tiruvallur, design chainage km 17+56, to the Tamil Nadu-Andhra Pradesh border, design chainage km 61+51, of NH-716, Chennai-Tirupati Package-1. The listing proves the project description and scope only; it does not publish a current contractor, expenditure, or road-condition measurement in this excerpt.",
+      "metadata": {
+        "source_url": "https://nhai.gov.in/nhai/taxonomy/term/320",
+        "source_label": "NHAI — Tamil Nadu Projects",
+        "document_title": "Tamil Nadu — National Highways Authority of India",
+        "section_title": "NH-716 Chennai-Tirupati Package-1",
+        "source_locator": "Tamil Nadu project listing",
+        "source_quote": "Access Controlled Highway of 4 Lane with Paved Shoulders from Tiruvallur (Design Chainage Km 17+56) to TNAP Broder (Design Chainage Km 61+51) of NH-716 (Chennai-Tirupati Package-1)",
+        "trust_level": "official-portal",
+        "road_number": "NH-716"
+      }
+    },
+    {
+      "sourceId": "tnrd-pmgsy-tamil-nadu-scheme-overview",
+      "sourceType": "pmgsy_reference",
+      "state": "Tamil Nadu",
+      "district": null,
+      "text": "Tamil Nadu Rural Development and Panchayat Raj's PMGSY scheme page describes the programme as providing all-weather roads to eligible rural habitations and discusses new connectivity, upgradation, renewal, and core-network through routes. This is a statewide rural-road scheme overview; it must not be represented as evidence about a Greater Chennai Corporation road or as current proof for a specific project without a matching road record.",
+      "metadata": {
+        "source_url": "https://www.tnrd.tn.gov.in/schemes/pmgsy.html",
+        "source_label": "Tamil Nadu RD&PR — PMGSY Scheme",
+        "document_title": "Pradhan Mantri Gram Sadak Yojana (PMGSY)",
+        "section_title": "Centrally Sponsored Schemes",
+        "source_locator": "PMGSY scheme overview",
+        "source_quote": "The Government of India launched PMGSY on 25th December 2000 to provide all-weather roads, to all rural habitations with population more than 1,000 in the first phase and to all habitations with population between 500 and 1,000 in the second phase.",
+        "trust_level": "official-portal"
+      }
+    },
+    {
+      "sourceId": "tnrd-pmgsy-citizen-charter-2024",
+      "sourceType": "pmgsy_reference",
+      "state": "Tamil Nadu",
+      "district": null,
+      "text": "Tamil Nadu Rural Development and Panchayat Raj Citizen Charter 2024 describes PMGSY as an all-weather rural-road scheme. It identifies the Director of Rural Development and Panchayat Raj, Panagal Building, Saidapet, Chennai-15 as the state-level contact; the District Collector and Project Director, DRDA at district level; and the Block Development Officer (Village Panchayat) at block level. This is a scheme-routing hierarchy, not proof of ownership for an urban Chennai road.",
+      "metadata": {
+        "source_url": "https://tnrd.tn.gov.in/rdweb_newsite/project/reports/Public/public_page_table_content_getpdf.php?pdf_download_id=NDY1",
+        "source_label": "Tamil Nadu RD&PR — Citizen Charter 2024",
+        "document_title": "Citizen Charter 2024",
+        "page_number": 62,
+        "section_title": "Pradhan Mantri Gram Sadak Yojana",
+        "source_locator": "Page 62 — Details Contact to avail benefits",
+        "source_quote": "State Level: Director of Rural Development and Panchayat Raj, Panagal Building, Saidapet, Chennai-15. District Level: District Collector and Project Director, DRDA. Block Level: Block Development Officer (VP).",
+        "trust_level": "official-portal"
+      }
+    },
+    {
+      "sourceId": "wikipedia-chennai-road-network-2026-07",
+      "sourceType": "road_reference",
+      "state": "Tamil Nadu",
+      "district": "Chennai",
+      "text": "Wikipedia reference overview for Chennai roads: the city is described as a terminus of the Golden Quadrilateral. It connects to Mumbai and Kolkata via NH-48 and NH-16, while NH-32 and NH-716 originate from Chennai. The page also describes state highways as arterial roads, inner and outer ring roads, and the Chennai Port-Maduravoyal and Bangalore-Chennai expressways. This is a secondary reference source and must not override official project or authority records.",
+      "metadata": {
+        "source_url": "https://en.wikipedia.org/wiki/Chennai#Road",
+        "source_label": "Wikipedia — Chennai road network",
+        "document_title": "Chennai",
+        "section_title": "Transport — Road",
+        "source_locator": "Transport — Road",
+        "source_quote": "Chennai is one of the termini of the Golden Quadrilateral system of National Highways. As a part of the network, the city is connected to Mumbai and Kolkata via NH 48 and NH 16 respectively. In addition, NH 32, and NH 716 originate from the city.",
+        "trust_level": "reference-source"
+      }
+    },
+    {
+      "sourceId": "wikipedia-tamil-nadu-road-network-2026-07",
+      "sourceType": "road_reference",
+      "state": "Tamil Nadu",
+      "district": null,
+      "text": "Wikipedia reference overview for Tamil Nadu's road network: the Highways and Minor Ports Department is described as primarily responsible for construction and maintenance of national highways, state highways and major district roads in the state, operating through multiple wings. This secondary overview is useful for orientation only; current responsibility and contact claims require an official government source.",
+      "metadata": {
+        "source_url": "https://en.wikipedia.org/wiki/Road_network_in_Tamil_Nadu",
+        "source_label": "Wikipedia — Road network in Tamil Nadu",
+        "document_title": "Road network in Tamil Nadu",
+        "section_title": "Overview",
+        "source_locator": "Lead section",
+        "source_quote": "In Tamil Nadu, the Highways & Minor Ports Department (HMPD) is primarily responsible for construction and maintenance of roads including national highways, state highways and major district roads.",
+        "trust_level": "reference-source"
+      }
+    },
+    {
+      "sourceId": "wikipedia-tamil-nadu-state-highways-2026-07",
+      "sourceType": "road_reference",
+      "state": "Tamil Nadu",
+      "district": "Chennai",
+      "text": "Wikipedia reference overview for Tamil Nadu state highways: the Construction and Maintenance wing is described as managing state highways, major district roads and other district roads. The listed network includes a Chennai circle and Chennai-area roads. This is a secondary index and any exact road classification or responsible-officer claim must be checked against the Tamil Nadu Highways Department.",
+      "metadata": {
+        "source_url": "https://en.wikipedia.org/wiki/List_of_state_highways_in_Tamil_Nadu",
+        "source_label": "Wikipedia — List of state highways in Tamil Nadu",
+        "document_title": "List of state highways in Tamil Nadu",
+        "section_title": "Overview",
+        "source_locator": "Lead section",
+        "source_quote": "The Construction & Maintenance wing of the Highways Department manages construction and maintenance of all the state highways (SH), major district roads (MDR), and other district roads (ODR). The Tamil Nadu State Highways Network has eight circles: Chennai, Villupuram, Madurai, Salem, Tiruchirappalli, Coimbatore, Tiruppur and Tirunelveli.",
+        "trust_level": "reference-source"
+      }
+    }
+  ]
+}

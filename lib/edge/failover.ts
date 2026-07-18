@@ -7,7 +7,7 @@
  */
 
 import type { NormalizedEvidence, VigiaState } from '../agents/state';
-import { queryEmergencyContacts, queryPwdHelpdesks, queryRoadSegments, getLastSyncTime } from './sync-server';
+import { getEdgePackMetadata, queryEmergencyContacts, queryPwdHelpdesks, queryRoadSegments } from './sync-server';
 
 export type NetworkMode = 'online' | 'degraded' | 'offline';
 
@@ -55,28 +55,20 @@ async function queryEdgeDatabase(
   const lat = payload.gps?.lat;
   const lng = payload.gps?.lng;
 
-  if (!lat || !lng) {
-    return {
-      agentId,
-      status: 'error',
-      confidence: 0,
-      findings: ['⚠️ OFFLINE — No GPS available, cannot query local database'],
-      citations: [],
-      latencyMs: 0,
-    };
-  }
+  const queryLat = lat ?? 0;
+  const queryLng = lng ?? 0;
 
   const [emergencyContacts, helpdesks, roads] = await Promise.all([
-    queryEmergencyContacts(lat, lng),
-    queryPwdHelpdesks(lat, lng),
-    queryRoadSegments(lat, lng),
+    queryEmergencyContacts(queryLat, queryLng),
+    queryPwdHelpdesks(queryLat, queryLng),
+    lat != null && lng != null ? queryRoadSegments(lat, lng) : Promise.resolve([]),
   ]);
 
-  const lastSync = await getLastSyncTime();
-  const cacheAgeHours = lastSync ? Math.round((Date.now() - lastSync) / 3600000) : null;
+  const pack = await getEdgePackMetadata();
+  const cacheAgeHours = pack.lastSyncAt ? Math.round((Date.now() - pack.lastSyncAt) / 3600000) : null;
 
   const findings: string[] = [
-    `⚠️ OFFLINE MODE — showing cached life-safety data${cacheAgeHours ? ` (${cacheAgeHours}h old)` : ''}`,
+    `⚠️ OFFLINE MODE — showing cached, source-linked data${cacheAgeHours != null ? ` (${cacheAgeHours}h old)` : ''}`,
   ];
 
   if (emergencyContacts.length > 0) {
@@ -109,8 +101,23 @@ async function queryEdgeDatabase(
     status: 'completed',
     confidence: 0.6,
     findings,
-    citations: [{ sourceId: 'edge-db', label: 'VIGIA Offline Cache', trustLevel: 'verified-spatial' }],
-    metadata: { networkMode: 'offline', cacheAgeHours, recordCount: emergencyContacts.length + helpdesks.length + roads.length },
+    citations: Array.from(new Map(
+      [...emergencyContacts, ...helpdesks]
+        .map((record) => [record.sourceUrl, {
+          sourceId: record.sourceUrl,
+          label: new URL(record.sourceUrl).hostname,
+          url: record.sourceUrl,
+          trustLevel: 'official-portal' as const,
+        }])
+    ).values()),
+    metadata: {
+      networkMode: 'offline',
+      cacheAgeHours,
+      recordCount: emergencyContacts.length + helpdesks.length + roads.length,
+      packVersion: pack.version,
+      verifiedAt: pack.verifiedAt,
+      gpsAvailable: lat != null && lng != null,
+    },
     latencyMs: 5,
   };
 }

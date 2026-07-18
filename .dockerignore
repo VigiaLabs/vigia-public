@@ -1,0 +1,16 @@
+.git
+.next
+node_modules
+dist
+cdk.out
+*.md
+app/
+components/
+public/
+scripts/
+tests/
+hooks/
+infrastructure/
+.kiro/
+.claude/
+amplify.yml

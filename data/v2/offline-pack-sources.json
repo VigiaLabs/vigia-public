@@ -1,0 +1,69 @@
+{
+  "schemaVersion": "vigia-offline-source-registry-v2",
+  "version": "2026.07.15",
+  "verifiedAt": "2026-07-15T00:00:00.000+05:30",
+  "emergencyContacts": [
+    {
+      "name": "Emergency Response Support System",
+      "type": "integrated_emergency",
+      "phone": "112",
+      "scope": "national",
+      "sourceUrl": "https://www.mha.gov.in/en/commoncontent/emergency-response-support-system-erss",
+      "sourceQuote": "ONE INDIA ONE EMERGENCY NUMBER 112"
+    },
+    {
+      "name": "NHAI National Highways Helpline",
+      "type": "national_highway_incident",
+      "phone": "1033",
+      "scope": "national-highways",
+      "sourceUrl": "https://nhai.gov.in/nhai/sites/default/files/mix_file/HO-FAQ.pdf",
+      "sourceQuote": "road users can dial 1033 toll free helpline number"
+    }
+  ],
+  "authorityContacts": [
+    {
+      "state": "India",
+      "division": "Centralised Public Grievance Redress and Monitoring System",
+      "designation": "National public grievance portal",
+      "name": null,
+      "phone": null,
+      "email": null,
+      "scope": "national",
+      "sourceUrl": "https://pgportal.gov.in/",
+      "sourceQuote": "Centralised Public Grievance Redress and Monitoring System"
+    },
+    {
+      "state": "Telangana",
+      "division": "Peddapalli Roads and Buildings Division",
+      "designation": "Executive Engineer",
+      "name": null,
+      "phone": "9440818089",
+      "email": "eerbpdply@gmail.com",
+      "scope": "state:Telangana",
+      "sourceUrl": "https://tg-roadcutting.cgg.gov.in/ContactUs",
+      "sourceQuote": "Executive Engineer, Peddapalli | 9440818089 | eerbpdply@gmail.com"
+    },
+    {
+      "state": "Telangana",
+      "division": "Siddipet Roads and Buildings Division",
+      "designation": "Executive Engineer",
+      "name": null,
+      "phone": "9440818096",
+      "email": "eerbsiddipet@gamilcom",
+      "scope": "state:Telangana",
+      "sourceUrl": "https://tg-roadcutting.cgg.gov.in/ContactUs",
+      "sourceQuote": "Executive Engineer, Siddipet | 9440818096 | eerbsiddipet@gamilcom"
+    },
+    {
+      "state": "Telangana",
+      "division": "Warangal Roads and Buildings Division",
+      "designation": "Executive Engineer",
+      "name": null,
+      "phone": "8333923820",
+      "email": "eerbwglrural@gmail.com",
+      "scope": "state:Telangana",
+      "sourceUrl": "https://tg-roadcutting.cgg.gov.in/ContactUs",
+      "sourceQuote": "Executive Engineer, Warangal | 8333923820 | eerbwglrural@gmail.com"
+    }
+  ]
+}

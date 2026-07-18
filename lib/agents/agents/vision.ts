@@ -1,12 +1,12 @@
 import { generateObject } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
+import { bedrock } from '@/lib/agents/bedrock-provider';
 import { z } from 'zod';
 import type { NormalizedEvidence, Payload } from '../state';
 
 const VisionOutputSchema = z.object({
   severity: z.enum(['critical', 'severe', 'moderate', 'minor', 'none']),
   confidence: z.number().min(0).max(1),
-  findings: z.array(z.string()),
+  findings: z.array(z.string()).min(1).max(4),
   irapStarRating: z.number().min(1).max(5),
 });
 
@@ -77,6 +77,9 @@ Focus on: potholes, surface cracks, aggregate exposure, drainage issues, lane ma
           label: 'Citizen Photo Assessment',
           url: payload.imageUrl,
           trustLevel: 'citizen-claim',
+          documentTitle: 'User-submitted road photo',
+          excerpt: object.findings.join(' '),
+          sourceLocator: 'User-submitted image',
         },
       ],
       metadata: {

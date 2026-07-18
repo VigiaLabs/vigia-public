@@ -1,10 +1,11 @@
 import { generateObject } from 'ai';
-import { bedrock } from '@ai-sdk/amazon-bedrock';
+import { bedrock } from '@/lib/agents/bedrock-provider';
 import { z } from 'zod';
 import type { Plan, PlanStep } from './planner';
 import type { UnifiedResult } from '../tools/search-unified';
 import type { Payload } from './state';
-import { searchNHAI, searchPWD, searchPMGSY, searchAll } from '../tools/search-federated';
+import { searchNHAI, searchPWD, searchPMGSY, searchRoadReferences, searchAll } from '../tools/search-federated';
+import { searchNhaiPiuContacts } from '../tools/nhai-piu-contacts';
 import type { IndiaGeo } from '../tools/geo-resolve';
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -45,8 +46,10 @@ function topologicalSort(steps: PlanStep[]): PlanStep[][] {
 function executeTool(tool: string, query: string, geo?: IndiaGeo): Promise<UnifiedResult[]> {
   switch (tool) {
     case 'searchNHAI': return searchNHAI(query);
+    case 'searchNHAIPIU': return Promise.resolve(searchNhaiPiuContacts(query, geo));
     case 'searchPWD': return searchPWD(query, 8, geo);
     case 'searchPMGSY': return searchPMGSY(query);
+    case 'searchReference': return searchRoadReferences(query);
     default: return searchAll(query);
   }
 }

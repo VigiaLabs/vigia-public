@@ -9,13 +9,17 @@
 export interface EmergencyContact {
   id: number;
   name: string;
-  type: 'trauma_center' | 'police' | 'fire' | 'ambulance';
-  lat: number;
-  lng: number;
+  type: 'trauma_center' | 'police' | 'fire' | 'ambulance' | 'integrated_emergency' | 'national_highway_incident';
+  lat: number | null;
+  lng: number | null;
   phone: string;
   address: string | null;
   open24h: boolean;
   geohash: string;
+  scope: string;
+  sourceUrl: string;
+  sourceQuote: string;
+  verifiedAt: string;
 }
 
 export interface PwdHelpdesk {
@@ -25,9 +29,14 @@ export interface PwdHelpdesk {
   designation: string;
   name: string | null;
   phone: string | null;
+  email: string | null;
   officeAddress: string | null;
   jurisdictionRoads: string[];
   geohash: string;
+  scope: string;
+  sourceUrl: string;
+  sourceQuote: string;
+  verifiedAt: string;
 }
 
 export interface RoadSegment {
@@ -60,12 +69,16 @@ CREATE TABLE IF NOT EXISTS emergency_contacts (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
   type TEXT NOT NULL,
-  lat REAL NOT NULL,
-  lng REAL NOT NULL,
+  lat REAL,
+  lng REAL,
   phone TEXT NOT NULL,
   address TEXT,
   open_24h INTEGER DEFAULT 1,
-  geohash TEXT NOT NULL
+  geohash TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  source_url TEXT NOT NULL,
+  source_quote TEXT NOT NULL,
+  verified_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS pwd_helpdesks (
@@ -75,9 +88,14 @@ CREATE TABLE IF NOT EXISTS pwd_helpdesks (
   designation TEXT NOT NULL,
   name TEXT,
   phone TEXT,
+  email TEXT,
   office_address TEXT,
   jurisdiction_roads TEXT NOT NULL,
-  geohash TEXT NOT NULL
+  geohash TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  source_url TEXT NOT NULL,
+  source_quote TEXT NOT NULL,
+  verified_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS road_segments (

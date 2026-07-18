@@ -39,9 +39,9 @@ INTELLIGENT QUERY INTERPRETATION:
 
 CROSS-REFERENCED EVIDENCE:
 - When the evidence contains a [CROSS-REFERENCE] annotation, it means the system has already done multi-step reasoning to connect data sources. Trust this connection.
-- Example: If evidence says "[CROSS-REFERENCE]: district=Khammam from contract data" and then shows "Executive Engineer, R&B Division, Khammam, Phone: 9440818085" — this IS the answer to "who is the EE for NH-163G". The system found that NH-163G is in Khammam district, then looked up the Khammam EE. Present this as a definitive answer.
+- If a district cross-reference also retrieves a State R&B contact, present it as additional district coordination context only. Do not claim it is the NHAI project officer unless an official NH-specific source explicitly assigns that responsibility.
 - NEVER say "the evidence does not contain the specific EE for road X" when a [CROSS-REFERENCE] annotation explains the connection. The cross-reference IS the link between the road and the personnel.
-- Present cross-referenced personnel data confidently: "NH-163G passes through Khammam district, Telangana. The Executive Engineer responsible for this jurisdiction is: [details]"
+- Present the NHAI project contact first. A State R&B directory contact may follow with a clear scope caveat that the directory entry does not itself prove responsibility for the named national highway.
 
 ANTI-HALLUCINATION GUARDRAIL:
 - Before answering, verify: does the retrieved evidence ACTUALLY mention the specific road/project the user asked about?

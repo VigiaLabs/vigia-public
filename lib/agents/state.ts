@@ -25,7 +25,66 @@ export const CitationSchema = z.object({
   sourceId: z.string(),
   label: z.string(),
   url: z.string().optional(),
-  trustLevel: z.enum(['verified-spatial', 'legally-binding', 'official-portal', 'citizen-claim']),
+  trustLevel: z.enum(['verified-spatial', 'legally-binding', 'official-portal', 'reference-source', 'citizen-claim']),
+  documentTitle: z.string().optional(),
+  excerpt: z.string().optional(),
+  sourceLocator: z.string().optional(),
+  pageNumber: z.number().int().positive().optional(),
+  paragraphNumber: z.number().int().positive().optional(),
+  sectionTitle: z.string().optional(),
+  chunkIndex: z.number().int().nonnegative().optional(),
+});
+
+export const EvidenceClaimSchema = z.object({
+  category: z.enum([
+    'road-type',
+    'contract-role',
+    'financial',
+    'maintenance',
+    'condition',
+    'authority-contact',
+    'international-project',
+  ]),
+  status: z.enum(['verified', 'derived', 'inferred', 'unavailable', 'conflicted']),
+  subject: z.string(),
+  predicate: z.string(),
+  value: z.union([z.string(), z.number(), z.boolean()]).optional(),
+  unit: z.string().optional(),
+  role: z.enum([
+    'construction-contractor',
+    'epc-contractor',
+    'concessionaire',
+    'om-operator',
+    'maintenance-contractor',
+    'consultant',
+    'authority',
+  ]).optional(),
+  financialType: z.enum([
+    'sanction',
+    'estimate',
+    'award-value',
+    'contract-value',
+    'release',
+    'payment',
+    'expenditure',
+    'project-financing',
+  ]).optional(),
+  maintenanceType: z.enum([
+    'physical-relaying',
+    'resurfacing',
+    'overlay',
+    'periodic-renewal',
+    'inspection',
+    'defect-repair',
+    'om-commencement',
+    'contract-award',
+  ]).optional(),
+  dateKind: z.enum(['actual', 'planned', 'published', 'observed']).optional(),
+  observedAt: z.string().datetime().optional(),
+  sourceId: z.string(),
+  sourceQuote: z.string().min(1),
+  sourceLocator: z.string().optional(),
+  retrievedAt: z.string().datetime(),
 });
 
 export const NormalizedEvidenceSchema = z.object({
@@ -37,6 +96,7 @@ export const NormalizedEvidenceSchema = z.object({
     .optional(),
   findings: z.array(z.string()),
   citations: z.array(CitationSchema),
+  claims: z.array(EvidenceClaimSchema).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   errorReason: z.string().optional(),
   latencyMs: z.number(),
@@ -74,10 +134,24 @@ export const PipelineStatusSchema = z.enum([
 // ─── Pending Action (Zero-Trust Vision) ─────────────────────────────
 
 export const PendingActionSchema = z.object({
-  type: z.enum(['flag-for-review', 'verify-depin']),
+  type: z.enum(['flag-for-review', 'verify-depin', 'contact-authority']),
   coordinates: z.object({ lat: z.number(), lng: z.number() }).optional(),
   visionFindings: z.array(z.string()),
   suggestedActions: z.array(z.string()),
+  authority: z.object({
+    name: z.string(),
+    designation: z.string(),
+    officerName: z.string().optional(),
+    phone: z.string().optional(),
+    email: z.string().email().optional(),
+    portal: z.string().url().optional(),
+    sourceUrl: z.string().url(),
+    jurisdictionNote: z.string(),
+  }).optional(),
+  complaintDraft: z.object({
+    subject: z.string(),
+    body: z.string(),
+  }).optional(),
 });
 
 // ─── Full Graph State Schema ────────────────────────────────────────
@@ -106,6 +180,7 @@ export const VigiaStateSchema = z.object({
 
 export type Payload = z.infer<typeof PayloadSchema>;
 export type NormalizedEvidence = z.infer<typeof NormalizedEvidenceSchema>;
+export type EvidenceClaim = z.infer<typeof EvidenceClaimSchema>;
 export type SynthesizedCitation = z.infer<typeof SynthesizedCitationSchema>;
 export type DebugTraceEntry = z.infer<typeof DebugTraceEntrySchema>;
 export type PipelineStatus = z.infer<typeof PipelineStatusSchema>;

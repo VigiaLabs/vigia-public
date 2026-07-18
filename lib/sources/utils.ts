@@ -3,6 +3,13 @@ export type VigiaSource = {
   label: string;
   trustLevel: string;
   url?: string;
+  documentTitle?: string;
+  excerpt?: string;
+  sourceLocator?: string;
+  pageNumber?: number;
+  paragraphNumber?: number;
+  sectionTitle?: string;
+  chunkIndex?: number;
 };
 
 export const TRUST_META: Record<
@@ -29,6 +36,11 @@ export const TRUST_META: Record<
     badgeClass: 'bg-amber-50 text-amber-900 ring-amber-200/80',
     dotClass: 'bg-amber-500',
   },
+  'reference-source': {
+    label: 'Reference source',
+    badgeClass: 'bg-violet-50 text-violet-800 ring-violet-200/80',
+    dotClass: 'bg-violet-500',
+  },
 };
 
 const DEFAULT_TRUST = {
@@ -44,7 +56,7 @@ export function getTrustMeta(trustLevel: string) {
 export function dedupeSources(sources: VigiaSource[]): VigiaSource[] {
   const seen = new Set<string>();
   return sources.filter((source) => {
-    const key = source.url || source.id || source.label;
+    const key = source.id || source.url || source.label;
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
@@ -53,6 +65,7 @@ export function dedupeSources(sources: VigiaSource[]): VigiaSource[] {
 
 export function getDomain(url?: string): string {
   if (!url) return 'Document';
+  if (url.startsWith('data:image/')) return 'Citizen photo';
   try {
     return new URL(url).hostname.replace(/^www\./, '');
   } catch {
@@ -63,10 +76,43 @@ export function getDomain(url?: string): string {
 export function getFaviconUrl(url?: string, size = 32): string | null {
   if (!url) return null;
   try {
-    const domain = new URL(url).hostname;
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    const domain = parsed.hostname;
+    if (!domain) return null;
     return `https://www.google.com/s2/favicons?domain=${domain}&sz=${size}`;
   } catch {
     return null;
+  }
+}
+
+export function getSourceLocation(source: VigiaSource): string {
+  const parts: string[] = [];
+  if (source.pageNumber) {
+    parts.push(`Page ${source.pageNumber}`);
+  } else if (source.url?.toLowerCase().includes('.pdf')) {
+    parts.push('PDF page not supplied by the index');
+  } else if (source.url?.startsWith('http')) {
+    parts.push('Web page (no PDF page number)');
+  }
+  if (source.sectionTitle) parts.push(source.sectionTitle);
+  if (source.paragraphNumber) parts.push(`Paragraph ${source.paragraphNumber}`);
+  if (source.sourceLocator && !parts.includes(source.sourceLocator)) parts.push(source.sourceLocator);
+  if (source.chunkIndex !== undefined) parts.push(`Chunk ${source.chunkIndex}`);
+  return parts.join(' · ') || 'Exact indexed passage';
+}
+
+export function getSourceHref(source: VigiaSource): string | undefined {
+  if (!source.url) return undefined;
+  try {
+    const url = new URL(source.url);
+    if (!['http:', 'https:'].includes(url.protocol)) return undefined;
+    if (url.pathname.toLowerCase().endsWith('.pdf') && source.pageNumber) {
+      url.hash = `page=${source.pageNumber}`;
+    }
+    return url.toString();
+  } catch {
+    return source.url;
   }
 }
 

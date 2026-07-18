@@ -21,12 +21,16 @@ import type { ResponseStyle } from '@/lib/settings/types';
 import { routerNode, ingestNode, guardrailNode, uiHookNode } from '@/lib/agents/graph';
 import { extractUIPayload } from '@/lib/agents/ui-hook';
 import { scoreFaithfulness } from '@/lib/agents/faithfulness';
-import type { Payload, VigiaState } from '@/lib/agents/state';
+import { buildEmargRecordDisclosure } from '@/lib/agents/emarg-disclosure';
+import { buildNh44PersonnelConditionDisclosure, buildNhaiComplaintDisclosure, buildNhaiPersonnelDisclosure } from '@/lib/agents/nhai-personnel-disclosure';
+import { PayloadSchema, type Payload, type VigiaState } from '@/lib/agents/state';
 import { getCachedResponse, setCachedResponse } from '@/lib/cache/semantic-cache';
+import { streamFromEngine } from '@/lib/search-engine/client';
+import { buildCitizenComplaintDisclosure, isCitizenComplaintQuery } from '@/lib/complaints/authority-routing';
 
 export const runtime = 'nodejs';
 
-const MAX_BODY_BYTES = 256 * 1024;
+const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const RATE_LIMIT = { windowMs: 60_000, limit: 30 };
 
 function getClientIp(req: Request): string {
@@ -50,6 +54,17 @@ function parseResponseStyle(value: unknown): ResponseStyle | null {
   return null;
 }
 
+function getTextFromMessage(message: UIMessage | undefined): string {
+  return message?.parts
+    ?.filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+    .map((part) => part.text)
+    .join(' ') ?? '';
+}
+
+function isContextDependentFollowUp(text: string): boolean {
+  return /^(?:are you sure|can you verify(?: that)?|please (?:verify|double-check)(?: that)?|double-check(?: that)?|really)[?.!\s]*$/i.test(text.trim());
+}
+
 export async function POST(req: Request) {
   const ip = getClientIp(req);
   const rate = checkRateLimit(`chat:${ip}`, RATE_LIMIT);
@@ -68,6 +83,8 @@ export async function POST(req: Request) {
       responseLanguage?: unknown;
       voiceLocale?: unknown;
       responseStyle?: unknown;
+      imageUrl?: unknown;
+      gps?: unknown;
     };
     const { messages } = parsed;
     if (!Array.isArray(messages) || messages.length === 0) {
@@ -81,14 +98,26 @@ export async function POST(req: Request) {
     const baseSystem = buildMultilingualSystemPrompt(VIGIA_BASE_SYSTEM_PROMPT, responseLanguage) + stylePrompt;
 
     // Extract user query text
-    const lastUserMsg = messages.findLast((m) => m.role === 'user');
-    const queryText = lastUserMsg?.parts
-      ?.filter((p): p is { type: 'text'; text: string } => p.type === 'text')
-      .map((p) => p.text)
-      .join(' ') ?? '';
+    const userMessages = messages.filter((message) => message.role === 'user');
+    const lastUserMsg = userMessages.at(-1);
+    const previousUserMsg = userMessages.at(-2);
+    const queryText = getTextFromMessage(lastUserMsg);
+    const contextualFollowUp = isContextDependentFollowUp(queryText) && previousUserMsg !== undefined;
+    const retrievalQueryText = contextualFollowUp
+      ? `${getTextFromMessage(previousUserMsg)}\nFollow-up verification request: ${queryText}`
+      : queryText;
+    const attachedImage = lastUserMsg?.parts?.find((part) =>
+      part.type === 'file' && part.mediaType.startsWith('image/'));
+    const imageUrl = typeof parsed.imageUrl === 'string'
+      ? parsed.imageUrl
+      : attachedImage?.type === 'file'
+        ? attachedImage.url
+        : undefined;
+    const citizenComplaintRequest = isCitizenComplaintQuery(retrievalQueryText) || imageUrl !== undefined;
+    const shouldUseCache = !imageUrl && !contextualFollowUp && !citizenComplaintRequest;
 
     // ─── Semantic Cache Check ───────────────────────────────────────
-    const cached = await getCachedResponse(queryText);
+    const cached = shouldUseCache ? await getCachedResponse(queryText) : null;
     if (cached) {
       const stream = createUIMessageStream({
         execute: async ({ writer }) => {
@@ -102,11 +131,17 @@ export async function POST(req: Request) {
     }
 
     // ─── Pipeline Payload ───────────────────────────────────────────
-    const pipelinePayload: Payload = {
-      text: queryText,
+    const payloadResult = PayloadSchema.safeParse({
+      text: retrievalQueryText,
+      imageUrl,
+      gps: parsed.gps,
       threadId: crypto.randomUUID(),
       messageId: crypto.randomUUID(),
-    };
+    });
+    if (!payloadResult.success) {
+      return NextResponse.json({ error: payloadResult.error.issues.map((issue) => issue.message).join(', ') }, { status: 400 });
+    }
+    const pipelinePayload: Payload = payloadResult.data;
 
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
@@ -119,9 +154,61 @@ export async function POST(req: Request) {
         let evidenceAnnotation: Record<string, unknown> | null = null;
         let retrievedChunks: string[] = [];
 
+        // ─── External Engine Path (Fargate SSE) ──────────────────
+        if (process.env.VIGIA_ENGINE_URL && !pipelinePayload.imageUrl && !citizenComplaintRequest) {
+          try {
+            const history = messages
+              .filter((m) => m.role === 'user' || m.role === 'assistant')
+              .slice(-6)
+              .map((m) => ({
+                role: m.role as string,
+                content: m.parts?.filter((p): p is { type: 'text'; text: string } => p.type === 'text').map((p) => p.text).join(' ') ?? '',
+              }));
+
+            // Stream tokens live as they arrive from the engine.
+            // text-start / text-end follow the exact ID pattern the AI SDK client expects.
+            const TEXT_ID = 'text-1';
+            let textStarted = false;
+
+            for await (const event of streamFromEngine({
+              query: retrievalQueryText,
+              threadId: pipelinePayload.threadId,
+              messageId: pipelinePayload.messageId,
+              history,
+              gps: pipelinePayload.gps,
+              imageUrl: pipelinePayload.imageUrl,
+              responseLanguage: responseLanguage != null ? String(responseLanguage) : undefined,
+              responseStyle: responseStyle ?? undefined,
+            })) {
+              if (event.type === 'step') {
+                emitStep(event.step);
+              } else if (event.type === 'text-delta') {
+                if (!textStarted) {
+                  writer.write({ type: 'text-start', id: TEXT_ID } as any);
+                  textStarted = true;
+                }
+                writer.write({ type: 'text-delta', id: TEXT_ID, delta: event.delta } as any);
+              } else if (event.type === 'metadata') {
+                if (textStarted) {
+                  writer.write({ type: 'text-end', id: TEXT_ID } as any);
+                  textStarted = false;
+                }
+                writer.write({ type: 'message-metadata', messageMetadata: event.payload });
+              } else if (event.type === 'error') {
+                throw new Error(event.message);
+              }
+            }
+
+            if (textStarted) writer.write({ type: 'text-end', id: TEXT_ID } as any);
+            return;
+          } catch (err) {
+            console.error('Engine proxy failed, falling back to in-process pipeline:', err);
+          }
+        }
+
         try {
           // Node 1: Router
-          emitStep('Classifying intent...');
+          emitStep('Understanding your request...');
           const initialState: VigiaState = {
             traceId: crypto.randomUUID(),
             startedAt: Date.now(),
@@ -153,7 +240,9 @@ export async function POST(req: Request) {
           }
 
           // Node 2: Ingest (parallel agents)
-          emitStep(`Searching ${state.activeAgents.length} source${state.activeAgents.length !== 1 ? 's' : ''}...`);
+          emitStep(citizenComplaintRequest
+            ? 'Checking the photo, location, and responsible authority...'
+            : `Searching ${state.activeAgents.length} source${state.activeAgents.length !== 1 ? 's' : ''}...`);
           const ingestResult = await ingestNode(state);
           state = {
             ...state,
@@ -172,7 +261,7 @@ export async function POST(req: Request) {
           }
 
           // Node 3: Guardrail
-          emitStep('Verifying evidence...');
+          emitStep(citizenComplaintRequest ? 'Verifying official contact details...' : 'Verifying evidence...');
           const guardrailResult = await guardrailNode(state);
           state = {
             ...state,
@@ -255,25 +344,138 @@ export async function POST(req: Request) {
               if (emailMatches) pipelineContext += 'VERIFIED EMAIL: ' + emailMatches[0].replace('Email: ', '') + '\n';
               pipelineContext += '═══ USE ONLY THESE DETAILS. DO NOT SUBSTITUTE. ═══\n';
             }
-            pipelineContext += '\n\nIMPORTANT: Answer using ONLY the evidence above. Cite sources with [Source: Document Name]. If the evidence contains project metadata (budget, mode, timeline, km stretch), include it in a **Project Overview** section even if the user did not ask for it.\n\nSTRICT ANTI-HALLUCINATION RULES:\n- NEVER invent names, phone numbers, email addresses, or costs. If a phone number or name is not LITERALLY written in the evidence above, do NOT include one.\n- If the evidence does not contain the answer, say "This specific data is not available in the VIGIA index" — do NOT fill in the gap with made-up data.\n- Every name, number, email, and cost you output MUST appear verbatim in the evidence chunks above. If you cannot point to the exact line, do not include it.\n\nCRITICAL CONTACT INFORMATION RULE:\n- For personnel queries: ONLY use names, phone numbers, and emails that appear EXACTLY in the evidence bullets above.\n- The ONLY valid contact details are those preceded by "Phone:", "Email:", or that appear as part of a person\'s title line in the evidence.\n- If you output a phone number like 98XXXXXXXX that is NOT in the evidence, you are hallucinating. Use ONLY landline numbers (like 020-XXXXXXXX) or mobile numbers that appear verbatim above.\n- COPY-PASTE the name and number from the evidence. Do not paraphrase or substitute.';
+            pipelineContext += '\n\nIMPORTANT: Answer using ONLY the evidence above. Cite sources with [Source: Document Name]. If the evidence contains project metadata (budget, mode, timeline, km stretch), include it in a **Project Overview** section even if the user did not ask for it.\n\nSTRICT ANTI-HALLUCINATION RULES:\n- NEVER invent names, phone numbers, email addresses, or costs. If a phone number or name is not LITERALLY written in the evidence above, do NOT include one.\n- If the evidence does not contain the answer, say "This specific data is not available in the VIGIA index" — do NOT fill in the gap with made-up data.\n- Every name, number, email, and cost you output MUST appear verbatim in the evidence chunks above. If you cannot point to the exact line, do not include it.\n- NEVER sum costs from separate sections, packages, arbitration cases, or concessions. If the user asks for the total budget of an entire highway and the evidence only contains scoped project amounts, state that no authoritative whole-highway total is available and list each amount with its exact scope.\n- For NH-44 TOT Bundle-16, ₹6661 crore is the scoped TOT concession award/value for the Hyderabad-Nagpur corridor. Never call it the sanctioned construction budget for NH-44.\n- NEVER infer project status, completion, progress, road length, or a date\'s meaning from an LOA/award date or OCR layout. Omit a field unless the evidence explicitly labels it.\n\nCRITICAL CONTACT INFORMATION RULE:\n- For personnel queries: ONLY use names, phone numbers, and emails that appear EXACTLY in the evidence bullets above.\n- The ONLY valid contact details are those preceded by "Phone:", "Email:", or that appear as part of a person\'s title line in the evidence.\n- If you output a phone number like 98XXXXXXXX that is NOT in the evidence, you are hallucinating. Use ONLY landline numbers (like 020-XXXXXXXX) or mobile numbers that appear verbatim above.\n- COPY-PASTE the name and number from the evidence. Do not paraphrase or substitute.';
           }
 
           evidenceAnnotation = {
             type: 'vigia-evidence',
             sources: uiPayload.sources,
+            claims: uiPayload.claims,
+            offline: uiPayload.offline,
             debugTrace: uiPayload.debugTrace,
             totalLatencyMs: uiPayload.totalLatencyMs,
             contradictionVerified: uiPayload.contradictionVerified,
             budgetData: uiPayload.budgetData,
+            evidenceImages: uiPayload.evidenceImages,
             spatialMarkers: uiPayload.spatialMarkers,
             pendingAction: uiPayload.pendingAction,
           };
+
+          const personnelDisclosure = state.evidence.findLast((item) =>
+            item.agentId === 'admin' &&
+            item.metadata?.personnelAnchorMissing === true
+          );
+          const evidenceText = state.evidence.flatMap((item) => item.findings).join('\n');
+          const emargDisclosure = buildEmargRecordDisclosure(retrievalQueryText, state.evidence);
+          const nhaiPersonnelDisclosure = buildNhaiPersonnelDisclosure(retrievalQueryText, state.evidence);
+          const nhaiComplaintDisclosure = buildNhaiComplaintDisclosure(retrievalQueryText, state.evidence);
+          const nh44PersonnelConditionDisclosure = buildNh44PersonnelConditionDisclosure(retrievalQueryText, state.evidence);
+          const visionEvidence = state.evidence.findLast((item) =>
+            item.agentId === 'vision' && item.status === 'completed'
+          );
+          const complaintDisclosure = buildCitizenComplaintDisclosure(
+            retrievalQueryText,
+            pipelinePayload.gps,
+            visionEvidence,
+          );
+          if (complaintDisclosure && evidenceAnnotation) {
+            const annotation = evidenceAnnotation as {
+              sources?: Array<{ id: string }>;
+              claims?: unknown[];
+              pendingAction?: unknown;
+            };
+            annotation.sources = Array.from(new Map([
+              ...(annotation.sources ?? []),
+              ...complaintDisclosure.sources,
+            ].map((source) => [source.id, source])).values());
+            annotation.claims = [...(annotation.claims ?? []), ...complaintDisclosure.claims];
+            annotation.pendingAction = complaintDisclosure.pendingAction;
+          }
+          const visionDisclosure = visionEvidence
+              ? [
+                '**What I can see in the photo**',
+                `- Model assessment: ${visionEvidence.severity ?? 'unclassified'} (${Math.round(visionEvidence.confidence * 100)}% confidence).`,
+                ...visionEvidence.findings
+                  .filter((finding) => !finding.startsWith('Note:'))
+                  .map((finding) => `- ${finding.replace(/^\[CITIZEN CLAIM\]\s*/i, '')}`),
+                '',
+                '**Recommended next steps**',
+                pipelinePayload.gps
+                  ? `- Use the attached coordinates (${pipelinePayload.gps.lat.toFixed(5)}, ${pipelinePayload.gps.lng.toFixed(5)}) to identify the responsible road authority.`
+                  : '- Attach the location so VIGIA can identify whether NHAI, the State PWD, a municipality, or another road authority is responsible.',
+                '- Ask VIGIA to draft a complaint email that includes the observations, location, and this photo.',
+                '- Treat this as a citizen photo assessment until an authority verifies the condition on site.',
+              ].join('\n')
+            : null;
+          const isNh44TotQuery = /\bNH[-\s]?44\b/i.test(queryText) &&
+            /\b(?:Hyderabad|Nagpur)\b/i.test(queryText) &&
+            /\bTOT\b/i.test(queryText) &&
+            /\b(?:award|value)\b/i.test(queryText);
+          const nh44TotDisclosure = isNh44TotQuery &&
+            /\b6L\b|6[- ]lane/i.test(evidenceText) &&
+            /Highway Infrastructure Trust/i.test(evidenceText) &&
+            /(?:6661|6,661)/.test(evidenceText)
+            ? [
+                'For the NH-44 Hyderabad-Nagpur corridor:',
+                'Road type: 6L (six-lane).',
+                'Current O&M concessionaire: Highway Infrastructure Trust (KKR InvIT), under TOT Bundle-16.',
+                'Scoped TOT concession award/value: ₹6,661 crore.',
+                'This is not the sanctioned construction budget for the entire NH-44 highway.',
+              ].join('\n')
+            : null;
+          const isNh44WholeTotalQuery = /\bNH[-\s]?44\b/i.test(queryText) &&
+            /\btotal\b.*\b(?:budget|cost|amount|sanctioned)\b|\b(?:budget|cost|amount|sanctioned)\b.*\btotal\b/i.test(queryText) &&
+            !/\b(?:section|stretch|package|corridor|between)\b/i.test(queryText);
+          const nh44WholeTotalDisclosure = isNh44WholeTotalQuery
+            ? [
+                'The current cited evidence does not publish one authoritative sanctioned budget total for the entire NH-44 highway.',
+                '₹6,661 crore is a scoped TOT concession award/value for the Hyderabad-Nagpur corridor, not the sanctioned construction budget for all of NH-44.',
+                'VIGIA will not sum unrelated sections, packages, arbitration figures, or concessions into a fabricated highway total.',
+              ].join('\n')
+            : null;
+          const deterministicText = complaintDisclosure
+            ? complaintDisclosure.text
+            : emargDisclosure
+            ? emargDisclosure
+            : nhaiPersonnelDisclosure
+            ? nhaiPersonnelDisclosure
+            : nhaiComplaintDisclosure
+            ? nhaiComplaintDisclosure
+            : nh44PersonnelConditionDisclosure
+            ? nh44PersonnelConditionDisclosure
+            : visionDisclosure
+            ? visionDisclosure
+            : personnelDisclosure
+            ? personnelDisclosure.findings.slice(0, 5).join('\n')
+            : nh44TotDisclosure
+              ? nh44TotDisclosure
+            : nh44WholeTotalDisclosure
+              ? nh44WholeTotalDisclosure
+            : state.pipelineStatus === 'complete' && state.auditFinding
+              ? state.auditFinding
+              : null;
+
+          if (deterministicText) {
+            const textId = crypto.randomUUID();
+            writer.write({ type: 'text-start', id: textId } as any);
+            writer.write({ type: 'text-delta', id: textId, delta: deterministicText } as any);
+            writer.write({ type: 'text-end', id: textId } as any);
+            writer.write({ type: 'message-metadata', messageMetadata: evidenceAnnotation });
+            if (shouldUseCache) {
+              await setCachedResponse(queryText, {
+                text: deterministicText,
+                metadata: evidenceAnnotation,
+                cachedAt: Date.now(),
+              });
+            }
+            return;
+          }
         } catch (err) {
           console.error('Pipeline error (falling back to base LLM):', err);
         }
 
         // ─── Stream LLM Response ──────────────────────────────────
-        emitStep('Generating response...');
+        emitStep('Drafting the verified answer...');
         const system = baseSystem + pipelineContext + buildResponseLanguageContext(responseLanguage);
 
         // Prevent chat history contamination: only include recent messages,
@@ -313,7 +515,9 @@ export async function POST(req: Request) {
               writer.write({ type: 'message-metadata', messageMetadata: evidenceAnnotation });
             }
             // Cache the response
-            void setCachedResponse(queryText, { text: fullText, metadata: evidenceAnnotation, cachedAt: Date.now() });
+            if (shouldUseCache) {
+              void setCachedResponse(queryText, { text: fullText, metadata: evidenceAnnotation, cachedAt: Date.now() });
+            }
           },
         });
 
