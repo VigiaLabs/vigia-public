@@ -3,6 +3,7 @@ import { DeepgramClient } from '@deepgram/sdk';
 import { transcribeWithAzure, isAzureSttConfigured } from '@/lib/voice/azure-stt';
 import { transcribeWithSarvam } from '@/lib/voice/sarvam-stt';
 import { getDeepgramApiKey } from '@/lib/voice/config';
+import { checkRateLimit } from '@/lib/security/rate-limit';
 import {
   DEFAULT_VOICE_LOCALE,
   normalizeLanguageCode,
@@ -101,7 +102,24 @@ async function transcribeWithDeepgram(audioBuffer: Buffer): Promise<Transcriptio
   };
 }
 
+// P-SEC-5: caps for an unauthenticated endpoint that decodes caller base64 into
+// memory and drives billable STT providers.
+const TRANSCRIBE_RATE_LIMIT = { windowMs: 60_000, limit: 20 };
+const MAX_AUDIO_BYTES = 6 * 1024 * 1024; // 6 MB decoded
+
+function transcribeClientIp(request: NextRequest): string {
+  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || request.headers.get('x-real-ip') || 'unknown';
+}
+
 export async function transcribeAudioRequest(request: NextRequest) {
+  const rl = checkRateLimit(`transcribe:${transcribeClientIp(request)}`, TRANSCRIBE_RATE_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds), 'Cache-Control': 'no-store' } },
+    );
+  }
   try {
     const body = (await request.json()) as { audio?: unknown; mimeType?: unknown };
     const audioBase64 = typeof body.audio === 'string' ? body.audio.trim() : '';
@@ -114,9 +132,21 @@ export async function transcribeAudioRequest(request: NextRequest) {
       );
     }
 
+    // Reject oversized payloads BEFORE allocating the decoded buffer.
+    // base64 expands ~4/3, so cap the string length accordingly.
+    if (audioBase64.length > Math.ceil(MAX_AUDIO_BYTES * 4 / 3) + 4) {
+      return NextResponse.json(
+        { error: 'Audio too large. Maximum 6 MB.' },
+        { status: 413 }
+      );
+    }
+
     const audioBuffer = Buffer.from(audioBase64, 'base64');
     if (audioBuffer.length === 0) {
       return NextResponse.json({ error: 'Audio data is empty' }, { status: 400 });
+    }
+    if (audioBuffer.length > MAX_AUDIO_BYTES) {
+      return NextResponse.json({ error: 'Audio too large. Maximum 6 MB.' }, { status: 413 });
     }
 
     let payload: TranscriptionResponse;
