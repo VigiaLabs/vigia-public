@@ -15,6 +15,35 @@ The archived `MASTER_V2.md` defined the **claim-safe evidence contract** (ingest
 
 ---
 
+## Review Reconciliation (v2.1 — cross-reviewed and verified against source, 2026-07-25)
+
+An independent second review (Codex) cross-checked this spec; every item was re-verified by reading the cited files. **Authoritative where it conflicts with the original findings.**
+
+### REVISED
+
+- **P-CRIT-1 (cache key) — EXPANDED and IMPLEMENTED.** Verification found the defect is worse than described: the normalizer used ASCII `\w`, which strips **all** Devanagari/Indic characters, so every non-Latin query collapsed to a blank key (not just cross-language collision). Also `responseLanguage` is an object `{code,name,nativeName}` — it must be keyed on `.code` (a naive `String()` yields `"[object Object]"` for every language, silently re-breaking the fix). GPS also scopes road answers and is now in the key. **Implemented fix:** `\p{L}\p{M}\p{N}\s` normalizer, `.code` keying, coarse GPS scope, schema bumped to `v19`. Verified: distinct keys per Hindi query and per language; tsc clean.
+- **P-BUG-1 (dynamic import) — IMPLEMENTED** via `import('@upstash/redis' as string)` (no `Function()`/eval, no forced type resolution).
+
+### New CONFIRMED findings
+
+- **P-SEC-5 — Voice/transcription endpoints unauthenticated, un-rate-limited, unbounded (P1).** `app/api/voice/speak/route.ts` and `app/api/transcribe/route.ts` have no auth and no `checkRateLimit`; `transcribe-handler.ts:117` decodes caller-supplied base64 into memory with no size ceiling and can chain Sarvam→Azure/Deepgram (billable). Duplicate aliases (`/tts`+`/voice/speak`, `/transcribe`+`/voice/transcribe`) widen the surface. Fix: auth + Redis rate limit (P-SEC-2), a hard audio-size cap **before** decode, and collapse the duplicate routes.
+
+### Verification hygiene (from the cross-review)
+
+- **P-QUAL-6** — ESLint scans generated `.next` under nested `.claude/worktrees` (~12.8k irrelevant findings); add ignore rules and lint only owned source.
+- **P-QUAL-7** — `better-sqlite3` prebuilt for a stale Node ABI blocks the V2 test suite; pin/rebuild against the project's Node.
+
+**Confirmed still valid (no change):** SSRF via `imageUrl` (P-SEC-1 — now implemented), unauthenticated LLM endpoints + process-local rate limiter (P-SEC-2), spoofable XFF (P-QUAL-1), missing-Origin acceptance (P-SEC-4), FastAPI wildcard CORS (P-SEC-3), MCP remote/auth, error leakage (P-QUAL-2).
+
+### Revised priority (public)
+
+1. P-CRIT-1 cache (done) + P-SEC-1 SSRF (done).
+2. P-SEC-2 Redis rate limit + Bedrock spend cap; P-SEC-5 voice auth/limits.
+3. P-SEC-3/4 CORS + origin; MCP remote transport + auth.
+4. P-QUAL batch (incl. lint/ABI hygiene).
+
+---
+
 ## 1. Architecture recap (as-built)
 
 ```
