@@ -2,12 +2,27 @@ import { NextRequest, NextResponse } from 'next/server';
 import { synthesizeSarvamSpeech } from '@/lib/voice/sarvam-tts';
 import { isVoiceLocale, resolveVoiceLocale } from '@/lib/voice/locale';
 import type { SpeakRequest, VoiceLocale } from '@/types/voice';
+import { checkRateLimit } from '@/lib/security/rate-limit';
 
 export const runtime = 'nodejs';
 
 const MAX_TEXT_CHARS = 5000;
+// P-SEC-5: this route drives a billable TTS provider — rate-limit anonymous callers.
+const RATE_LIMIT = { windowMs: 60_000, limit: 20 };
+
+function clientIp(req: NextRequest): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    || req.headers.get('x-real-ip') || 'unknown';
+}
 
 export async function POST(req: NextRequest) {
+  const rl = checkRateLimit(`voice-speak:${clientIp(req)}`, RATE_LIMIT);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: 'Too many requests.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds), 'Cache-Control': 'no-store' } },
+    );
+  }
   try {
     const body = (await req.json()) as SpeakRequest;
     const content = typeof body.text === 'string' ? body.text.trim() : '';

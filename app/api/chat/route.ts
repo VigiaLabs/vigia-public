@@ -116,8 +116,21 @@ export async function POST(req: Request) {
     const citizenComplaintRequest = isCitizenComplaintQuery(retrievalQueryText) || imageUrl !== undefined;
     const shouldUseCache = !imageUrl && !contextualFollowUp && !citizenComplaintRequest;
 
+    // Cache scope keys (P-CRIT-1): language is an object — key on its .code, not
+    // the object (String(obj) collapses every language to "[object Object]").
+    // Coarse GPS (~1.1 km, 2 dp) keeps road-scoped answers from leaking across regions.
+    const cacheLang = responseLanguage?.code ?? 'default';
+    const cacheStyle = responseStyle ?? 'default';
+    const gps = parsed.gps as { lat?: unknown; lng?: unknown } | undefined;
+    const cacheGeo =
+      gps && typeof gps.lat === 'number' && typeof gps.lng === 'number'
+        ? `${gps.lat.toFixed(2)},${gps.lng.toFixed(2)}`
+        : '';
+
     // ─── Semantic Cache Check ───────────────────────────────────────
-    const cached = shouldUseCache ? await getCachedResponse(queryText) : null;
+    const cached = shouldUseCache
+      ? await getCachedResponse(queryText, cacheLang, cacheStyle, cacheGeo)
+      : null;
     if (cached) {
       const stream = createUIMessageStream({
         execute: async ({ writer }) => {
@@ -466,7 +479,7 @@ export async function POST(req: Request) {
                 text: deterministicText,
                 metadata: evidenceAnnotation,
                 cachedAt: Date.now(),
-              });
+              }, cacheLang, cacheStyle, cacheGeo);
             }
             return;
           }
@@ -516,7 +529,7 @@ export async function POST(req: Request) {
             }
             // Cache the response
             if (shouldUseCache) {
-              void setCachedResponse(queryText, { text: fullText, metadata: evidenceAnnotation, cachedAt: Date.now() });
+              void setCachedResponse(queryText, { text: fullText, metadata: evidenceAnnotation, cachedAt: Date.now() }, cacheLang, cacheStyle, cacheGeo);
             }
           },
         });
