@@ -2,6 +2,7 @@ import { generateObject } from 'ai';
 import { bedrock } from '@/lib/agents/bedrock-provider';
 import { z } from 'zod';
 import type { NormalizedEvidence, Payload } from '../state';
+import { fetchGuardedImage } from '@/lib/security/url-guard';
 
 const VisionOutputSchema = z.object({
   severity: z.enum(['critical', 'severe', 'moderate', 'minor', 'none']),
@@ -33,6 +34,11 @@ export async function runVisionAgent(
   }
 
   try {
+    // SSRF guard (P-SEC-1): fetch the citizen image ourselves with DNS/private-IP
+    // checks and size/timeout caps, then hand raw bytes to the model — never let a
+    // downstream fetcher dereference a user-supplied URL.
+    const { bytes, contentType } = await fetchGuardedImage(payload.imageUrl);
+
     const { object } = await generateObject({
       model: bedrock('amazon.nova-lite-v1:0'),
       schema: VisionOutputSchema,
@@ -54,7 +60,8 @@ Focus on: potholes, surface cracks, aggregate exposure, drainage issues, lane ma
             },
             {
               type: 'image',
-              image: payload.imageUrl,
+              image: bytes,
+              mediaType: contentType,
             },
           ],
         },

@@ -1,11 +1,18 @@
 import { z } from 'zod';
 import { Annotation } from '@langchain/langgraph';
+import { isSafePublicHttpUrl } from '@/lib/security/url-guard';
 
 // ─── Payload (User Input) ───────────────────────────────────────────
 
 export const PayloadSchema = z.object({
   text: z.string().optional(),
-  imageUrl: z.string().url().optional(),
+  // SSRF guard (P-SEC-1): reject non-https and internal/private-IP targets at
+  // the boundary; fetchGuardedImage() re-checks after DNS resolution.
+  imageUrl: z
+    .string()
+    .url()
+    .refine(isSafePublicHttpUrl, { message: 'imageUrl must be a public https URL' })
+    .optional(),
   gps: z
     .object({
       lat: z.number().min(-90).max(90),
