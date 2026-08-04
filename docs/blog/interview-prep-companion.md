@@ -67,6 +67,70 @@ Every concept the series explains maps to a coding-round pattern. This is how yo
 
 ---
 
+## The 150-problem practice list
+
+The bridge above tells you *which* patterns your projects already taught you. This is the actual grind — a curated ~150 problems covering the full interview surface, grouped by pattern, each tagged **E**asy / **M**edium / **H**ard. It mirrors the well-known NeetCode-150 spine (the highest-signal set) so you can cross-reference video solutions anywhere. Each group notes the VIGIA concept it echoes, so the reading and the grind reinforce each other.
+
+**Rules of the grind:** do them *by pattern*, not randomly. Medium is the interview default — spend most time there. If a problem takes over 30–40 minutes, read the solution, understand it, and *re-solve it from scratch two days later*. Understanding beats count.
+
+### Arrays & Hashing — *ties to: hash maps everywhere, the append-only reducer bug (Mobile Ep1 / VIGIASearch)*
+Contains Duplicate (E) · Valid Anagram (E) · Two Sum (E) · Group Anagrams (M) · Top K Frequent Elements (M) · Product of Array Except Self (M) · Encode and Decode Strings (M) · Longest Consecutive Sequence (M)
+
+### Two Pointers — *ties to: producer/consumer scanning, ring buffers (Edge Ep4)*
+Valid Palindrome (E) · Two Sum II Input Array Is Sorted (M) · 3Sum (M) · Container With Most Water (M) · Trapping Rain Water (H)
+
+### Sliding Window — *ties to: EMA temporal smoothing, frame windows (Edge Ep5)*
+Best Time to Buy and Sell Stock (E) · Longest Substring Without Repeating Characters (M) · Longest Repeating Character Replacement (M) · Permutation in String (M) · Minimum Window Substring (H) · Sliding Window Maximum (H)
+
+### Stack — *ties to: FSM voice loop, expression evaluation (Mobile Ep2)*
+Valid Parentheses (E) · Min Stack (M) · Evaluate Reverse Polish Notation (M) · Generate Parentheses (M) · Daily Temperatures (M) · Car Fleet (M) · Largest Rectangle in Histogram (H)
+
+### Binary Search — *ties to: nearest-neighbour / sorted lookups in pgvector (VIGIASearch)*
+Binary Search (E) · Search a 2D Matrix (M) · Koko Eating Bananas (M) · Find Minimum in Rotated Sorted Array (M) · Search in Rotated Sorted Array (M) · Time Based Key-Value Store (M) · Median of Two Sorted Arrays (H)
+
+### Linked List — *ties to: queues, streaming buffers, LRU (IDE Ep3)*
+Reverse Linked List (E) · Merge Two Sorted Lists (E) · Linked List Cycle (E) · Reorder List (M) · Remove Nth Node From End (M) · Copy List With Random Pointer (M) · Add Two Numbers (M) · Find the Duplicate Number (M) · LRU Cache (M) · Merge K Sorted Lists (H) · Reverse Nodes in K-Group (H)
+
+### Trees — *ties to: knowledge graphs, hierarchies, recursion (SAGE Ep2)*
+Invert Binary Tree (E) · Maximum Depth of Binary Tree (E) · Diameter of Binary Tree (E) · Balanced Binary Tree (E) · Same Tree (E) · Subtree of Another Tree (E) · Lowest Common Ancestor of a BST (M) · Binary Tree Level Order Traversal (M) · Binary Tree Right Side View (M) · Count Good Nodes (M) · Validate BST (M) · Kth Smallest in a BST (M) · Construct Tree from Preorder/Inorder (M) · Binary Tree Max Path Sum (H) · Serialize and Deserialize Binary Tree (H)
+
+### Tries — *ties to: geohash prefix lookups, autocomplete (VIGIASearch edge tier)*
+Implement Trie (M) · Design Add and Search Words (M) · Word Search II (H)
+
+### Heap / Priority Queue — *ties to: RRF fusion, top-K reranking (VIGIASearch)*
+Kth Largest Element in a Stream (E) · Last Stone Weight (E) · K Closest Points to Origin (M) · Kth Largest Element in an Array (M) · Task Scheduler (M) · Design Twitter (M) · Find Median from Data Stream (H)
+
+### Backtracking — *ties to: plan enumeration, speculative branches (SAGE Ep3)*
+Subsets (M) · Combination Sum (M) · Permutations (M) · Subsets II (M) · Combination Sum II (M) · Word Search (M) · Palindrome Partitioning (M) · Letter Combinations of a Phone Number (M) · N-Queens (H)
+
+### Graphs — *ties to: dependency DAGs, provenance graphs (VIGIASearch ReWOO / SAGE)*
+Number of Islands (M) · Clone Graph (M) · Max Area of Island (M) · Pacific Atlantic Water Flow (M) · Surrounded Regions (M) · Rotting Oranges (M) · Walls and Gates (M) · Course Schedule (M) · Course Schedule II (M) · Redundant Connection (M) · Number of Connected Components (M) · Graph Valid Tree (M) · Word Ladder (H)
+
+### Advanced Graphs — *ties to: routing, scheduling, weighted paths (VIGIASearch multi-hop)*
+Network Delay Time (M) · Reconstruct Itinerary (H) · Min Cost to Connect All Points (M) · Swim in Rising Water (H) · Alien Dictionary (H) · Cheapest Flights Within K Stops (M)
+
+### 1-D Dynamic Programming — *ties to: sequence reasoning, anticipatory compute (SAGE Ep3)*
+Climbing Stairs (E) · Min Cost Climbing Stairs (E) · House Robber (M) · House Robber II (M) · Longest Palindromic Substring (M) · Palindromic Substrings (M) · Decode Ways (M) · Coin Change (M) · Maximum Product Subarray (M) · Word Break (M) · Longest Increasing Subsequence (M) · Partition Equal Subset Sum (M)
+
+### 2-D Dynamic Programming — *ties to: alignment, edit-distance-style matching*
+Unique Paths (M) · Longest Common Subsequence (M) · Best Time to Buy/Sell Stock with Cooldown (M) · Coin Change II (M) · Target Sum (M) · Interleaving String (M) · Longest Increasing Path in a Matrix (H) · Distinct Subsequences (H) · Edit Distance (M) · Burst Balloons (H) · Regular Expression Matching (H)
+
+### Greedy — *ties to: scheduling decisions, resource budgets (Edge real-time)*
+Maximum Subarray (M) · Jump Game (M) · Jump Game II (M) · Gas Station (M) · Hand of Straights (M) · Merge Triplets to Form Target (M) · Partition Labels (M) · Valid Parenthesis String (M)
+
+### Intervals — *ties to: time windows, temporal coherence checks (VIGIASearch guardrail)*
+Insert Interval (M) · Merge Intervals (M) · Non-Overlapping Intervals (M) · Meeting Rooms (E) · Meeting Rooms II (M) · Minimum Interval to Include Each Query (H)
+
+### Math & Geometry — *ties to: coordinate/geohash math, matrix ops*
+Rotate Image (M) · Spiral Matrix (M) · Set Matrix Zeroes (M) · Happy Number (E) · Plus One (E) · Pow(x, n) (M) · Multiply Strings (M) · Detect Squares (M)
+
+### Bit Manipulation — *ties to: INT8 quantization, feature flags, CPUID detection (Edge Ep3)*
+Single Number (E) · Number of 1 Bits (E) · Counting Bits (E) · Reverse Bits (E) · Missing Number (E) · Sum of Two Integers (M) · Reverse Integer (M)
+
+**That's ~150 problems.** If you clear the Mediums here and can explain the complexity of each, you're at the bar for most Microsoft and Amazon coding rounds. Track them in a spreadsheet with three columns: *first-try / needed-hint / re-solve-clean* — the third column is the one that predicts interview performance.
+
+---
+
 ## Complexity cheat sheet
 
 The question that follows every coding answer: *"what's the time and space?"* Say it without thinking.
@@ -187,6 +251,42 @@ The round that decides it. Every answer is **S**ituation → **T**ask → **A**c
 - **T:** Decide whether to keep a component I'd built earlier.
 - **A:** I removed the node (5 → 4), routed the guardrail output straight to the UI, and confirmed nothing on the clean path depended on it.
 - **R:** Cut an entire LLM round-trip and hundreds of tokens per query. I killed code I was attached to because it stopped earning its place.
+
+**Answering before the question is asked** · *Think Big / Customer Obsession*
+- **S:** A crisis query against SAGE needed an answer in tens of milliseconds, but the reasoning it required took far longer to compute on demand.
+- **T:** Serve a genuinely useful answer inside a 50ms budget without pre-canning responses.
+- **A:** I built an anticipatory sandbox that speculatively computes the likely near-futures *ahead* of the question, so when the crisis query lands the answer is already materialised — computing a future that hasn't happened yet.
+- **R:** Sub-50ms responses on reasoning that would otherwise take seconds. I moved the expensive work off the critical path by predicting what would be asked.
+
+**Two graphs instead of one** · *Dive Deep / Are Right, A Lot*
+- **S:** SAGE needed both a record of *what happened* and a model of *what it believes* — and cramming both into one knowledge graph kept corrupting each with the other's semantics.
+- **T:** Stop belief-updates from rewriting the immutable event history (and vice versa).
+- **A:** I split it into two graphs — an append-only event graph and a mutable belief graph linked by provenance — so each has one clear job and one consistency model.
+- **R:** Clean separation: history stays auditable, beliefs stay revisable. The insight was that "one graph" was a modelling convenience hiding two different consistency requirements.
+
+**Not letting raw noise into the store** · *Insist on the Highest Standards*
+- **S:** The easy path was to embed raw incoming signals straight into SAGE's vector store.
+- **T:** Keep retrieval quality high as the volume of noisy, low-value raw signals grew.
+- **A:** I made ingestion *synthesis-first*: raw signals are distilled into structured evidence before anything is embedded, so raw noise never touches the vector store.
+- **R:** Retrieval stayed sharp instead of degrading as data grew. I paid an up-front cost to protect the thing every downstream answer depends on.
+
+**Two frames per second wasn't good enough** · *Dive Deep / Bias for Action*
+- **S:** The edge model ran at ~2 FPS on CPU-only hardware — too slow to be real-time, with no GPU available.
+- **T:** Get usable frame rates without new hardware.
+- **A:** I profiled the pipeline end-to-end, found the real bottlenecks, and attacked them with INT8 quantization and SIMD (NEON/UDOT) vectorization plus zero-copy handoffs, rather than guessing.
+- **R:** ~2 FPS to ~7 FPS on the same silicon. The win came from *measuring first* — the intuitive bottleneck wasn't the real one.
+
+**Locks were the wrong tool** · *Invent and Simplify*
+- **S:** Sharing camera frames between a producer and consumer thread with mutexes caused stalls and priority inversion in a real-time loop.
+- **T:** Hand frames between threads without blocking the real-time path.
+- **A:** I replaced the lock with a **seqlock ring buffer** — the reader retries on a version mismatch instead of waiting, so the writer never blocks.
+- **R:** Removed the stalls and the inversion. The simplification was recognising that a real-time producer must never wait on a consumer.
+
+**Being honest about the tail** · *Earn Trust / Are Right, A Lot*
+- **S:** Our first latency claims used the *average*, which looked great and hid the frames that actually missed deadlines.
+- **T:** Report performance in a way that reflected real-time behaviour, not a flattering number.
+- **A:** I switched the whole conversation to **P95/P99 tail latency** and tuned with PREEMPT-RT so the worst case, not the mean, met the deadline.
+- **R:** Honest, defensible numbers and a system that held its deadline under load. I chose the metric that could hurt us because it was the true one.
 
 **Prep discipline:** keep a one-line index of ~8 stories, and for each, the 2–3 principles it can serve. In the room you're not recalling a story — you're picking which rehearsed one best answers "tell me about a time you…". Bank one genuine *failure* and what you changed after it; every loop asks for it.
 
