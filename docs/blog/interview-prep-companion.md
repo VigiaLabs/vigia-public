@@ -2,6 +2,8 @@
 
 *I wrote it for myself first. If you're a junior reading this later — you're welcome here too. Bookmark it, come back every few weeks, and use the series as your worked examples.*
 
+*Plan on roughly **8 weeks — about 56 days** — to work through it end to end at a steady pace (faster and slower tracks are below).*
+
 ---
 
 ## First, an honest answer: will reading get you the offer?
@@ -31,6 +33,16 @@ Each engineering post already teaches its topic in depth. Read the post for the 
 | **System design, RAG, vector DBs** | VIGIASearch (5 posts) | LangGraph orchestration, pgvector/HNSW, ReWOO, anti-hallucination |
 
 ---
+
+## How long does this take?
+
+**Budget about 8 weeks — roughly 56 days — at a steady ~2 focused hours a day.** End to end, the guide is about **150 practice problems plus ~40 hours of reading, system-design drills, and mock rounds.** Pick the track that fits your runway:
+
+- **Intensive — ~4 weeks (28 days):** 4–5 hrs/day. For when placement season is already on you.
+- **Steady (recommended) — ~8 weeks (56 days):** ~2 hrs/day. Sustainable alongside classes or a job.
+- **Relaxed — ~12 weeks (84 days):** ~1 hr/day. Start early, avoid burnout.
+
+Whatever the pace, protect the *order* of the plan below — patterns before problems, coding before mocks. Rushing DP in week 2 or skipping mocks in week 7 is how the timeline actually slips.
 
 ## An 8-week study plan
 
