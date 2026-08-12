@@ -69,6 +69,19 @@ If this finale helps us take even the first step toward that vision through a pi
 
 ---
 
+## 🧰 The stack, from zero — and what we chose it over
+
+- **Frontend — Next.js, styled after Perplexity (cited, streaming answers) over a plain chat bubble.** In a safety domain, transparency *is* the product: every answer shows its sources.
+- **Retrieval core — a unified pgvector store (Postgres + vector extension) over three keyword-indexed silos.** From zero: embeddings map text to vectors, and **nearest-neighbour** retrieval finds *meaning*, so "village roads near Khammam" matches "PMGSY Khammam" — which keyword/regex silos couldn't.
+- **RAG, from zero.** Retrieve relevant documents → augment the prompt → generate, with citations. It grounds the LLM in real sources instead of its memory — the core anti-hallucination move.
+- **Daily ingestion — AWS EventBridge CRON** scraping NHAI/PMGSY/data.gov into embeddings (~$0.20/day total).
+
+## 🚢 From demo to production
+
+This is a hackathon build with a real spine. From zero, the road to production: auth and multi-tenant isolation, **scaling pgvector** (read replicas → sharding), **cost SLOs** on the LLM, hardened freshness pipelines, and monitoring. The value that survives is the thesis every decision serves — *honest, cited answers over a confident guess* — which is exactly what makes it worth productionising.
+
+---
+
 ## 🎓 CS Fundamentals — study companion
 
 *This is the **product / system-design intro** to the VIGIASearch series. It's where the requirements, the data problem, and the high-level shape of a RAG system live — the "how would you design X?" framing an interviewer opens with. The deep engineering is in the [pillar article](https://ridingbluewaves.hashnode.dev/engineering-vigiasearch-building-a-hallucination-resistant-road-intelligence-system-with-langgraph-rag-and-multi-modal-reasoning) and its four companions.*

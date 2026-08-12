@@ -66,6 +66,20 @@ The full system, including the retrieval and orchestration design, is in the [pi
 
 ---
 
+## 🧰 The anti-hallucination toolkit, from zero — and what we chose it over
+
+- **Named patterns over "a better prompt."** **Self-RAG** grades retrieval before trusting it (0.5 threshold → data void); **CRAG** does a bounded rewrite-and-retry; **Chain-of-Verification** runs an async LLM-as-judge faithfulness score. Each is a documented technique, chosen deliberately over hoping a smarter prompt behaves.
+- **Deterministic checks over model calls.** Temporal coherence, cross-agent consistency, and the geo constraint are a few dozen lines of TypeScript — the *cheapest deterministic layer* that can enforce the rule, so it's testable and free.
+- **Provenance-based trust tiers over equal-weight evidence.** Legal records are primary; citizen photos are acknowledged-but-hedged and can't trigger a contradiction — closing a gameable trust inversion.
+
+## 🚢 From demo to production
+
+- **An eval harness** (faithfulness/precision) that gates every change, so a "smarter" prompt can't silently regress safety.
+- **Monitor the faithfulness SLI** in production and **adapt thresholds** to observed fraud/error.
+- The honest framing: **hallucination reappears in a new disguise at every layer** — each needs its own guard, pushed to the cheapest deterministic layer that can make it.
+
+---
+
 ## 🎓 CS Fundamentals — study companion
 
 *This is the **ML-systems + security** episode: RAG anti-hallucination techniques (Self-RAG, CRAG, Chain-of-Verification), defense-in-depth, trust tiers / zero-trust, and pushing enforcement to the cheapest deterministic layer. Very interview-relevant for anyone touching LLM/ML systems or security.*

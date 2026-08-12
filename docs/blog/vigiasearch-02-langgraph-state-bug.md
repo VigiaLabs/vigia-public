@@ -45,6 +45,20 @@ The rest of the system, including the retrieval loop and the anti-hallucination 
 
 ---
 
+## 🧰 The orchestration framework, from zero — and what we chose it over
+
+- **LangGraph.js, from zero.** A graph of nodes over a shared state object; **state channels merge updates via reducers**, and **conditional edges** route on the data. We chose it over a linear chain (no retry/branch) and a raw agent loop (unpredictable) — but the reducer choice is exactly what bit us: an **append-only reducer** meant `.find()` read stale evidence, fixed with `.findLast()`.
+- **TypeScript + Zod** give typed state and boundary validation, so a malformed agent output becomes a typed error, not silent corruption.
+- **`Promise.allSettled`** for fan-out over `Promise.all` — partial success instead of fail-fast when one agent times out.
+
+## 🚢 From demo to production
+
+- **Test the state machine end-to-end** — this class of bug never appears in a unit test of a single node.
+- **Trace the graph** (which node ran, what each channel held) so a "retry did nothing" is visible.
+- **Keep control state dumb** — an integer retry counter over rewinding an append-only log.
+
+---
+
 ## 🎓 CS Fundamentals — study companion
 
 *This is the **state-management / concurrency** episode — reducers (fold), array semantics, `Promise.allSettled` vs `all`, retry idempotency, and validation-at-the-boundary. It's dense with the kind of "why did this bug happen?" reasoning interviewers love.*

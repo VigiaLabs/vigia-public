@@ -49,6 +49,20 @@ The full system, including the anti-hallucination guardrails that sit on top of 
 
 ---
 
+## 🧰 The retrieval-orchestration framework, from zero — and what we chose it over
+
+- **ReWOO plan-and-execute over ReAct.** One planning LLM call emits a **JSON dependency DAG**; a deterministic **TypeScript executor** runs it, parallelising independent steps. Over ReAct's N *sequential* LLM calls (latency + compounding errors) and a raw agent (can hallucinate a tool call) — because a deterministic runner, not the model, drives the critical path.
+- **Two-tier entity extraction** — read a structured metadata field for free, and only fall back to a narrow **Bedrock nova-lite** call if it's missing.
+- **A `source_type` filter** wraps each source as a targetable tool, so a plan routes precisely instead of blending sources in one similarity ranking.
+
+## 🚢 From demo to production
+
+- **Validate the generated plan** (guardrails on the DAG before execution).
+- **Cache plans/results** for repeated query shapes; put a **budget** on planning calls.
+- **Audit the JSON plan** — its inspectability before execution is a production asset, not just a demo nicety.
+
+---
+
 ## 🎓 CS Fundamentals — study companion
 
 *This is the **algorithms + system-design** episode: dependency graphs, topological ordering, parallel scheduling, and the latency/determinism trade-off between planning up front (ReWOO) and reasoning step-by-step (ReAct). Great "how do you make a multi-step pipeline fast and safe?" material.*

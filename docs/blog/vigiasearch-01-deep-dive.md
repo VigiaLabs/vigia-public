@@ -233,6 +233,27 @@ The code is open at [**github.com/VigiaLabs/vigia-public**](https://github.com/V
 
 ---
 
+## 🧰 The stack, from zero — and what we chose it over
+
+The whole toolbox for a hallucination-resistant RAG system, and the road not taken:
+
+- **Orchestration — LangGraph.js (stateful graph, conditional edges) over a linear LCEL chain or autonomous agents.** A chain can't detect bad retrieval and retry; autonomous agents blow the latency/cost budget. A conditional graph branches on evidence quality within a fixed budget.
+- **Vector store — pgvector on Postgres with an HNSW index over an exact scan or a separate vector DB.** One table + a `source_type` discriminator; **HNSW** gives ~log-n approximate nearest-neighbour (the vector analogue of a B-tree).
+- **Hybrid retrieval + rerank — FTS5 keyword + pgvector semantic, then a Cohere Rerank v3 cross-encoder** (gated on `COHERE_API_KEY`, degrading to passthrough). Bi-encoder recall → cross-encoder precision: classic **two-stage retrieval**.
+- **Validation — Zod `safeParse` at each agent boundary (Shadow Normalization)** over trusting raw agent output, with **`Promise.allSettled`** fan-out for fault isolation.
+- **LLM — Amazon Bedrock (nova-lite)** for entity extraction on the ReWOO path.
+- **Cache — Upstash Redis (24h TTL)**, honestly a normalized-string cache today (semantic upgrade planned).
+- **Edge/offline — geohash-4 SQLite tiles shipped via CloudFront**, with a health-probe degraded mode. TypeScript on **AWS Lambda** throughout.
+
+## 🚢 From demo to production
+
+- **Scale pgvector** — replicas, then shard by `source_type`/region; tune the HNSW recall/latency knobs.
+- **Roll the reranker across all retrieval paths** and validate the latency budget.
+- **Make the cache semantic** — embed the query, hit on cosine ≥ 0.95 so paraphrases collapse.
+- **Observability** on retrieval quality and LLM spend, with the async faithfulness scorer promoted to a monitored SLI.
+
+---
+
 ## 🎓 CS Fundamentals — study companion
 
 *This is the **master study section** for VIGIASearch — the deep-dive spans nearly every CS core: **System Design** (orchestration, RAG), **DBMS** (vector databases, indexing, ANN search), **DSA** (dependency DAGs, reducers), **Computer Networks** (edge/CDN, health probes, geohash), **Concurrency**, and **ML Systems** (anti-hallucination). The four companion posts each drill into one slice; this section connects them. It's a near-complete "design a production RAG system" interview prep on its own.*
