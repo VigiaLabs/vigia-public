@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://cdn.hashnode.com/res/hashnode/image/upload/v1783250336416/ae3c3edd-3ab6-4629-aa04-e2bca4bd69a3.png" alt="VIGIASearch banner" width="100%" />
+<img src="https://cdn.hashnode.com/res/hashnode/image/upload/v1788532884384/b2fd1fd4-88ad-484b-96ab-b40d470f522c.png" alt="VIGIASearch banner" width="100%" />
 
 # VIGIASearch
 
