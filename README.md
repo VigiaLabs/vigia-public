@@ -40,7 +40,7 @@ The system is built around one stubborn principle: a fabricated engineer or a ma
 ## Full architecture
 
 <div align="center">
-<img src="https://cdn.hashnode.com/res/hashnode/image/upload/v1783250520872/91b45843-3ba8-4dd7-bf38-1383879f98b1.png" alt="VIGIASearch full-system architecture" width="100%" />
+<img src="https://cdn.hashnode.com/res/hashnode/image/upload/v1788532896563/b6a3a35b-db05-4ea1-b740-15efb7a31a84.png" alt="VIGIASearch full-system architecture" width="100%" />
 </div>
 
 ## Core ideas
